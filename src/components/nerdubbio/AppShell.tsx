@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { LogOut, User as UserIcon, Users, Loader2 } from "lucide-react";
+import { LogOut, User as UserIcon, Users, Loader2, Settings2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { scheduleAllReminders } from "@/lib/reminders";
 import { BottomNav } from "./BottomNav";
@@ -93,8 +93,11 @@ function AccountMenu() {
             <Link to="/profile" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-surface-2">
               <UserIcon className="h-4 w-4" /> Profilo
             </Link>
+            <Link to="/amici" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-surface-2">
+              <Users className="h-4 w-4" /> Amici
+            </Link>
             <Link to="/settings" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-surface-2">
-              <Users className="h-4 w-4" /> Impostazioni
+              <Settings2 className="h-4 w-4" /> Impostazioni
             </Link>
             <button
               type="button"
