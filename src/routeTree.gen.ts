@@ -13,6 +13,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as UHandleRouteImport } from './routes/u.$handle'
 import { Route as AuthenticatedWatchlistRouteImport } from './routes/_authenticated/watchlist'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSearchRouteImport } from './routes/_authenticated/search'
@@ -25,6 +26,7 @@ import { Route as AuthenticatedGruppoRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedDubbioRouteImport } from './routes/_authenticated/dubbio'
 import { Route as AuthenticatedDaTvtimeRouteImport } from './routes/_authenticated/da-tvtime'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as AuthenticatedAmiciRouteImport } from './routes/_authenticated/amici'
 import { Route as AuthenticatedPersonIdRouteImport } from './routes/_authenticated/person.$id'
 import { Route as AuthenticatedDubbioRisultatoRouteImport } from './routes/_authenticated/dubbio.risultato'
 import { Route as AuthenticatedMediaTypeIdRouteImport } from './routes/_authenticated/media.$type.$id'
@@ -46,6 +48,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UHandleRoute = UHandleRouteImport.update({
+  id: '/u/$handle',
+  path: '/u/$handle',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedWatchlistRoute = AuthenticatedWatchlistRouteImport.update({
@@ -108,6 +115,11 @@ const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   path: '/app',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAmiciRoute = AuthenticatedAmiciRouteImport.update({
+  id: '/amici',
+  path: '/amici',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPersonIdRoute = AuthenticatedPersonIdRouteImport.update({
   id: '/person/$id',
   path: '/person/$id',
@@ -130,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/amici': typeof AuthenticatedAmiciRoute
   '/app': typeof AuthenticatedAppRoute
   '/da-tvtime': typeof AuthenticatedDaTvtimeRoute
   '/dubbio': typeof AuthenticatedDubbioRouteWithChildren
@@ -142,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof AuthenticatedSearchRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/watchlist': typeof AuthenticatedWatchlistRoute
+  '/u/$handle': typeof UHandleRoute
   '/dubbio/risultato': typeof AuthenticatedDubbioRisultatoRoute
   '/person/$id': typeof AuthenticatedPersonIdRoute
   '/media/$type/$id': typeof AuthenticatedMediaTypeIdRoute
@@ -150,6 +164,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/amici': typeof AuthenticatedAmiciRoute
   '/app': typeof AuthenticatedAppRoute
   '/da-tvtime': typeof AuthenticatedDaTvtimeRoute
   '/dubbio': typeof AuthenticatedDubbioRouteWithChildren
@@ -162,6 +177,7 @@ export interface FileRoutesByTo {
   '/search': typeof AuthenticatedSearchRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/watchlist': typeof AuthenticatedWatchlistRoute
+  '/u/$handle': typeof UHandleRoute
   '/dubbio/risultato': typeof AuthenticatedDubbioRisultatoRoute
   '/person/$id': typeof AuthenticatedPersonIdRoute
   '/media/$type/$id': typeof AuthenticatedMediaTypeIdRoute
@@ -172,6 +188,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/amici': typeof AuthenticatedAmiciRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/da-tvtime': typeof AuthenticatedDaTvtimeRoute
   '/_authenticated/dubbio': typeof AuthenticatedDubbioRouteWithChildren
@@ -184,6 +201,7 @@ export interface FileRoutesById {
   '/_authenticated/search': typeof AuthenticatedSearchRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/watchlist': typeof AuthenticatedWatchlistRoute
+  '/u/$handle': typeof UHandleRoute
   '/_authenticated/dubbio/risultato': typeof AuthenticatedDubbioRisultatoRoute
   '/_authenticated/person/$id': typeof AuthenticatedPersonIdRoute
   '/_authenticated/media/$type/$id': typeof AuthenticatedMediaTypeIdRoute
@@ -194,6 +212,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/reset-password'
+    | '/amici'
     | '/app'
     | '/da-tvtime'
     | '/dubbio'
@@ -206,6 +225,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/watchlist'
+    | '/u/$handle'
     | '/dubbio/risultato'
     | '/person/$id'
     | '/media/$type/$id'
@@ -214,6 +234,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/reset-password'
+    | '/amici'
     | '/app'
     | '/da-tvtime'
     | '/dubbio'
@@ -226,6 +247,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/watchlist'
+    | '/u/$handle'
     | '/dubbio/risultato'
     | '/person/$id'
     | '/media/$type/$id'
@@ -235,6 +257,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/reset-password'
+    | '/_authenticated/amici'
     | '/_authenticated/app'
     | '/_authenticated/da-tvtime'
     | '/_authenticated/dubbio'
@@ -247,6 +270,7 @@ export interface FileRouteTypes {
     | '/_authenticated/search'
     | '/_authenticated/settings'
     | '/_authenticated/watchlist'
+    | '/u/$handle'
     | '/_authenticated/dubbio/risultato'
     | '/_authenticated/person/$id'
     | '/_authenticated/media/$type/$id'
@@ -257,6 +281,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  UHandleRoute: typeof UHandleRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -287,6 +312,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/u/$handle': {
+      id: '/u/$handle'
+      path: '/u/$handle'
+      fullPath: '/u/$handle'
+      preLoaderRoute: typeof UHandleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/watchlist': {
@@ -373,6 +405,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/amici': {
+      id: '/_authenticated/amici'
+      path: '/amici'
+      fullPath: '/amici'
+      preLoaderRoute: typeof AuthenticatedAmiciRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/person/$id': {
       id: '/_authenticated/person/$id'
       path: '/person/$id'
@@ -409,6 +448,7 @@ const AuthenticatedDubbioRouteWithChildren =
   AuthenticatedDubbioRoute._addFileChildren(AuthenticatedDubbioRouteChildren)
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAmiciRoute: typeof AuthenticatedAmiciRoute
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
   AuthenticatedDaTvtimeRoute: typeof AuthenticatedDaTvtimeRoute
   AuthenticatedDubbioRoute: typeof AuthenticatedDubbioRouteWithChildren
@@ -426,6 +466,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAmiciRoute: AuthenticatedAmiciRoute,
   AuthenticatedAppRoute: AuthenticatedAppRoute,
   AuthenticatedDaTvtimeRoute: AuthenticatedDaTvtimeRoute,
   AuthenticatedDubbioRoute: AuthenticatedDubbioRouteWithChildren,
@@ -450,7 +491,18 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  UHandleRoute: UHandleRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
