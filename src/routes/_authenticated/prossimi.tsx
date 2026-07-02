@@ -1,0 +1,359 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
+import { z } from "zod";
+import { AppShell } from "@/components/nerdubbio/AppShell";
+import { useUserStore } from "@/lib/user-store";
+import { findById } from "@/lib/mock-catalog";
+import {
+  tmdbUpcomingMovies,
+  tmdbNextEpisodes,
+  tmdbUpcomingTv,
+  type ProviderInfo,
+  type UpcomingMovie,
+  type NextEpisodeInfo,
+} from "@/lib/tmdb/tmdb.functions";
+import { CalendarDays, Film, Tv, Popcorn, MapPin, Sparkles, X } from "lucide-react";
+
+const searchSchema = z.object({
+  provider: fallback(z.number().int().positive().optional(), undefined),
+});
+
+export const Route = createFileRoute("/_authenticated/prossimi")({
+  validateSearch: zodValidator(searchSchema),
+  head: () => ({
+    meta: [
+      { title: "Prossime uscite — Nerdubbio" },
+      { name: "description", content: "Film in arrivo al cinema in Italia e prossimi episodi delle tue serie con i provider streaming." },
+    ],
+  }),
+  component: ProssimiPage,
+});
+
+
+/** Estrae {type, tmdb_id} da un id user-store: "tv-123" | "movie-45" | catalog id. */
+function resolveMedia(id: string): { type: "tv" | "movie"; tmdbId: number; title?: string; poster?: string } | null {
+  const m = /^(tv|movie)-(\d+)$/.exec(id);
+  if (m) return { type: m[1] as "tv" | "movie", tmdbId: Number(m[2]) };
+  const c = findById(id);
+  if (c) return { type: c.type, tmdbId: c.tmdb_id, title: c.title, poster: c.poster };
+  return null;
+}
+
+function ProssimiPage() {
+  const { state } = useUserStore();
+  const { provider: providerId } = Route.useSearch();
+  const navigate = useNavigate({ from: "/prossimi" });
+
+  const followedTvIds = Object.values(state.media)
+    .filter(m => m.status === "watching" || m.status === "plan_to_watch")
+    .map(m => resolveMedia(m.id))
+    .filter((x): x is { type: "tv" | "movie"; tmdbId: number } => !!x && x.type === "tv")
+    .map(x => x.tmdbId);
+
+  const uniqueTvIds = Array.from(new Set(followedTvIds));
+
+  const upcomingQuery = useQuery({
+    queryKey: ["tmdb", "upcoming-it"],
+    queryFn: () => tmdbUpcomingMovies({ data: { region: "IT" } }),
+    staleTime: 1000 * 60 * 60,
+  });
+
+  const nextEpQuery = useQuery({
+    queryKey: ["tmdb", "next-eps", uniqueTvIds],
+    queryFn: () => tmdbNextEpisodes({ data: { tvIds: uniqueTvIds, region: "IT" } }),
+    enabled: uniqueTvIds.length > 0,
+    staleTime: 1000 * 60 * 30,
+  });
+
+  const upcomingTvQuery = useQuery({
+    queryKey: ["tmdb", "upcoming-tv-it"],
+    queryFn: () => tmdbUpcomingTv({ data: { region: "IT", days: 45 } }),
+    staleTime: 1000 * 60 * 60,
+  });
+
+  // Filtri "In arrivo su streaming" configurabili dalle Impostazioni.
+  const filters = state.upcomingFilters ?? { newSeries: true, seasonPremieres: true, includeMovies: true };
+  const followedSet = new Set(uniqueTvIds);
+  const rawUpcomingTv = (upcomingTvQuery.data?.items ?? []).filter(i => {
+    if (followedSet.has(i.tmdb_id)) return false;
+    const ev = i.nextEpisode;
+    if (!ev) return false;
+    if (ev.kind === "premiere" && filters.newSeries) return true;
+    if (ev.kind === "episode" && ev.episode === 1 && filters.seasonPremieres) return true;
+    return false;
+  });
+  const rawNextEps = nextEpQuery.data?.items ?? [];
+  const rawMovies = filters.includeMovies ? (upcomingQuery.data?.items ?? []) : [];
+
+  // Provider disponibili: unione da tutte le sezioni, ordinati per frequenza (più comuni prima).
+  const availableProviders = useMemo(() => {
+    const freq = new Map<number, { info: ProviderInfo; count: number }>();
+    const bump = (p: ProviderInfo) => {
+      const cur = freq.get(p.id);
+      if (cur) cur.count += 1;
+      else freq.set(p.id, { info: p, count: 1 });
+    };
+    rawNextEps.forEach(i => i.providers.forEach(bump));
+    rawUpcomingTv.forEach(i => i.providers.forEach(bump));
+    return Array.from(freq.values())
+      .sort((a, b) => b.count - a.count || a.info.name.localeCompare(b.info.name))
+      .map(x => x.info);
+  }, [rawNextEps, rawUpcomingTv]);
+
+  const matchesProvider = <T extends { providers: ProviderInfo[] }>(x: T) =>
+    !providerId || x.providers.some(p => p.id === providerId);
+
+  const nextEps = rawNextEps.filter(matchesProvider);
+  const upcomingTvItems = rawUpcomingTv.filter(matchesProvider);
+  const movies = rawMovies; // il filtro provider non si applica ai film al cinema
+
+  const setProvider = (id: number | undefined) =>
+    navigate({ search: { provider: id }, replace: true });
+
+  const activeProvider = availableProviders.find(p => p.id === providerId);
+
+  return (
+    <AppShell title="Prossimamente" subtitle="Cosa esce, e dove vederlo"
+      right={<span className="rounded-full bg-hero px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary-foreground">🇮🇹 IT</span>}>
+
+      {/* Filtro provider */}
+      {availableProviders.length > 0 && (
+        <div className="mb-5">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Filtra per servizio</p>
+            {activeProvider && (
+              <button
+                type="button"
+                onClick={() => setProvider(undefined)}
+                className="flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-semibold text-foreground"
+              >
+                <X className="h-3 w-3" /> Rimuovi filtro
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <button
+              type="button"
+              onClick={() => setProvider(undefined)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                !providerId ? "bg-hero text-primary-foreground" : "glass text-foreground/80"
+              }`}
+            >
+              Tutti
+            </button>
+            {availableProviders.map(p => {
+              const active = p.id === providerId;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setProvider(active ? undefined : p.id)}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-full py-1 pl-1 pr-3 text-xs font-semibold transition ${
+                    active ? "bg-hero text-primary-foreground" : "glass text-foreground/80"
+                  }`}
+                  title={p.name}
+                >
+                  {p.logoUrl
+                    ? <img src={p.logoUrl} alt="" className="h-5 w-5 rounded-full" />
+                    : <span className="grid h-5 w-5 place-items-center rounded-full bg-surface-2 text-[9px]">{p.name[0]}</span>}
+                  <span className="max-w-[8rem] truncate">{p.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Serie che segui */}
+      <section className="mb-6">
+        <div className="mb-3 flex items-center gap-2">
+          <Tv className="h-4 w-4 text-accent" />
+          <h2 className="text-sm font-bold uppercase tracking-wider">Prossimi episodi · Serie che segui</h2>
+        </div>
+        {uniqueTvIds.length === 0 && (
+          <div className="glass rounded-2xl p-4 text-sm text-muted-foreground">
+            Aggiungi qualche serie alla tua watchlist per vedere qui i prossimi episodi in onda.
+          </div>
+        )}
+        {nextEpQuery.isLoading && <SkeletonList />}
+        {uniqueTvIds.length > 0 && nextEpQuery.data && nextEps.length === 0 && (
+          <div className="glass rounded-2xl p-4 text-sm text-muted-foreground">
+            {activeProvider
+              ? <>Nessuna serie seguita ha episodi in arrivo su <strong>{activeProvider.name}</strong>.</>
+              : <>Nessun episodio in arrivo per le serie che stai seguendo. Guarda sotto: ci sono nuove uscite reali su streaming in Italia.</>}
+          </div>
+        )}
+        {nextEps.length > 0 && (
+          <div className="space-y-3">
+            {nextEps.map(it => <NextEpisodeCard key={it.tmdb_id} it={it} />)}
+          </div>
+        )}
+      </section>
+
+      {/* Nuove uscite streaming IT (tutte, non solo le tue) */}
+      <section className="mb-6">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-accent" />
+            <h2 className="text-sm font-bold uppercase tracking-wider">In arrivo su streaming</h2>
+          </div>
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Prossimi 45 giorni · IT</span>
+        </div>
+        {upcomingTvQuery.isLoading && <SkeletonList />}
+        {upcomingTvQuery.error && (
+          <div className="glass rounded-2xl p-4 text-sm text-destructive">Impossibile caricare le uscite streaming.</div>
+        )}
+        {upcomingTvQuery.data && upcomingTvItems.length === 0 && (
+          <div className="glass rounded-2xl p-4 text-sm text-muted-foreground">
+            {activeProvider
+              ? <>Nessuna nuova uscita su <strong>{activeProvider.name}</strong> nei prossimi 45 giorni.</>
+              : "Nessuna nuova uscita rilevata al momento."}
+          </div>
+        )}
+        {upcomingTvItems.length > 0 && (
+          <div className="space-y-3">
+            {upcomingTvItems.map(it => <NextEpisodeCard key={it.tmdb_id} it={it} />)}
+          </div>
+        )}
+      </section>
+
+
+      {/* Film al cinema */}
+      {filters.includeMovies && (
+        <section className="mb-8">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Popcorn className="h-4 w-4 text-accent" />
+              <h2 className="text-sm font-bold uppercase tracking-wider">Al cinema in Italia</h2>
+            </div>
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Prima le uscite più vicine</span>
+          </div>
+          {upcomingQuery.isLoading && <SkeletonList />}
+          {upcomingQuery.error && (
+            <div className="glass rounded-2xl p-4 text-sm text-destructive">Impossibile caricare le uscite. Riprova più tardi.</div>
+          )}
+          {upcomingQuery.data && movies.length === 0 && (
+            <div className="glass rounded-2xl p-4 text-sm text-muted-foreground">
+              Nessuna uscita imminente al cinema.
+            </div>
+          )}
+          {movies.length > 0 && (
+            <div className="grid grid-cols-1 gap-3">
+              {movies.map(m => <UpcomingMovieCard key={m.tmdb_id} m={m} />)}
+            </div>
+          )}
+        </section>
+      )}
+    </AppShell>
+  );
+}
+
+function formatDate(iso: string) {
+  if (!iso) return "";
+  try { return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }); }
+  catch { return iso; }
+}
+
+function ProviderStrip({ providers, label = "Su" }: { providers: ProviderInfo[]; label?: string }) {
+  if (!providers.length) {
+    return <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Nessun provider IT</p>;
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</span>
+      {providers.slice(0, 4).map(p => (
+        <span key={p.id} title={p.name} className="glass flex items-center gap-1 rounded-full py-0.5 pl-0.5 pr-2">
+          {p.logoUrl
+            ? <img src={p.logoUrl} alt={p.name} className="h-5 w-5 rounded-full" />
+            : <span className="grid h-5 w-5 place-items-center rounded-full bg-surface-2 text-[8px]">{p.name[0]}</span>}
+          <span className="text-[10px] font-semibold">{p.name}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function NextEpisodeCard({ it }: { it: NextEpisodeInfo }) {
+  const ev = it.nextEpisode;
+  return (
+    <Link to="/media/$type/$id" params={{ type: "tv", id: `tv-${it.tmdb_id}` }}
+      className="glass block rounded-2xl p-3">
+      <div className="flex gap-3">
+        {it.posterUrl
+          ? <img src={it.posterUrl} alt={it.title} className="h-24 w-16 rounded-xl object-cover" />
+          : <div className="h-24 w-16 rounded-xl bg-surface-2" />}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className="min-w-0 truncate text-sm font-bold">{it.title}</p>
+            {ev?.kind === "premiere" && (
+              <span className="shrink-0 rounded-full bg-neon px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                <Sparkles className="mr-1 inline h-3 w-3" />Premiere
+              </span>
+            )}
+          </div>
+          {ev ? (
+            <>
+              <p className="mt-0.5 text-xs text-accent">
+                {ev.kind === "episode"
+                  ? <>S{ev.season} · E{ev.episode}{ev.name && <span className="text-foreground/80"> — {ev.name}</span>}</>
+                  : <>Nuova stagione {ev.season}{ev.name && ev.name !== `Stagione ${ev.season}` && <span className="text-foreground/80"> — {ev.name}</span>}</>}
+              </p>
+              <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                <CalendarDays className="h-3 w-3" /> {formatDate(ev.airDate)}
+              </p>
+            </>
+          ) : (
+            <p className="mt-1 text-[11px] text-muted-foreground">Nessun episodio annunciato</p>
+          )}
+          <div className="mt-2"><ProviderStrip providers={it.providers} /></div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function UpcomingMovieCard({ m }: { m: UpcomingMovie }) {
+  return (
+    <Link to="/media/$type/$id" params={{ type: "movie", id: `movie-${m.tmdb_id}` }}
+      className="glass block overflow-hidden rounded-2xl">
+      <div className="flex gap-3 p-3">
+        {m.posterUrl
+          ? <img src={m.posterUrl} alt={m.title} className="h-28 w-20 shrink-0 rounded-xl object-cover" />
+          : <div className="h-28 w-20 shrink-0 rounded-xl bg-surface-2" />}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className="min-w-0 truncate text-sm font-bold">{m.title}</p>
+            <span className="shrink-0 rounded-full bg-neon px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+              <Film className="mr-1 inline h-3 w-3" />Cinema
+            </span>
+          </div>
+          <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+            <CalendarDays className="h-3 w-3" /> {formatDate(m.releaseDate)}
+            <span className="mx-1">·</span>
+            <MapPin className="h-3 w-3" /> IT
+          </p>
+          {m.overview && <p className="mt-1 line-clamp-2 text-xs text-foreground/80">{m.overview}</p>}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function SkeletonList() {
+  return (
+    <div className="space-y-3">
+      {[0, 1, 2].map(i => (
+        <div key={i} className="glass flex gap-3 rounded-2xl p-3">
+          <div className="h-24 w-16 animate-pulse rounded-xl bg-surface-2" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-2/3 animate-pulse rounded bg-surface-2" />
+            <div className="h-3 w-1/3 animate-pulse rounded bg-surface-2" />
+            <div className="h-3 w-1/2 animate-pulse rounded bg-surface-2" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

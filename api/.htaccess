@@ -1,0 +1,7 @@
+RewriteEngine On
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+RewriteRule ^lib/ - [F,L]
+
+<FilesMatch "^config\.php$">
+    Require all denied
+</FilesMatch>

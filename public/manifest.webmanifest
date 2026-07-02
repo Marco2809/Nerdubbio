@@ -1,0 +1,14 @@
+{
+  "name": "Nerdubbio",
+  "short_name": "Nerdubbio",
+  "description": "Il Genio del Dubbio Nerd: cosa guardi stasera?",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#150a2a",
+  "theme_color": "#a855f7",
+  "icons": [
+    { "src": "/favicon.ico", "sizes": "64x64", "type": "image/x-icon" }
+  ]
+}
