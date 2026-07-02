@@ -44,11 +44,7 @@ VITE_API_BASE_URL=
 VITE_GOOGLE_CLIENT_ID=${GOOGLE_ID}
 ENV_EOF
 
-npm install
-npm run build
-
-pm2 delete nerdubbio 2>/dev/null || true
-PORT=3002 pm2 start .output/server/index.mjs --name nerdubbio
-pm2 save
+chmod +x scripts/redeploy-build.sh
+bash scripts/redeploy-build.sh
 
 echo "DEPLOY_OK"
