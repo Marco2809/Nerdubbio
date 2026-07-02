@@ -37,7 +37,7 @@ return [
     'smtp_from_name' => 'Nerdubbio',
 ];
 PHP_EOF
-chmod 640 api/config.php
+chmod 644 api/config.php
 
 cat > .env << ENV_EOF
 VITE_API_BASE_URL=
