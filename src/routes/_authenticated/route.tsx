@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { getToken } from "@/lib/php/client";
 import { useAuth } from "@/lib/auth";
+import { LocalMigrationDialog } from "@/components/nerdubbio/LocalMigrationDialog";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -29,5 +30,10 @@ function AuthenticatedLayout() {
     return null;
   }
 
-  return <Outlet />;
+  return (
+    <>
+      <LocalMigrationDialog />
+      <Outlet />
+    </>
+  );
 }

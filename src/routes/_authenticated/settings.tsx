@@ -29,7 +29,7 @@ function Settings() {
             </button>
           ))}
         </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">Salvato automaticamente su questo dispositivo.</p>
+        <p className="mt-2 text-[11px] text-muted-foreground">Salvato sul tuo account e sincronizzato tra dispositivi.</p>
       </section>
 
       <section className="mt-6">

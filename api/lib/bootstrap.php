@@ -32,6 +32,9 @@ function bootstrap_new_user(PDO $pdo, string $userId, string $email, string $dis
         $pdo->prepare('INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, ?)')
             ->execute([uuid(), $userId, 'admin']);
     }
+
+    require_once __DIR__ . '/library.php';
+    library_ensure_stats($pdo, $userId);
 }
 
 function fetch_profile(PDO $pdo, string $userId): ?array {
