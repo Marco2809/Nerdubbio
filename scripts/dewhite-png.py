@@ -13,8 +13,11 @@ ASSETS = ROOT / "assets"
 
 # Sfondo home screen — allineato a manifest background_color (#150a2a)
 PWA_BG = (21, 10, 42, 255)
-# Logo ~70% canvas (safe zone iOS / maskable)
-PWA_ICON_SCALE = 0.70
+# Logo ~58% canvas — iOS maschera i bordi; 70% tagliava la sfera in alto
+PWA_ICON_SCALE = 0.62
+# Apple touch: ancora più piccola + leggero offset verso il basso
+PWA_APPLE_SCALE = 0.54
+PWA_APPLE_Y_BIAS = 0.04
 
 
 def luminance(r: int, g: int, b: int) -> float:
@@ -139,14 +142,20 @@ def square_icon(src: Image.Image) -> Image.Image:
     return clean_transparent_rgb(im)
 
 
-def compose_pwa_icon(src: Path, size: int, dest: Path, scale: float = PWA_ICON_SCALE) -> None:
+def compose_pwa_icon(
+    src: Path,
+    size: int,
+    dest: Path,
+    scale: float = PWA_ICON_SCALE,
+    vertical_bias: float = 0.0,
+) -> None:
     """Icona add-to-home: sfondo scuro + sfera ridotta al centro (stile QuestMaster)."""
     im = square_icon(Image.open(src))
     inner = max(1, int(size * scale))
     im = im.resize((inner, inner), Image.Resampling.LANCZOS)
     canvas = Image.new("RGBA", (size, size), PWA_BG)
     ox = (size - inner) // 2
-    oy = (size - inner) // 2
+    oy = (size - inner) // 2 + int(size * vertical_bias)
     canvas.paste(im, (ox, oy), im)
     canvas.save(dest, "PNG", optimize=True)
 
@@ -239,9 +248,15 @@ def main() -> None:
     if icon.exists():
         compose_pwa_icon(icon, 192, PUBLIC / "icon-192.png")
         compose_pwa_icon(icon, 512, PUBLIC / "icon-512.png")
-        compose_pwa_icon(icon, 180, PUBLIC / "apple-touch-icon.png")
+        compose_pwa_icon(
+            icon,
+            180,
+            PUBLIC / "apple-touch-icon.png",
+            scale=PWA_APPLE_SCALE,
+            vertical_bias=PWA_APPLE_Y_BIAS,
+        )
         resize_icon(icon, 32, PUBLIC / "favicon.png")
-        print("regenerated PWA icons (dark bg + scaled logo)")
+        print("regenerated PWA icons (dark bg + scaled logo, apple safe zone)")
 
 
 if __name__ == "__main__":
