@@ -100,6 +100,9 @@
 @layer base {
   * { border-color: var(--color-border); }
   html { color-scheme: dark; }
+  /* clip (non hidden: preserva position sticky) — la pagina non deve mai
+     sbordare orizzontalmente dallo schermo del telefono */
+  html, body { overflow-x: clip; }
   body {
     background: radial-gradient(1200px 800px at 10% -10%, oklch(0.28 0.12 305 / 0.35), transparent 60%),
                 radial-gradient(900px 700px at 110% 10%, oklch(0.28 0.15 355 / 0.25), transparent 60%),

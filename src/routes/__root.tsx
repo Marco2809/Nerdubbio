@@ -80,7 +80,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      // maximum-scale=1 evita l'auto-zoom iOS al focus degli input (<16px); il pinch-zoom resta attivo.
+      { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" },
       { title: "Nerdubbio — Nerdacolo del binge" },
       { name: "description", content: "Traccia serie TV e film, scegli la main quest stasera con un quiz nerd. Alternativa moderna a TV Time." },
       { name: "author", content: "Nerdubbio" },
