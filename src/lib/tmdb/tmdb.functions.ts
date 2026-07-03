@@ -573,6 +573,141 @@ function isAfterEpisode(season: number, episode: number, lastS: number, lastE: n
   return season > lastS || (season === lastS && episode > lastE);
 }
 
+function computeWatchFrontier(
+  watched: string[],
+  lastSeason?: number,
+  lastEpisode?: number,
+): { watched: Set<string>; lastS: number; lastE: number; hasFrontier: boolean } {
+  const watchedSet = new Set(watched);
+  let lastS = lastSeason ?? 0;
+  let lastE = lastEpisode ?? 0;
+  for (const key of watched) {
+    const m = key.match(/^S(\d+)E(\d+)$/);
+    if (!m) continue;
+    const s = Number(m[1]);
+    const e = Number(m[2]);
+    if (s > lastS || (s === lastS && e > lastE)) {
+      lastS = s;
+      lastE = e;
+    }
+  }
+  return { watched: watchedSet, lastS, lastE, hasFrontier: lastS > 0 && lastE > 0 };
+}
+
+async function findNextUnwatchedEpisode(
+  tmdbId: number,
+  watched: string[],
+  lastSeason?: number,
+  lastEpisode?: number,
+): Promise<NextUnwatchedInfo | null> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { watched: watchedSet, lastS, lastE, hasFrontier } = computeWatchFrontier(watched, lastSeason, lastEpisode);
+
+  let det: any;
+  try { det = await tmdb<any>(`/tv/${tmdbId}`); } catch { return null; }
+  const seasons: any[] = (det.seasons ?? [])
+    .filter((s: any) => s && s.season_number > 0 && (s.episode_count ?? 0) > 0)
+    .sort((a: any, b: any) => a.season_number - b.season_number);
+
+  for (const s of seasons) {
+    if (hasFrontier && s.season_number < lastS) continue;
+    if (s.air_date && s.air_date > today && (!hasFrontier || s.season_number > lastS)) {
+      return {
+        kind: "premiere",
+        season: s.season_number,
+        episode: 1,
+        name: s.name ?? `Stagione ${s.season_number}`,
+        airDate: s.air_date,
+        overview: s.overview ?? "",
+        stillUrl: posterUrl(s.poster_path),
+        aired: false,
+      };
+    }
+    let sd: any;
+    try { sd = await tmdb<any>(`/tv/${tmdbId}/season/${s.season_number}`); } catch { continue; }
+    const eps: any[] = Array.isArray(sd.episodes) ? sd.episodes : [];
+    for (const e of eps) {
+      const key = `S${e.season_number}E${e.episode_number}`;
+      if (hasFrontier) {
+        if (!isAfterEpisode(e.season_number, e.episode_number, lastS, lastE)) continue;
+      } else if (watchedSet.has(key)) {
+        continue;
+      }
+      const aired = !!e.air_date && e.air_date <= today;
+      return {
+        kind: aired ? "episode" : "upcoming",
+        season: e.season_number,
+        episode: e.episode_number,
+        name: e.name ?? "",
+        airDate: e.air_date ?? null,
+        overview: e.overview ?? "",
+        stillUrl: e.still_path ? `${IMG_BASE}/w300${e.still_path}` : null,
+        aired,
+      };
+    }
+  }
+  return null;
+}
+
+type ResolvedShowStatus = "watching" | "completed" | "plan_to_watch";
+
+async function inferTvShowStatus(
+  tmdbId: number,
+  watched: string[],
+  lastSeason?: number,
+  lastEpisode?: number,
+  currentStatus?: string,
+): Promise<ResolvedShowStatus> {
+  const locked = currentStatus === "favorite" || currentStatus === "paused" || currentStatus === "dropped";
+  if (locked) return (currentStatus as ResolvedShowStatus) ?? "watching";
+
+  const hasProgress = watched.length > 0 || (lastSeason ?? 0) > 0;
+  if (!hasProgress) {
+    return currentStatus === "plan_to_watch" ? "plan_to_watch" : "plan_to_watch";
+  }
+
+  let seriesStatus = "";
+  try {
+    const det = await tmdb<any>(`/tv/${tmdbId}`);
+    seriesStatus = det.status ?? "";
+  } catch {
+    return "watching";
+  }
+
+  const next = await findNextUnwatchedEpisode(tmdbId, watched, lastSeason, lastEpisode);
+  if (next?.aired) return "watching";
+  if (next) return "watching";
+
+  if (isDeadSeries(seriesStatus)) return "completed";
+  return "watching";
+}
+
+export const tmdbResolveShowStatuses = createServerFn({ method: "POST" })
+  .inputValidator((data) => z.object({
+    items: z.array(z.object({
+      tmdbId: z.number().int().positive(),
+      watched: z.array(z.string()).default([]),
+      lastSeason: z.number().int().positive().optional(),
+      lastEpisode: z.number().int().positive().optional(),
+      currentStatus: z.string().optional(),
+    })).max(12),
+  }).parse(data))
+  .handler(async ({ data }) => {
+    const results = await Promise.all(
+      data.items.map(async (item) => ({
+        tmdbId: item.tmdbId,
+        status: await inferTvShowStatus(
+          item.tmdbId,
+          item.watched,
+          item.lastSeason,
+          item.lastEpisode,
+          item.currentStatus,
+        ),
+      })),
+    );
+    return { results };
+  });
+
 export const tmdbNextUnwatched = createServerFn({ method: "POST" })
   .inputValidator((data) => z.object({
     tmdbId: z.number().int().positive(),
@@ -582,67 +717,12 @@ export const tmdbNextUnwatched = createServerFn({ method: "POST" })
     lastEpisode: z.number().int().positive().optional(),
   }).parse(data))
   .handler(async ({ data }): Promise<NextUnwatchedInfo | null> => {
-    const today = new Date().toISOString().slice(0, 10);
-    const watched = new Set(data.watched);
-    let lastS = data.lastSeason ?? 0;
-    let lastE = data.lastEpisode ?? 0;
-    for (const key of watched) {
-      const m = key.match(/^S(\d+)E(\d+)$/);
-      if (!m) continue;
-      const s = Number(m[1]);
-      const e = Number(m[2]);
-      if (s > lastS || (s === lastS && e > lastE)) {
-        lastS = s;
-        lastE = e;
-      }
-    }
-    const hasFrontier = lastS > 0 && lastE > 0;
-
-    let det: any;
-    try { det = await tmdb<any>(`/tv/${data.tmdbId}`); } catch { return null; }
-    const seasons: any[] = (det.seasons ?? [])
-      .filter((s: any) => s && s.season_number > 0 && (s.episode_count ?? 0) > 0)
-      .sort((a: any, b: any) => a.season_number - b.season_number);
-
-    for (const s of seasons) {
-      if (hasFrontier && s.season_number < lastS) continue;
-      // Intera stagione ancora nel futuro → premiere annunciata (solo se oltre il frontier).
-      if (s.air_date && s.air_date > today && (!hasFrontier || s.season_number > lastS)) {
-        return {
-          kind: "premiere",
-          season: s.season_number,
-          episode: 1,
-          name: s.name ?? `Stagione ${s.season_number}`,
-          airDate: s.air_date,
-          overview: s.overview ?? "",
-          stillUrl: posterUrl(s.poster_path),
-          aired: false,
-        };
-      }
-      let sd: any;
-      try { sd = await tmdb<any>(`/tv/${data.tmdbId}/season/${s.season_number}`); } catch { continue; }
-      const eps: any[] = Array.isArray(sd.episodes) ? sd.episodes : [];
-      for (const e of eps) {
-        const key = `S${e.season_number}E${e.episode_number}`;
-        if (hasFrontier) {
-          if (!isAfterEpisode(e.season_number, e.episode_number, lastS, lastE)) continue;
-        } else if (watched.has(key)) {
-          continue;
-        }
-        const aired = !!e.air_date && e.air_date <= today;
-        return {
-          kind: aired ? "episode" : "upcoming",
-          season: e.season_number,
-          episode: e.episode_number,
-          name: e.name ?? "",
-          airDate: e.air_date ?? null,
-          overview: e.overview ?? "",
-          stillUrl: e.still_path ? `${IMG_BASE}/w300${e.still_path}` : null,
-          aired,
-        };
-      }
-    }
-    return null;
+    return findNextUnwatchedEpisode(
+      data.tmdbId,
+      data.watched,
+      data.lastSeason,
+      data.lastEpisode,
+    );
   });
 
 

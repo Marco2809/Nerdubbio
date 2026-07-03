@@ -202,6 +202,27 @@ function library_entry_episode_dates(array $entry): ?array {
     return is_array($dates) && $dates ? $dates : null;
 }
 
+function library_merge_status(array $existing, array $incoming): ?string {
+    if (!isset($incoming['status'])) return null;
+    $inc = (string) $incoming['status'];
+    $cur = (string) ($existing['status'] ?? 'plan_to_watch');
+    $source = (string) ($incoming['source'] ?? '');
+
+    if (in_array($cur, ['favorite', 'paused', 'dropped'], true) && $source !== 'status_sync') {
+        return null;
+    }
+    if ($cur === 'completed' && $inc === 'watching' && $source !== 'tvtime') {
+        return null;
+    }
+    if ($source === 'status_sync' || $source === 'tvtime' || $inc === 'completed') {
+        return $inc;
+    }
+    $rank = ['favorite' => 5, 'watching' => 4, 'completed' => 3, 'plan_to_watch' => 2, 'paused' => 1, 'dropped' => 0];
+    $inR = $rank[$inc] ?? -1;
+    $exR = $rank[$cur] ?? -1;
+    return $inR >= $exR ? $inc : null;
+}
+
 function library_sync_episodes(PDO $pdo, string $userId, string $mediaKey, array $watchedKeys, ?array $episodeDates = null): void {
     $pdo->prepare('DELETE FROM user_episodes WHERE user_id = ? AND media_key = ?')->execute([$userId, $mediaKey]);
     if (!$watchedKeys) return;
@@ -417,6 +438,8 @@ function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $wit
         $existing = library_get_entry($pdo, $userId, $e['id']);
         $merged = array_merge($existing, $e);
         if (!empty($existing['addedAt'])) $merged['addedAt'] = $existing['addedAt'];
+        $statusMerged = library_merge_status($existing, $e);
+        if ($statusMerged !== null) $merged['status'] = $statusMerged;
         $wExisting = is_array($existing['watchedEpisodes'] ?? null) ? $existing['watchedEpisodes'] : [];
         $wNew = is_array($e['watchedEpisodes'] ?? null) ? $e['watchedEpisodes'] : [];
         if ($replaceEpisodes && ($e['source'] ?? '') === 'tvtime') {

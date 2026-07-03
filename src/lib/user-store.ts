@@ -23,7 +23,7 @@ export interface UserMediaEntry {
   notes?: string;
   addedAt: string;
   lastWatchedAt?: string;
-  source?: 'manual' | 'tvtime' | 'trakt';
+  source?: 'manual' | 'tvtime' | 'trakt' | 'status_sync';
   title?: string;
   posterUrl?: string | null;
   backdropUrl?: string | null;

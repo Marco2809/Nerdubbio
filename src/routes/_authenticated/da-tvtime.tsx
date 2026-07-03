@@ -5,6 +5,7 @@ import { parseCSV, toParsedRows, parseTvTimeExport, readTvTimeZip, deriveEpisode
 import { tmdbMatchTitles, tmdbSearch, type TmdbItem } from "@/lib/tmdb/tmdb.functions";
 import { useUserStore, type UserMediaEntry } from "@/lib/user-store";
 import { libraryApi, LIBRARY_QUERY_KEY } from "@/lib/php/library-client";
+import { applyResolvedTvStatuses } from "@/lib/resolve-show-statuses";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { UploadCloud, CheckCircle2, AlertTriangle, Loader2, Sparkles, ShieldCheck, Rocket, Import, Search, Check } from "lucide-react";
 import { toast } from "@/lib/toast";
@@ -168,6 +169,14 @@ function DaTvTimePage() {
         };
       });
 
+      setParseProgress({ stage: "Verifica serie concluse…", pct: 5 });
+      const statusStats = await applyResolvedTvStatuses(entries, (done, total) => {
+        setParseProgress({
+          stage: `Serie concluse (${done}/${total})…`,
+          pct: 5 + Math.round((done / Math.max(total, 1)) * 25),
+        });
+      });
+
       const existingPending = (state.importPending ?? []).filter(p => isLikelyMediaTitle(p.title));
       const pendingById = new Map(existingPending.map(p => [p.id, p]));
       for (const m of unmatched) {
@@ -195,9 +204,10 @@ function DaTvTimePage() {
 
       const epCount = entries.reduce((n, e) => n + (e.watchedEpisodes?.length ?? 0), 0);
       toast.success(`Importati ${entries.length} titoli (${epCount} episodi)`, {
-        description: importPending.length
-          ? `${importPending.length} titoli senza match salvati per correzione`
-          : undefined,
+        description: [
+          statusStats.completed ? `${statusStats.completed} serie segnate concluse` : null,
+          importPending.length ? `${importPending.length} titoli senza match salvati per correzione` : null,
+        ].filter(Boolean).join(" · ") || undefined,
       });
       setMatches(null);
       setRows([]);

@@ -2,7 +2,12 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { TmdbAttribution } from "@/components/nerdubbio/TmdbAttribution";
 import { useUserStore } from "@/lib/user-store";
-import { ArrowLeft, Globe, Shield, Trash2, Download, Sparkles, PlayCircle, Popcorn } from "lucide-react";
+import { libraryApi, LIBRARY_QUERY_KEY } from "@/lib/php/library-client";
+import { buildStatusPatches } from "@/lib/resolve-show-statuses";
+import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { toast } from "@/lib/toast";
+import { ArrowLeft, Globe, Shield, Trash2, Download, Sparkles, PlayCircle, Popcorn, CheckCircle2, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Impostazioni — Nerdubbio" }] }),
@@ -10,10 +15,37 @@ export const Route = createFileRoute("/_authenticated/settings")({
 });
 
 function Settings() {
+  const queryClient = useQueryClient();
   const { state, update } = useUserStore();
+  const [syncing, setSyncing] = useState(false);
   const filters = state.upcomingFilters ?? { newSeries: true, seasonPremieres: true, includeMovies: true };
   const setFilter = (patch: Partial<typeof filters>) =>
     update({ upcomingFilters: { ...filters, ...patch } });
+
+  const syncShowStatuses = async () => {
+    setSyncing(true);
+    try {
+      const patches = await buildStatusPatches(state.media);
+      if (patches.length === 0) {
+        toast.success("Stati serie già corretti");
+        return;
+      }
+      const CHUNK = 40;
+      let next = state;
+      for (let i = 0; i < patches.length; i += CHUNK) {
+        next = await libraryApi.bulkImport(patches.slice(i, i + CHUNK), undefined, { withXp: false });
+        queryClient.setQueryData(LIBRARY_QUERY_KEY, next);
+      }
+      const completed = patches.filter(p => p.status === "completed").length;
+      toast.success(`Aggiornate ${patches.length} serie`, {
+        description: completed ? `${completed} segnate come concluse` : undefined,
+      });
+    } catch {
+      toast.error("Errore sincronizzazione stati");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   return (
     <AppShell>
@@ -58,6 +90,26 @@ function Settings() {
             onChange={v => setFilter({ includeMovies: v })}
           />
         </div>
+      </section>
+
+      <section className="mt-6">
+        <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">Libreria</p>
+        <button
+          type="button"
+          disabled={syncing}
+          onClick={syncShowStatuses}
+          className="glass flex w-full items-center gap-3 rounded-2xl p-3 text-left disabled:opacity-60"
+        >
+          <span className="text-accent">
+            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">Correggi serie concluse</span>
+            <span className="mt-0.5 block text-[11px] text-muted-foreground">
+              Confronta TMDB e segna come &quot;Viste&quot; le serie finite che hai completato
+            </span>
+          </span>
+        </button>
       </section>
 
       <section className="mt-6 space-y-2">
