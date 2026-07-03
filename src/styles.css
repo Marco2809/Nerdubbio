@@ -123,6 +123,15 @@
   .pb-safe {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
   }
+  .top-overlay-safe {
+    top: max(0.75rem, env(safe-area-inset-top, 0px));
+  }
+  .left-overlay-safe {
+    left: max(1rem, env(safe-area-inset-left, 0px));
+  }
+  .right-overlay-safe {
+    right: max(1rem, env(safe-area-inset-right, 0px));
+  }
 }
 
 @keyframes d20-wobble {

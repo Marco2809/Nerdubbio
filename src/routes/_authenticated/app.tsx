@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { tmdbTrending, tmdbNextUnwatched } from "@/lib/tmdb/tmdb.functions";
 import { PremiereReminderButton } from "@/components/nerdubbio/PremiereReminderButton";
 import { NERDACOLO, QUEST } from "@/lib/brand";
+import { useReturnPath } from "@/lib/media-nav";
 import { NerdacoloTrigger } from "@/components/nerdubbio/NerdacoloTrigger";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { useEffect } from "react";
@@ -93,6 +94,7 @@ function HomeDashboard() {
 
 
   const greetName = profile?.display_name || user?.email?.split("@")[0] || "nerd";
+  const from = useReturnPath();
 
   return (
     <AppShell subtitle={`Ciao ${greetName}`} title="Cosa stai guardando?"
@@ -142,7 +144,7 @@ function HomeDashboard() {
       {next && nextUser && (
         <section className="mt-6">
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">Prossimo episodio</h2>
-          <Link to="/media/$type/$id" params={paramsFor(next)}
+          <Link to="/media/$type/$id" params={paramsFor(next)} state={{ from }}
             className="glass flex items-center gap-3 rounded-2xl p-3">
             <div className="h-20 w-14 shrink-0 overflow-hidden rounded-xl bg-surface-2">
               {next.posterUrl && <img src={next.posterUrl} alt={next.title} className="h-full w-full object-cover" loading="lazy" />}
@@ -173,6 +175,7 @@ function HomeDashboard() {
                               to: "/media/$type/$id",
                               params: { type: "tv", id: String(nextTmdbId) },
                               hash: `ep-S${nu.season}E${nu.episode}`,
+                              state: { from },
                             });
                           }}
                           className="rounded-full bg-hero px-3 py-1 text-[11px] font-bold text-primary-foreground shadow-glow-pink"
@@ -212,6 +215,7 @@ function HomeDashboard() {
         <section className="mt-6">
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">Suggerimento del giorno</h2>
           <Link to="/media/$type/$id" params={{ type: suggestion.type, id: String(suggestion.tmdb_id) }}
+            state={{ from }}
             className="relative block h-56 overflow-hidden rounded-3xl bg-surface-2 shadow-glow">
             {(suggestion.backdropUrl || suggestion.posterUrl) && (
               <img src={suggestion.backdropUrl ?? suggestion.posterUrl!} alt={suggestion.title}
@@ -228,8 +232,8 @@ function HomeDashboard() {
       )}
 
       {/* Liste */}
-      {watching.length > 0 && <LibRow title="In corso" items={watching} />}
-      {plan.length > 0 && <LibRow title="Da vedere" items={plan} />}
+      {watching.length > 0 && <LibRow title="In corso" items={watching} from={from} />}
+      {plan.length > 0 && <LibRow title="Da vedere" items={plan} from={from} />}
 
       <section className="mt-6 grid grid-cols-4 gap-2 text-center">
         <MiniStat label="Serie" value={stats.series} />
@@ -242,14 +246,14 @@ function HomeDashboard() {
   );
 }
 
-function LibRow({ title, items }: { title: string; items: LibCard[] }) {
+function LibRow({ title, items, from }: { title: string; items: LibCard[]; from: string }) {
   return (
     <section className="mt-6">
       <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">{title}</h2>
       <div className="-mx-4 overflow-x-auto">
         <div className="flex gap-3 px-4 pb-1">
           {items.map(c => (
-            <Link key={c.id} to="/media/$type/$id" params={paramsFor(c)}
+            <Link key={c.id} to="/media/$type/$id" params={paramsFor(c)} state={{ from }}
               className="w-28 shrink-0">
               <div className="relative h-40 w-28 overflow-hidden rounded-2xl bg-surface-2 shadow-glow">
                 {c.posterUrl

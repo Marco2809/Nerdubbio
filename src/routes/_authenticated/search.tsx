@@ -8,6 +8,7 @@ import { tmdbSearch, tmdbTrending, type TmdbItem } from "@/lib/tmdb/tmdb.functio
 import { Link } from "@tanstack/react-router";
 import { Star } from "lucide-react";
 import { useUserStore } from "@/lib/user-store";
+import { useReturnPath } from "@/lib/media-nav";
 
 export const Route = createFileRoute("/_authenticated/search")({
   head: () => ({ meta: [{ title: "Cerca — Nerdubbio" }] }),
@@ -27,11 +28,13 @@ function useDebounced<T>(value: T, delay = 350) {
 
 function TmdbCard({ item }: { item: TmdbItem }) {
   const { state } = useUserStore();
+  const from = useReturnPath();
   const inLibrary = !!state.media[`${item.type}-${item.tmdb_id}`];
   return (
     <Link
       to="/media/$type/$id"
       params={{ type: item.type, id: String(item.tmdb_id) }}
+      state={{ from }}
       className="group block"
     >
       <div

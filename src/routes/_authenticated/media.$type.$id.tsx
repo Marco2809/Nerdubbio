@@ -1,11 +1,13 @@
-import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
+import { OverlayBackButton } from "@/components/nerdubbio/OverlayBackButton";
 import { findById, type CatalogItem } from "@/lib/mock-catalog";
 import { useUserStore, isEpisodeWatched, type UserStatus } from "@/lib/user-store";
-import { ArrowLeft, Plus, Heart, CheckCircle2, Pause, X, Star, Check, Loader2, PlayCircle, Trash2 } from "lucide-react";
+import { Plus, Heart, CheckCircle2, Pause, X, Star, Check, Loader2, PlayCircle, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { tmdbDetail, tmdbCredits, tmdbSeason, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
+import { useReturnPath, useSmartBack } from "@/lib/media-nav";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -67,14 +69,8 @@ function MediaDetail() {
 
   const { state, addToList, removeFromList, toggleEpisode, setRating, markAllSeriesWatched, clearWatchedEpisodes } = useUserStore();
   const [syncOpen, setSyncOpen] = useState(false);
-  const router = useRouter();
-  const goBack = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.history.back();
-    } else {
-      router.navigate({ to: "/watchlist" });
-    }
-  };
+  const goBack = useSmartBack("/app");
+  const returnPath = useReturnPath();
 
   if (!mockItem && !shouldFetchTmdb) throw notFound();
 
@@ -105,19 +101,10 @@ function MediaDetail() {
     <div className="min-h-screen pb-32">
       <div className="relative h-72 w-full overflow-hidden" style={{ background: item.poster }}>
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
-        <button onClick={goBack} aria-label="Indietro" className="absolute left-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur">
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <Link
-          to="/watchlist"
-          className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-2 text-xs font-semibold backdrop-blur"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          {entry ? "Torna alla libreria" : "Vai alla libreria"}
-        </Link>
+        <OverlayBackButton onClick={goBack} />
       </div>
 
-      <div className="mx-auto -mt-14 max-w-md px-4">
+      <div className="mx-auto -mt-14 max-w-md px-safe">
         <p className="text-xs uppercase tracking-widest text-muted-foreground">{item.type === "tv" ? "Serie TV" : "Film"} · {item.year}</p>
         <h1 className="mt-1 text-3xl font-extrabold">{item.title}</h1>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -327,7 +314,7 @@ function MediaDetail() {
 
 
 
-        <CastSection cast={creditsQuery.data?.cast ?? []} loading={creditsQuery.isLoading} />
+        <CastSection cast={creditsQuery.data?.cast ?? []} loading={creditsQuery.isLoading} returnPath={returnPath} />
 
         {item.similar?.length && (
           <section className="mt-6">
@@ -337,6 +324,7 @@ function MediaDetail() {
                 const s = findById(sid); if (!s) return null;
                 return (
                   <Link key={sid} to="/media/$type/$id" params={{ type: s.type, id: s.id }}
+                    state={{ from: returnPath }}
                     className="h-32 rounded-2xl" style={{ background: s.poster }} title={s.title} />
                 );
               })}
@@ -594,7 +582,7 @@ function EpisodeRow({
 }
 
 
-function CastSection({ cast, loading }: { cast: CastMember[]; loading: boolean }) {
+function CastSection({ cast, loading, returnPath }: { cast: CastMember[]; loading: boolean; returnPath: string }) {
   if (loading) {
     return (
       <section className="mt-6">
@@ -617,6 +605,7 @@ function CastSection({ cast, loading }: { cast: CastMember[]; loading: boolean }
             key={c.id}
             to="/person/$id"
             params={{ id: String(c.id) }}
+            state={{ from: returnPath }}
             className="w-24 shrink-0"
           >
             <div

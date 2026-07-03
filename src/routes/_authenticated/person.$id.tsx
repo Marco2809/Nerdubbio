@@ -1,8 +1,10 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { tmdbPerson } from "@/lib/tmdb/tmdb.functions";
-import { ArrowLeft, Loader2, Calendar, MapPin } from "lucide-react";
+import { Loader2, Calendar, MapPin } from "lucide-react";
 import { useState } from "react";
+import { OverlayBackButton } from "@/components/nerdubbio/OverlayBackButton";
+import { useSmartBack } from "@/lib/media-nav";
 
 export const Route = createFileRoute("/_authenticated/person/$id")({
   head: () => ({ meta: [{ title: "Cast — Nerdubbio" }] }),
@@ -11,7 +13,7 @@ export const Route = createFileRoute("/_authenticated/person/$id")({
 
 function PersonPage() {
   const { id } = Route.useParams();
-  const router = useRouter();
+  const goBack = useSmartBack("/app");
   const personId = Number(id);
 
   const q = useQuery({
@@ -36,13 +38,7 @@ function PersonPage() {
   return (
     <div className="min-h-screen pb-32">
       <div className="relative">
-        <button
-          onClick={() => router.history.back()}
-          className="absolute left-4 top-4 z-10 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur"
-          aria-label="Indietro"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
+        <OverlayBackButton onClick={goBack} />
         <div className="h-64 w-full bg-gradient-to-b from-primary/30 via-accent/20 to-background" />
       </div>
 

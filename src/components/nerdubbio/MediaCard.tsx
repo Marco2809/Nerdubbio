@@ -1,12 +1,18 @@
 import { Link } from "@tanstack/react-router";
 import type { CatalogItem } from "@/lib/mock-catalog";
+import { useReturnPath } from "@/lib/media-nav";
 import { Star } from "lucide-react";
 
 export function MediaCard({ item, size = "md" }: { item: CatalogItem; size?: "sm" | "md" | "lg" }) {
   const heights = { sm: "h-40", md: "h-56", lg: "h-72" }[size];
+  const from = useReturnPath();
   return (
-    <Link to="/media/$type/$id" params={{ type: item.type, id: item.id }}
-      className="group block">
+    <Link
+      to="/media/$type/$id"
+      params={{ type: item.type, id: item.id }}
+      state={{ from }}
+      className="group block"
+    >
       <div className={`relative overflow-hidden rounded-2xl ${heights} shadow-glow`}
         style={{ background: item.poster }}>
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
