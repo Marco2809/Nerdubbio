@@ -346,14 +346,16 @@ function library_toggle_episode(
         if ($sN > $maxS || ($sN === $maxS && $eN > $maxE)) { $maxS = $sN; $maxE = $eN; }
     }
 
-    $totalEpisodes = $totalSeasons * $episodesPerSeason;
-    $completed = count($watched) >= $totalEpisodes;
     $watchedList = array_keys($watched);
 
     $entry['watchedEpisodes'] = $watchedList;
     $entry['currentSeason'] = $maxS ?: null;
     $entry['currentEpisode'] = $maxE ?: null;
-    $entry['status'] = $completed ? 'completed' : (count($watched) > 0 ? 'watching' : ($entry['status'] ?? 'watching'));
+    // Non segnare "completed" col toggle: il calcolo totalSeasons×epsPerSeason è inaffidabile.
+    // Lo stato "visto" si imposta manualmente o con mark_all_watched / sync TMDB.
+    if ($entry['status'] !== 'completed' && $entry['status'] !== 'favorite' && $entry['status'] !== 'dropped') {
+        $entry['status'] = count($watched) > 0 ? 'watching' : ($entry['status'] ?? 'plan_to_watch');
+    }
     $entry['lastWatchedAt'] = $wasWatched ? ($entry['lastWatchedAt'] ?? null) : date('c');
 
     $xpDelta = $wasWatched ? -15 : 15;
@@ -363,7 +365,6 @@ function library_toggle_episode(
             if (!isset($watched[library_episode_key($season, $i)])) { $seasonComplete = false; break; }
         }
         if ($seasonComplete) $xpDelta += 50;
-        if ($completed) $xpDelta += 100;
     }
 
     library_upsert_media($pdo, $userId, $id, $entry);

@@ -45,13 +45,19 @@ export function pickFeaturedWatchingShow(
   return { card: entry, entry };
 }
 
-/** Serie in corso/in pausa con TMDB id, ordinate per ultima visione. */
+/** Serie con progresso da mostrare in home, ordinate per ultima visione. */
 export function listTvShowsForNextEpisode(media: Record<string, UserMediaEntry>): UserMediaEntry[] {
   return Object.values(media)
     .filter(m => {
-      if (m.status !== "watching" && m.status !== "paused") return false;
-      if (m.type !== "tv" && !m.id.startsWith("tv-")) return false;
-      return /^tv-\d+$/.test(m.id);
+      const isTv = m.type === "tv" || m.id.startsWith("tv-");
+      if (!isTv || !/^tv-\d+$/.test(m.id)) return false;
+      const hasProgress = (m.watchedEpisodes?.length ?? 0) > 0
+        || (m.currentSeason ?? 0) > 0
+        || (m.currentEpisode ?? 0) > 0;
+      if (m.status === "watching" || m.status === "paused") return true;
+      // Preferiti o in corso implicito se hai episodi segnati
+      if ((m.status === "favorite" || m.status === "completed") && hasProgress) return true;
+      return false;
     })
     .sort((a, b) => {
       const score = (e: UserMediaEntry) => {
@@ -68,3 +74,6 @@ export function tmdbIdFromMediaKey(id: string): number | null {
   const m = /^tv-(\d+)$/.exec(id);
   return m ? Number(m[1]) : null;
 }
+
+/** Chiave React Query per il batch prossimi episodi — invalidata dopo toggle. */
+export const NEXT_UNWATCHED_BATCH_KEY = ["tmdb", "next-unwatched-batch"] as const;

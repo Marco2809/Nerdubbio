@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { UserMediaEntry } from "@/lib/user-store";
-import { maxWatchedFrontier, listTvShowsForNextEpisode, tmdbIdFromMediaKey } from "@/lib/next-episode";
+import { maxWatchedFrontier, listTvShowsForNextEpisode, tmdbIdFromMediaKey, NEXT_UNWATCHED_BATCH_KEY } from "@/lib/next-episode";
 import { tmdbNextUnwatchedBatch, type NextUnwatchedInfo } from "@/lib/tmdb/tmdb.functions";
 import { PremiereReminderButton } from "@/components/nerdubbio/PremiereReminderButton";
 import { CalendarDays, ChevronRight } from "lucide-react";
@@ -11,6 +11,17 @@ type Props = {
   media: Record<string, UserMediaEntry>;
   from: string;
 };
+
+function batchQueryFingerprint(items: {
+  tmdbId: number;
+  watched: string[];
+  lastSeason?: number;
+  lastEpisode?: number;
+}[]): string {
+  return items
+    .map(i => `${i.tmdbId}:${i.lastSeason ?? 0}E${i.lastEpisode ?? 0}:${i.watched.length}:${i.watched.slice(-3).join(",")}`)
+    .join("|");
+}
 
 export function HomeNextEpisodesSection({ media, from }: Props) {
   const navigate = useNavigate();
@@ -30,11 +41,14 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
     [inProgress],
   );
 
+  const fingerprint = useMemo(() => batchQueryFingerprint(batchItems), [batchItems]);
+
   const nextQuery = useQuery({
-    queryKey: ["tmdb", "next-unwatched-batch", batchItems],
+    queryKey: [...NEXT_UNWATCHED_BATCH_KEY, fingerprint],
     queryFn: () => tmdbNextUnwatchedBatch({ data: { items: batchItems } }),
     enabled: batchItems.length > 0,
-    staleTime: 1000 * 60 * 10,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const entryByTmdb = useMemo(() => {
@@ -46,7 +60,29 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
     return map;
   }, [inProgress]);
 
-  const rows = (nextQuery.data ?? []).slice(0, 6);
+  const nextByTmdb = useMemo(() => {
+    const map = new Map<number, NextUnwatchedInfo>();
+    for (const row of nextQuery.data ?? []) {
+      if (row.next) map.set(row.tmdbId, row.next);
+    }
+    return map;
+  }, [nextQuery.data]);
+
+  const rows = useMemo(
+    () => inProgress
+      .slice(0, 6)
+      .map(entry => {
+        const tmdbId = tmdbIdFromMediaKey(entry.id);
+        if (!tmdbId) return null;
+        const next = nextByTmdb.get(tmdbId);
+        if (!next) return null;
+        return { tmdbId, entry, next };
+      })
+      .filter((r): r is { tmdbId: number; entry: UserMediaEntry; next: NextUnwatchedInfo } => !!r),
+    [inProgress, nextByTmdb],
+  );
+
+  const caughtUpCount = inProgress.length - rows.length;
 
   if (inProgress.length === 0) return null;
 
@@ -71,30 +107,37 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
 
       {!nextQuery.isLoading && rows.length === 0 && (
         <div className="glass rounded-2xl p-4 text-xs text-muted-foreground">
-          Sei aggiornato su tutte le serie in corso.
+          {inProgress.length === 1
+            ? "Nessun episodio successivo trovato su TMDB per la tua serie in corso — potresti essere in sync col catalogo, o il progresso importato supera gli episodi reali."
+            : `Nessun prossimo episodio da TMDB per ${inProgress.length} serie in libreria.`}
+          {" "}Apri la scheda serie e verifica il progresso episodi.
         </div>
       )}
 
+      {!nextQuery.isLoading && rows.length > 0 && caughtUpCount > 0 && (
+        <p className="mb-2 text-[11px] text-muted-foreground">
+          {caughtUpCount === 1
+            ? "1 serie risulta aggiornata su TMDB."
+            : `${caughtUpCount} serie risultano aggiornate su TMDB.`}
+        </p>
+      )}
+
       <div className="space-y-3">
-        {rows.map(({ tmdbId, next }) => {
-          const entry = entryByTmdb.get(tmdbId);
-          if (!entry) return null;
-          return (
-            <NextEpisodeRow
-              key={tmdbId}
-              entry={entry}
-              tmdbId={tmdbId}
-              next={next}
-              from={from}
-              onOpen={() => navigate({
-                to: "/media/$type/$id",
-                params: { type: "tv", id: String(tmdbId) },
-                hash: `ep-S${next.season}E${next.episode}`,
-                state: { from },
-              })}
-            />
-          );
-        })}
+        {rows.map(({ tmdbId, entry, next }) => (
+          <NextEpisodeRow
+            key={tmdbId}
+            entry={entry}
+            tmdbId={tmdbId}
+            next={next}
+            from={from}
+            onOpen={() => navigate({
+              to: "/media/$type/$id",
+              params: { type: "tv", id: String(tmdbId) },
+              hash: `ep-S${next.season}E${next.episode}`,
+              state: { from },
+            })}
+          />
+        ))}
       </div>
     </section>
   );

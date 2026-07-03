@@ -7,6 +7,7 @@ import {
   LIBRARY_QUERY_KEY,
   type LibraryState,
 } from '@/lib/php/library-client';
+import { NEXT_UNWATCHED_BATCH_KEY } from '@/lib/next-episode';
 
 export type UserStatus = 'watching' | 'completed' | 'plan_to_watch' | 'paused' | 'dropped' | 'favorite';
 
@@ -109,9 +110,11 @@ export function useUserStore() {
     ) => {
       void apply(() =>
         libraryApi.toggleEpisode(id, season, episode, episodesPerSeason, totalSeasons),
-      );
+      ).then(() => {
+        queryClient.invalidateQueries({ queryKey: NEXT_UNWATCHED_BATCH_KEY });
+      });
     },
-    [apply],
+    [apply, queryClient],
   );
 
   const markAllSeriesWatched = useCallback(
@@ -120,16 +123,20 @@ export function useUserStore() {
       seasons: { seasonNumber: number; episodeCount: number; airDate?: string | null }[],
       opts: { onlyAired?: boolean; meta?: MediaMeta } = {},
     ) => {
-      void apply(() => libraryApi.markAllSeriesWatched(id, seasons, opts));
+      void apply(() => libraryApi.markAllSeriesWatched(id, seasons, opts)).then(() => {
+        queryClient.invalidateQueries({ queryKey: NEXT_UNWATCHED_BATCH_KEY });
+      });
     },
-    [apply],
+    [apply, queryClient],
   );
 
   const clearWatchedEpisodes = useCallback(
     (id: string, restoreStatus?: UserStatus) => {
-      void apply(() => libraryApi.clearWatchedEpisodes(id, restoreStatus));
+      void apply(() => libraryApi.clearWatchedEpisodes(id, restoreStatus)).then(() => {
+        queryClient.invalidateQueries({ queryKey: NEXT_UNWATCHED_BATCH_KEY });
+      });
     },
-    [apply],
+    [apply, queryClient],
   );
 
   const setRating = useCallback(
