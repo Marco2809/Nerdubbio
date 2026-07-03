@@ -395,7 +395,7 @@ function library_set_reaction(PDO $pdo, string $userId, string $id, int $season,
     return library_fetch_state($pdo, $userId);
 }
 
-function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $withXp, ?array $importPending = null): array {
+function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $withXp, ?array $importPending = null, bool $replaceEpisodes = false): array {
     $added = 0;
     foreach ($entries as $e) {
         if (!is_array($e) || empty($e['id'])) continue;
@@ -403,8 +403,16 @@ function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $wit
         $merged = array_merge($existing, $e);
         if (!empty($existing['addedAt'])) $merged['addedAt'] = $existing['addedAt'];
         $wExisting = is_array($existing['watchedEpisodes'] ?? null) ? $existing['watchedEpisodes'] : [];
-        $wNew = is_array($merged['watchedEpisodes'] ?? null) ? $merged['watchedEpisodes'] : [];
-        if ($wExisting || $wNew) {
+        $wNew = is_array($e['watchedEpisodes'] ?? null) ? $e['watchedEpisodes'] : [];
+        if ($replaceEpisodes && ($e['source'] ?? '') === 'tvtime') {
+            $isTv = ($e['type'] ?? '') === 'tv' || str_starts_with((string) $e['id'], 'tv-');
+            if ($isTv) {
+                $merged['watchedEpisodes'] = array_values(array_unique($wNew));
+            }
+        } elseif (count($wNew) > 0) {
+            // Lista episodi esplicita dall'import: sostituisce, non accumula (evita doppioni col vecchio import).
+            $merged['watchedEpisodes'] = array_values(array_unique($wNew));
+        } elseif ($wExisting || $wNew) {
             $merged['watchedEpisodes'] = array_values(array_unique(array_merge($wExisting, $wNew)));
         }
         library_upsert_media($pdo, $userId, $e['id'], $merged);

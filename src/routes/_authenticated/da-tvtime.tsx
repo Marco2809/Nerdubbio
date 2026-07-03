@@ -170,7 +170,7 @@ function DaTvTimePage() {
         next = await libraryApi.bulkImport(
           chunk,
           isLast ? importPending : undefined,
-          { withXp: isLast },
+          { withXp: isLast, replaceEpisodes: true },
         );
         queryClient.setQueryData(LIBRARY_QUERY_KEY, next);
       }
@@ -542,7 +542,7 @@ function PendingSection({ pending }: { pending: TvTimePendingItem[] }) {
         ...progress,
       };
       const nextPending = (state.importPending ?? []).filter(x => x.id !== p.id);
-      const next = await libraryApi.bulkImport([entry], nextPending);
+      const next = await libraryApi.bulkImport([entry], nextPending, { replaceEpisodes: true });
       queryClient.setQueryData(LIBRARY_QUERY_KEY, next);
       toast.success(`Importato: ${item.title}`);
     } catch {

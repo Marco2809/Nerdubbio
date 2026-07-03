@@ -96,12 +96,13 @@ export const libraryApi = {
   bulkImport(
     entries: UserMediaEntry[],
     importPending?: TvTimePendingItem[],
-    opts?: { withXp?: boolean },
+    opts?: { withXp?: boolean; replaceEpisodes?: boolean },
   ): Promise<LibraryState> {
     return api<LibraryState>('/api/library.php?action=bulk_import', 'POST', {
       entries,
       importPending,
       withXp: opts?.withXp,
+      replaceEpisodes: opts?.replaceEpisodes,
     });
   },
 

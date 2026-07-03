@@ -96,7 +96,8 @@ if ($action === 'bulk_import') {
         ? $body['importPending']
         : null;
     $withXp = !array_key_exists('withXp', $body) || $body['withXp'] !== false;
-    json_out(library_bulk_import($pdo, $userId, $entries, $withXp, $importPending));
+    $replaceEpisodes = !empty($body['replaceEpisodes']);
+    json_out(library_bulk_import($pdo, $userId, $entries, $withXp, $importPending, $replaceEpisodes));
 }
 
 if ($action === 'import_local') {
