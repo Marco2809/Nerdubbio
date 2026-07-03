@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 const GIS_SRC = 'https://accounts.google.com/gsi/client';

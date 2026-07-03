@@ -138,3 +138,22 @@
   0%, 100% { transform: rotate(-8deg) scale(1); }
   50% { transform: rotate(8deg) scale(1.06); }
 }
+
+/* Toast Nerdubbio — alone neon sul bordo sinistro */
+.nerdubbio-toast {
+  position: relative;
+  overflow: hidden;
+}
+.nerdubbio-toast::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--gradient-hero);
+  opacity: 0.85;
+}
+[data-sonner-toast][data-styled="false"] [data-close-button] {
+  position: absolute;
+  right: 0.35rem;
+  top: 0.35rem;
+}

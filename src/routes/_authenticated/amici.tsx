@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/nerdubbio/AppShell';
 import { ArrowLeft, Check, Loader2, Search, UserPlus, X } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import {
   SOCIAL_FRIENDS_KEY,
   socialApi,

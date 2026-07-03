@@ -16,7 +16,7 @@ import { useUserStore, type MediaMeta } from "@/lib/user-store";
 import { createFileRoute } from "@tanstack/react-router";
 import { Dices, Loader2, Plus, RotateCcw, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 export const Route = createFileRoute("/_authenticated/nerdacolo")({
   head: () => ({ meta: [{ title: `Tiro d20 — ${NERDACOLO.name}` }] }),

@@ -3,7 +3,7 @@
  *  Reminders are persisted in localStorage; scheduleAll() re-arms setTimeout
  *  on app load so tabs kept open still fire at the right time.
  */
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 const KEY = "nerdubbio:reminders:v1";
 const FIRED_KEY = "nerdubbio:reminders:fired:v1";

@@ -18,7 +18,7 @@ import { useUserStore, type MediaMeta } from "@/lib/user-store";
 import { NERDACOLO, QUEST } from "@/lib/brand";
 import { Plus, Check, RotateCcw, Share2, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { z } from "zod";
 
 const searchSchema = z.object({ d: z.string().optional() });

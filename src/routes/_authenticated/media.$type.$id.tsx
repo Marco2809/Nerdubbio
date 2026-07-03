@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
 import { useReturnPath, useSmartBack } from "@/lib/media-nav";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,

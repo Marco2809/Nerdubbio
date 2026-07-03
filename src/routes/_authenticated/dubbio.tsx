@@ -19,7 +19,7 @@ import { useUserStore } from "@/lib/user-store";
 import { NERDACOLO, QUEST } from "@/lib/brand";
 import { Film, Loader2, Tv, Shuffle } from "lucide-react";
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 export const Route = createFileRoute("/_authenticated/dubbio")({
   head: () => ({ meta: [{ title: `${QUEST.name} — Nerdubbio` }] }),

@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 import { Wordmark } from "@/components/nerdubbio/Wordmark";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useAuth } from "@/lib/auth";
 import { auth as phpAuth } from "@/lib/php/client";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";

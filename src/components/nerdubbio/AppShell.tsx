@@ -9,7 +9,7 @@ import { useAuthUser } from "@/hooks/use-auth-user";
 import { useUserStore } from "@/lib/user-store";
 import { useAuth } from "@/lib/auth";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 export function AppShell({ children, title, subtitle, right }: {
   children: ReactNode; title?: string; subtitle?: string; right?: ReactNode;

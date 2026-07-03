@@ -3,7 +3,7 @@ import { AppShell } from "@/components/nerdubbio/AppShell";
 import { Users, Plus, ArrowLeft, Loader2, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { SOCIAL_GROUPS_KEY, socialApi, type Group } from "@/lib/php/social-client";
 
 export const Route = createFileRoute("/_authenticated/gruppo")({

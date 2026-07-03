@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Bell, BellRing, CalendarPlus, Check } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import {
   addReminder,
   downloadIcs,
