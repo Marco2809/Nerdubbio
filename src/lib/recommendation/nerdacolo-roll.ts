@@ -5,6 +5,9 @@ import type { UserMediaEntry } from "@/lib/user-store";
 import { buildDubbioProfile, fetchDubbioPool } from "./dubbio-pool";
 
 export const ROLL_POOL_SIZE = 20;
+export const ROLL_BENCH_SIZE = 5;
+export const ROLL_FETCH_SIZE = ROLL_POOL_SIZE + ROLL_BENCH_SIZE;
+export const ROLL_DISCARD_LIMIT = ROLL_BENCH_SIZE;
 
 const fallbackPoster = "linear-gradient(135deg, #1a1033, #4c1d95)";
 
@@ -75,7 +78,7 @@ export function pickRollPool(items: CatalogItem[], size = ROLL_POOL_SIZE): Catal
   return shuffle([...unique, ...extras]).slice(0, size);
 }
 
-/** Prepara esattamente 20 titoli non visti (watchlist + TMDB). */
+/** Prepara 25 titoli: 20 in pool + 5 di scorta per gli scarti. */
 export async function fetchNerdacoloRollPool(state: LibraryState): Promise<CatalogItem[]> {
   const profile = buildDubbioProfile(state);
   const library = unwatchedFromLibrary(state);
@@ -88,7 +91,14 @@ export async function fetchNerdacoloRollPool(state: LibraryState): Promise<Catal
   }
 
   const merged = dedupeById([...library, ...tmdbPool]);
-  return pickRollPool(merged, ROLL_POOL_SIZE);
+  return pickRollPool(merged, ROLL_FETCH_SIZE);
+}
+
+export function splitRollPool(items: CatalogItem[]): { active: CatalogItem[]; bench: CatalogItem[] } {
+  return {
+    active: items.slice(0, ROLL_POOL_SIZE),
+    bench: items.slice(ROLL_POOL_SIZE, ROLL_FETCH_SIZE),
+  };
 }
 
 /** Tiro d20 → indice 0..19 nel pool da 20. */

@@ -32,4 +32,6 @@ export const BRAND = {
   tagline: "Tracker · Quest · Nerdacolo del binge",
   domain: "nerdubbio.app",
   alternatives: ["Nerdoubt", "WatchWiz", "BingeOracle", "Nerd Oracle", "WhatNext?"],
+  /** Bump per invalidare cache PNG in PWA dopo aggiornamento asset. */
+  assetVer: "3",
 };

@@ -7,6 +7,33 @@ import { genresFromMoodTags } from "./genre-map";
 import { serializePool } from "./tmdb-catalog";
 
 export const DUBBIO_POOL_KEY = "nerdubbio:dubbio-pool:v1";
+export const DUBBIO_SESSION_KEY = "nerdubbio:dubbio-session:v1";
+
+export type DubbioSession = {
+  mode: DoubtMode;
+  answers: QuizAnswers;
+};
+
+export function saveDubbioSession(session: DubbioSession) {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.setItem(DUBBIO_SESSION_KEY, JSON.stringify(session));
+}
+
+export function loadDubbioSession(): DubbioSession | null {
+  if (typeof sessionStorage === "undefined") return null;
+  const raw = sessionStorage.getItem(DUBBIO_SESSION_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as DubbioSession;
+  } catch {
+    return null;
+  }
+}
+
+export function clearDubbioSession() {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.removeItem(DUBBIO_SESSION_KEY);
+}
 
 export function buildDubbioProfile(state: LibraryState): UserProfile {
   const seenIds = Object.entries(state.media)

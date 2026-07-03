@@ -1,15 +1,18 @@
 import { cn } from "@/lib/utils";
+import { BRAND } from "@/lib/brand";
 
 type Props = {
   className?: string;
   compact?: boolean;
 };
 
+const iconSrc = `/icon.png?v=${BRAND.assetVer}`;
+
 /** Icona Nerdubbio — sfera oracle con play neon (Nerdacolo / Main Quest). */
 export function BrandIcon({ className, compact }: Props) {
   return (
     <img
-      src="/icon.png"
+      src={iconSrc}
       alt=""
       width={1024}
       height={1024}

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { BRAND } from "@/lib/brand";
 import { BrandIcon } from "./BrandIcon";
 
 type Props = {
@@ -8,6 +9,8 @@ type Props = {
   withIcon?: boolean;
 };
 
+const wordmarkSrc = `/wordmark.png?v=${BRAND.assetVer}`;
+
 /** Wordmark NERDUBBIO — asset ufficiale con gradient neon e play nel «O». */
 export function Wordmark({ lang = "it", className, withIcon = false }: Props) {
   const label = lang === "it" ? "Nerdubbio" : "Nerdoubt";
@@ -16,21 +19,21 @@ export function Wordmark({ lang = "it", className, withIcon = false }: Props) {
     <span
       className={cn(
         "inline-flex items-center select-none",
-        withIcon && "gap-2.5 sm:gap-3",
+        withIcon && "gap-2 sm:gap-2.5",
         className,
       )}
       role="img"
       aria-label={label}
     >
       {withIcon && (
-        <BrandIcon className="h-[1.2em] w-[1.2em] shrink-0" compact />
+        <BrandIcon className="h-[1.15em] w-[1.15em] shrink-0" compact />
       )}
       <img
-        src="/wordmark.png"
+        src={wordmarkSrc}
         alt=""
-        width={1024}
-        height={256}
-        className="h-[1em] w-auto max-w-full bg-transparent object-contain object-left"
+        width={910}
+        height={147}
+        className="h-[1em] w-auto max-w-[min(100%,12rem)] bg-transparent object-contain object-left sm:max-w-[14rem]"
         decoding="async"
         fetchPriority="high"
       />

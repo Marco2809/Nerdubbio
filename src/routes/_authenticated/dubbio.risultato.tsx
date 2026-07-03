@@ -1,11 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { BrandIcon } from "@/components/nerdubbio/BrandIcon";
+import { NerdacoloLoader } from "@/components/nerdubbio/NerdacoloLoader";
 import {
   recommendationEngine,
   catalogMediaId,
-  type DoubtMode,
-  type QuizAnswers,
   type RecommendationResult,
 } from "@/lib/recommendation/engine";
 import type { CatalogItem } from "@/lib/mock-catalog";
@@ -13,14 +12,18 @@ import {
   buildDubbioProfile,
   fetchDubbioPool,
   loadDubbioPool,
+  loadDubbioSession,
+  saveDubbioSession,
+  type DubbioSession,
 } from "@/lib/recommendation/dubbio-pool";
 import { useUserStore, type MediaMeta } from "@/lib/user-store";
 import { NERDACOLO, QUEST } from "@/lib/brand";
-import { Plus, Check, RotateCcw, Share2, Loader2 } from "lucide-react";
+import { Plus, Check, RotateCcw, Share2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "@/lib/toast";
 import { z } from "zod";
 
+/** Solo per link vecchi con risposte in query — migrati in sessionStorage e rimossi dall'URL. */
 const searchSchema = z.object({ d: z.string().optional() });
 
 export const Route = createFileRoute("/_authenticated/dubbio/risultato")({
@@ -64,23 +67,35 @@ function PosterHero({ item, score }: { item: CatalogItem; score: number }) {
 
 function ResultPage() {
   const { d } = Route.useSearch();
+  const navigate = useNavigate();
   const { state, addToList, dismiss, update } = useUserStore();
   const profile = useMemo(() => buildDubbioProfile(state), [state]);
 
-  const parsed = useMemo(() => {
-    if (!d) return null;
-    try {
-      return JSON.parse(decodeURIComponent(d)) as { mode: DoubtMode; answers: QuizAnswers };
-    } catch {
-      return null;
-    }
-  }, [d]);
-
+  const [sessionReady, setSessionReady] = useState(false);
+  const [parsed, setParsed] = useState<DubbioSession | null>(null);
   const [result, setResult] = useState<RecommendationResult | null>(null);
   const [poolSize, setPoolSize] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let session = loadDubbioSession();
+    if (!session && d) {
+      try {
+        session = JSON.parse(decodeURIComponent(d)) as DubbioSession;
+        saveDubbioSession(session);
+      } catch {
+        session = null;
+      }
+    }
+    setParsed(session);
+    setSessionReady(true);
+    if (d) {
+      navigate({ to: "/dubbio/risultato", search: {}, replace: true });
+    }
+  }, [d, navigate]);
+
+  useEffect(() => {
+    if (!sessionReady) return;
     if (!parsed) {
       setLoading(false);
       return;
@@ -94,7 +109,6 @@ function ResultPage() {
         if (pool.length < 20) {
           pool = await fetchDubbioPool(parsed.mode, profile, parsed.answers);
         } else {
-          // Raffina pool con mood dalle risposte finali
           pool = await fetchDubbioPool(parsed.mode, profile, parsed.answers);
         }
         if (cancelled) return;
@@ -110,7 +124,15 @@ function ResultPage() {
     return () => {
       cancelled = true;
     };
-  }, [parsed, profile]);
+  }, [parsed, profile, sessionReady]);
+
+  if (!sessionReady || loading) {
+    return (
+      <AppShell title={`${NERDACOLO.name} calcola il match…`}>
+        <NerdacoloLoader title={sessionReady ? "Scoring su TMDB e watchlist…" : "Calcolo in corso…"} />
+      </AppShell>
+    );
+  }
 
   if (!parsed) {
     return (
@@ -122,17 +144,6 @@ function ResultPage() {
           </Link>
           .
         </p>
-      </AppShell>
-    );
-  }
-
-  if (loading) {
-    return (
-      <AppShell title={`${NERDACOLO.name} calcola il match…`}>
-        <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
-          <Loader2 className="h-8 w-8 animate-spin text-accent" />
-          <p className="text-sm">Scoring su titoli TMDB e watchlist…</p>
-        </div>
       </AppShell>
     );
   }

@@ -9,7 +9,7 @@ type Props = {
   compact?: boolean;
 };
 
-/** Tap su Nerdacolo → tiro d20 con 20 titoli non visti. */
+/** Tap su Nerdacolo → tiro d20, consiglio a sorpresa. */
 export function NerdacoloTrigger({ className, compact = false }: Props) {
   if (compact) {
     return (
@@ -35,8 +35,8 @@ export function NerdacoloTrigger({ className, compact = false }: Props) {
           <BrandIcon className="h-14 w-14 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="text-xs uppercase tracking-widest text-fuchsia-300">{NERDACOLO.name}</p>
-            <p className="font-bold leading-snug">Tira un d20 — 20 titoli, un destino</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">Non visti · watchlist · TMDB</p>
+            <p className="font-bold leading-snug">Tira un d20 — 20 titoli, 5 scarti</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Scarta quelli che non ti convincono, poi lancia il dado</p>
           </div>
           <Dices className="h-6 w-6 shrink-0 text-fuchsia-300/80" />
         </div>

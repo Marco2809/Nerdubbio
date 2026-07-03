@@ -8,6 +8,7 @@ import type { DoubtMode } from "@/lib/recommendation/engine";
 import {
   buildDubbioProfile,
   fetchDubbioPool,
+  saveDubbioSession,
 } from "@/lib/recommendation/dubbio-pool";
 import {
   pickNextQuestion,
@@ -17,7 +18,8 @@ import {
 import type { QuizQuestion } from "@/lib/recommendation/questions";
 import { useUserStore } from "@/lib/user-store";
 import { NERDACOLO, QUEST } from "@/lib/brand";
-import { Film, Loader2, Tv, Shuffle } from "lucide-react";
+import { NerdacoloLoader } from "@/components/nerdubbio/NerdacoloLoader";
+import { Film, Tv, Shuffle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "@/lib/toast";
 
@@ -42,6 +44,7 @@ function DubbioQuiz() {
   const [history, setHistory] = useState<QuizQuestion[]>([]);
   const [pool, setPool] = useState<CatalogItem[]>([]);
   const [loadingPool, setLoadingPool] = useState(false);
+  const [finishing, setFinishing] = useState(false);
   const intro = useMemo(() => randomNerdacoloIntro(), [mode]);
 
   const total = sessionLength();
@@ -49,8 +52,10 @@ function DubbioQuiz() {
   const q = mode && pool.length ? pickNextQuestion(mode, answers, step, pool, profile) : null;
 
   const goToResult = (nextAnswers: Record<string, number>) => {
-    const payload = encodeURIComponent(JSON.stringify({ mode, answers: nextAnswers }));
-    navigate({ to: "/dubbio/risultato", search: { d: payload } as never });
+    if (!mode) return;
+    setFinishing(true);
+    saveDubbioSession({ mode, answers: nextAnswers });
+    navigate({ to: "/dubbio/risultato" });
   };
 
   const selectMode = async (m: DoubtMode) => {
@@ -107,10 +112,15 @@ function DubbioQuiz() {
   if (loadingPool || !pool.length) {
     return (
       <AppShell title={`${NERDACOLO.name} scansiona TMDB…`}>
-        <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
-          <Loader2 className="h-8 w-8 animate-spin text-accent" />
-          <p className="text-sm">Carico titoli reali + la tua watchlist…</p>
-        </div>
+        <NerdacoloLoader title="Carico titoli reali…" />
+      </AppShell>
+    );
+  }
+
+  if (finishing) {
+    return (
+      <AppShell title="Calcolo in corso…">
+        <NerdacoloLoader />
       </AppShell>
     );
   }
@@ -118,7 +128,7 @@ function DubbioQuiz() {
   if (!q && step >= total) {
     return (
       <AppShell title="Calcolo in corso…">
-        <p className="text-sm text-muted-foreground">{NERDACOLO.name} sta tirando i dadi…</p>
+        <NerdacoloLoader />
       </AppShell>
     );
   }

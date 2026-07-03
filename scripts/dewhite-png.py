@@ -130,29 +130,44 @@ def resize_icon(src: Path, size: int, dest: Path) -> None:
     y = (im.height - side) // 2
     im = im.crop((x, y, x + side, y + side))
     im = im.resize((size, size), Image.Resampling.LANCZOS)
+    im = decontaminate_white_matte(im)
+    im = remove_edge_halo(im)
     clean_transparent_rgb(im)
     im.save(dest, "PNG", optimize=True)
 
 
 def remove_edge_halo(im: Image.Image) -> Image.Image:
-    """Rimuove alone chiaro/bianco adiacente a pixel trasparenti."""
+    """Rimuove alone chiaro/bianco/rosa adiacente a pixel trasparenti."""
     im = im.convert("RGBA")
     px = im.load()
     w, h = im.size
+
+    def touches_transparent(x: int, y: int) -> bool:
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < w and 0 <= ny < h and px[nx, ny][3] < 30:
+                return True
+        return False
+
     changed = True
     while changed:
         changed = False
         to_clear: list[tuple[int, int]] = []
-        for y in range(1, h - 1):
-            for x in range(1, w - 1):
+        for y in range(h):
+            for x in range(w):
                 r, g, b, a = px[x, y]
-                if a < 40:
+                if a < 40 or not touches_transparent(x, y):
                     continue
-                if luminance(r, g, b) < 0.72 or saturation(r, g, b) > 0.18:
-                    continue
-                if not any(px[x + dx, y + dy][3] < 30 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
-                    continue
-                to_clear.append((x, y))
+                lum = luminance(r, g, b)
+                sat = saturation(r, g, b)
+                spread = max(r, g, b) - min(r, g, b)
+                # Frange bianco/rosa su matte (es. icona sfera)
+                if lum >= 0.62 and spread <= 55:
+                    to_clear.append((x, y))
+                elif lum >= 0.72 and sat <= 0.35:
+                    to_clear.append((x, y))
+                elif min(r, g, b) >= 200 and a < 250:
+                    to_clear.append((x, y))
         for x, y in to_clear:
             px[x, y] = (0, 0, 0, 0)
             changed = True
