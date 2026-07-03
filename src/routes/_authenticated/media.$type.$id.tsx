@@ -110,8 +110,8 @@ function MediaDetail() {
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1"><Star className="h-3 w-3 fill-accent text-accent" /> {item.rating.toFixed(1)}</span>
           <span>·</span>
-          {item.seasons && <><span>{item.seasons} stagioni</span><span>·</span></>}
-          {item.runtimeMin && <span>{item.runtimeMin}′</span>}
+          {(item.seasons ?? 0) > 0 && <><span>{item.seasons} stagioni</span><span>·</span></>}
+          {(item.runtimeMin ?? 0) > 0 && <span>{item.runtimeMin}′</span>}
         </div>
         <div className="mt-3 flex flex-wrap gap-1">
           {item.genres.map(g => <span key={g} className="rounded-full border border-border px-2 py-0.5 text-[10px]">{g}</span>)}
@@ -119,7 +119,7 @@ function MediaDetail() {
 
         <p className="mt-4 text-sm leading-relaxed text-foreground/90">{item.overview}</p>
 
-        {item.where?.length && (
+        {(item.where?.length ?? 0) > 0 && (
           <div className="mt-4">
             <p className="text-xs uppercase tracking-widest text-muted-foreground">Dove vederlo</p>
             <p className="mt-1 text-sm font-semibold">{item.where.join(" · ")}</p>
@@ -285,7 +285,7 @@ function MediaDetail() {
         <SeriesRating value={entry?.rating} onChange={(r) => setRating(item.id, r)} />
 
 
-        {item.type === "tv" && item.seasons && (
+        {item.type === "tv" && (item.seasons ?? 0) > 0 && (
           <SeasonsTracker
             item={item}
             tmdbId={item.tmdb_id ?? numericId}
@@ -316,7 +316,7 @@ function MediaDetail() {
 
         <CastSection cast={creditsQuery.data?.cast ?? []} loading={creditsQuery.isLoading} returnPath={returnPath} />
 
-        {item.similar?.length && (
+        {(item.similar?.length ?? 0) > 0 && (
           <section className="mt-6">
             <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">Simili</h2>
             <div className="grid grid-cols-3 gap-2">
@@ -645,9 +645,9 @@ function CastSection({ cast, loading, returnPath }: { cast: CastMember[]; loadin
               )}
             </div>
             <p className="mt-1 line-clamp-2 text-xs font-semibold leading-tight">{c.name}</p>
-            {c.character && (
+            {c.character ? (
               <p className="line-clamp-1 text-[10px] text-muted-foreground">{c.character}</p>
-            )}
+            ) : null}
           </Link>
         ))}
       </div>
