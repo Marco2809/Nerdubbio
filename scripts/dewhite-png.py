@@ -13,6 +13,9 @@ PUBLIC = ROOT / "public"
 def is_background(r: int, g: int, b: int, a: int) -> bool:
     if a < 10:
         return True
+    # nero puro (export con sfondo nero)
+    if r == 0 and g == 0 and b == 0:
+        return True
     # bianco puro
     if r > 248 and g > 248 and b > 248:
         return True
