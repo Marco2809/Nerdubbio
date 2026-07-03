@@ -13,11 +13,9 @@ ASSETS = ROOT / "assets"
 
 # Sfondo home screen — allineato a manifest background_color (#150a2a)
 PWA_BG = (21, 10, 42, 255)
-# Logo ~58% canvas — iOS maschera i bordi; 70% tagliava la sfera in alto
-PWA_ICON_SCALE = 0.62
-# Apple touch: ancora più piccola + leggero offset verso il basso
-PWA_APPLE_SCALE = 0.54
-PWA_APPLE_Y_BIAS = 0.04
+# Logo nel canvas PWA — 65% con safe zone iOS
+PWA_ICON_SCALE = 0.65
+PWA_APPLE_SCALE = 0.65
 
 
 def luminance(r: int, g: int, b: int) -> float:
@@ -132,12 +130,15 @@ def trim_transparent(im: Image.Image, pad: int = 2) -> Image.Image:
 
 
 def square_icon(src: Image.Image) -> Image.Image:
-    im = src.convert("RGBA")
-    side = min(im.size)
-    x = (im.width - side) // 2
-    y = (im.height - side) // 2
-    im = im.crop((x, y, x + side, y + side))
-    im = decontaminate_white_matte(im)
+    """Quadrato il logo SENZA tagliare l'alto: trim + pad simmetrico (non center-crop)."""
+    im = trim_transparent(src.convert("RGBA"), pad=8)
+    w, h = im.size
+    side = max(w, h)
+    canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    ox = (side - w) // 2
+    oy = (side - h) // 2
+    canvas.paste(im, (ox, oy), im)
+    im = decontaminate_white_matte(canvas)
     im = remove_edge_halo(im)
     return clean_transparent_rgb(im)
 
@@ -147,15 +148,14 @@ def compose_pwa_icon(
     size: int,
     dest: Path,
     scale: float = PWA_ICON_SCALE,
-    vertical_bias: float = 0.0,
 ) -> None:
-    """Icona add-to-home: sfondo scuro + sfera ridotta al centro (stile QuestMaster)."""
+    """Icona add-to-home: sfondo scuro + logo centrato (safe zone iOS)."""
     im = square_icon(Image.open(src))
     inner = max(1, int(size * scale))
     im = im.resize((inner, inner), Image.Resampling.LANCZOS)
     canvas = Image.new("RGBA", (size, size), PWA_BG)
     ox = (size - inner) // 2
-    oy = (size - inner) // 2 + int(size * vertical_bias)
+    oy = (size - inner) // 2
     canvas.paste(im, (ox, oy), im)
     canvas.save(dest, "PNG", optimize=True)
 
@@ -248,13 +248,7 @@ def main() -> None:
     if icon.exists():
         compose_pwa_icon(icon, 192, PUBLIC / "icon-192.png")
         compose_pwa_icon(icon, 512, PUBLIC / "icon-512.png")
-        compose_pwa_icon(
-            icon,
-            180,
-            PUBLIC / "apple-touch-icon.png",
-            scale=PWA_APPLE_SCALE,
-            vertical_bias=PWA_APPLE_Y_BIAS,
-        )
+        compose_pwa_icon(icon, 180, PUBLIC / "apple-touch-icon.png", scale=PWA_APPLE_SCALE)
         resize_icon(icon, 32, PUBLIC / "favicon.png")
         print("regenerated PWA icons (dark bg + scaled logo, apple safe zone)")
 
