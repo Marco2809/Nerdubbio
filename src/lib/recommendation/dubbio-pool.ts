@@ -44,12 +44,17 @@ export function buildDubbioProfile(state: LibraryState): UserProfile {
     .filter(([, m]) => m.status === "plan_to_watch" || m.status === "watching" || m.status === "favorite")
     .map(([k]) => k);
 
+  const highlyRatedIds = Object.entries(state.media)
+    .filter(([, m]) => (m.rating ?? 0) >= 8)
+    .map(([k]) => k);
+
   return {
     seenIds,
     dismissedIds: state.dismissed,
     favoriteGenres: state.favoriteGenres,
     moodProfile: state.moodProfile ?? undefined,
     watchlistIds,
+    highlyRatedIds,
   };
 }
 
@@ -95,6 +100,7 @@ export async function fetchDubbioPool(
       favoriteGenres: profile.favoriteGenres,
       moodGenres,
       watchlistIds: profile.watchlistIds,
+      highlyRatedIds: profile.highlyRatedIds,
       excludeIds: [...(profile.seenIds ?? []), ...(profile.dismissedIds ?? [])],
     },
   });

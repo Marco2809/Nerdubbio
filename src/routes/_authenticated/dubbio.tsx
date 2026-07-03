@@ -1,79 +1,126 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { BrandIcon } from "@/components/nerdubbio/BrandIcon";
 import { NerdacoloTrigger } from "@/components/nerdubbio/NerdacoloTrigger";
+import {
+  NerdacoloConsultingPulse,
+  NerdacoloModePicker,
+  NerdacoloQuizView,
+} from "@/components/nerdubbio/NerdacoloQuiz";
+import { NerdacoloLoader } from "@/components/nerdubbio/NerdacoloLoader";
 import type { CatalogItem } from "@/lib/mock-catalog";
 import { CATALOG } from "@/lib/mock-catalog";
-import type { DoubtMode } from "@/lib/recommendation/engine";
+import { fetchDubbioPool, saveDubbioPool } from "@/lib/recommendation/dubbio-pool";
 import {
-  buildDubbioProfile,
-  fetchDubbioPool,
-  saveDubbioSession,
-} from "@/lib/recommendation/dubbio-pool";
-import {
-  pickNextQuestion,
-  randomNerdacoloIntro,
-  sessionLength,
-} from "@/lib/recommendation/dynamic-quiz";
-import type { QuizQuestion } from "@/lib/recommendation/questions";
+  answerQuestion,
+  buildNerdacoloUserContext,
+  saveNerdacoloResult,
+  saveNerdacoloSession,
+  startNerdacoloSession,
+} from "@/lib/recommendation/nerdacoloEngine";
+import type { NerdacoloMode, NerdacoloQuestion, NerdacoloSessionState } from "@/lib/recommendation/nerdacolo-types";
 import { useUserStore } from "@/lib/user-store";
 import { NERDACOLO, QUEST } from "@/lib/brand";
-import { NerdacoloLoader } from "@/components/nerdubbio/NerdacoloLoader";
-import { Film, Tv, Shuffle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "@/lib/toast";
 
 export const Route = createFileRoute("/_authenticated/dubbio")({
   head: () => ({ meta: [{ title: `${QUEST.name} — Nerdubbio` }] }),
-  component: DubbioQuiz,
+  component: DubbioPage,
 });
 
-const MODES: { key: DoubtMode; label: string; sub: string; icon: React.ReactNode }[] = [
-  { key: "tv", label: "Voglio una serie", sub: "impegno emotivo garantito", icon: <Tv className="h-5 w-5" /> },
-  { key: "movie", label: "Voglio un film", sub: "una serata sola, promesso", icon: <Film className="h-5 w-5" /> },
-  { key: "surprise", label: "Sorprendimi", sub: `${NERDACOLO.short} decide tutto`, icon: <Shuffle className="h-5 w-5" /> },
-];
-
-function DubbioQuiz() {
+function DubbioPage() {
   const navigate = useNavigate();
   const { state } = useUserStore();
-  const profile = useMemo(() => buildDubbioProfile(state), [state]);
+  const userContext = useMemo(() => buildNerdacoloUserContext(state), [state]);
 
-  const [mode, setMode] = useState<DoubtMode | null>(null);
-  const [answers, setAnswers] = useState<Record<string, number>>({});
-  const [history, setHistory] = useState<QuizQuestion[]>([]);
-  const [pool, setPool] = useState<CatalogItem[]>([]);
+  const [mode, setMode] = useState<NerdacoloMode | null>(null);
+  const [session, setSession] = useState<NerdacoloSessionState | null>(null);
+  const [currentQuestion, setCurrentQuestion] = useState<NerdacoloQuestion | null>(null);
+  const [oracleLine, setOracleLine] = useState("");
   const [loadingPool, setLoadingPool] = useState(false);
-  const [finishing, setFinishing] = useState(false);
-  const intro = useMemo(() => randomNerdacoloIntro(), [mode]);
+  const [consulting, setConsulting] = useState(false);
 
-  const total = sessionLength();
-  const step = history.length;
-  const q = mode && pool.length ? pickNextQuestion(mode, answers, step, pool, profile) : null;
-
-  const goToResult = (nextAnswers: Record<string, number>) => {
-    if (!mode) return;
-    setFinishing(true);
-    saveDubbioSession({ mode, answers: nextAnswers });
-    navigate({ to: "/dubbio/risultato" });
-  };
-
-  const selectMode = async (m: DoubtMode) => {
+  const selectMode = async (m: NerdacoloMode) => {
     setMode(m);
-    setAnswers({});
-    setHistory([]);
     setLoadingPool(true);
     try {
-      const items = await fetchDubbioPool(m, profile);
-      setPool(items);
-      if (items.length === 0) throw new Error("empty");
-      toast.success(`${NERDACOLO.short}: ${items.length} titoli da TMDB e watchlist`);
-    } catch {
-      setPool(CATALOG);
-      toast.error("TMDB non disponibile — catalogo locale di backup");
+      let pool: CatalogItem[];
+      try {
+        pool = await fetchDubbioPool(m, {
+          seenIds: userContext.seenIds,
+          dismissedIds: userContext.dismissedIds,
+          favoriteGenres: userContext.favoriteGenres,
+          moodProfile: userContext.moodProfile,
+          watchlistIds: userContext.watchlistIds,
+          highlyRatedIds: userContext.highlyRatedIds,
+        });
+        if (!pool.length) throw new Error("empty");
+      } catch {
+        pool = CATALOG;
+        toast.error("TMDB non disponibile — catalogo locale di backup");
+      }
+
+      saveDubbioPool(pool);
+      const started = startNerdacoloSession({
+        mode: m,
+        userProfile: userContext,
+        catalogPool: pool,
+        language: userContext.language,
+      });
+
+      setSession(started.sessionState);
+      setCurrentQuestion(started.firstQuestion);
+      setOracleLine(started.oracleLine);
+      toast.success(`${NERDACOLO.short}: ${started.candidatePool.length} candidati in sfera`);
+    } catch (e) {
+      toast.error("Errore avvio Nerdacolo");
+      setMode(null);
     } finally {
       setLoadingPool(false);
     }
+  };
+
+  const handleAnswer = (answerId: string) => {
+    if (!session || !currentQuestion) return;
+
+    setConsulting(true);
+    const result = answerQuestion(session, currentQuestion.id, answerId);
+
+    setTimeout(() => {
+      setConsulting(false);
+      setSession(result.updatedSessionState);
+      setOracleLine(result.oracleLine);
+      saveNerdacoloSession(result.updatedSessionState);
+
+      if (result.shouldStop && result.finalRecommendation) {
+        saveNerdacoloResult(result.finalRecommendation);
+        saveNerdacoloSession(result.updatedSessionState);
+        navigate({ to: "/dubbio/risultato" });
+        return;
+      }
+
+      if (result.nextQuestion) {
+        setCurrentQuestion(result.nextQuestion);
+      } else if (result.finalRecommendation) {
+        saveNerdacoloResult(result.finalRecommendation);
+        navigate({ to: "/dubbio/risultato" });
+      }
+    }, 700);
+  };
+
+  const goBack = () => {
+    if (!mode) return;
+    if (!session || session.questionCount === 0) {
+      setMode(null);
+      setSession(null);
+      setCurrentQuestion(null);
+      return;
+    }
+    toast("Ricomincia la sessione per cambiare le risposte");
+    setMode(null);
+    setSession(null);
+    setCurrentQuestion(null);
   };
 
   if (!mode) {
@@ -82,131 +129,53 @@ function DubbioQuiz() {
         <div className="mb-4 flex items-center gap-3">
           <NerdacoloTrigger compact />
           <p className="text-xs text-muted-foreground">
-            Tap su {NERDACOLO.name} per un <span className="text-fuchsia-300">tiro d20</span> veloce — senza quiz.
+            Tap su {NERDACOLO.name} per un <span className="text-fuchsia-300">tiro d20</span> veloce.
           </p>
         </div>
         <p className="mb-4 text-sm text-muted-foreground">
-          {NERDACOLO.name} interroga TMDB e la tua libreria importata. Scegli il format:
+          {NERDACOLO.name} interroga TMDB e la tua libreria. Ogni domanda restringe i candidati fino al match perfetto.
         </p>
-        <div className="space-y-3">
-          {MODES.map(m => (
-            <button
-              key={m.key}
-              onClick={() => void selectMode(m.key)}
-              className="glass flex w-full items-center gap-4 rounded-3xl p-4 text-left transition hover:shadow-glow"
-            >
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-hero text-primary-foreground shadow-glow-pink">
-                {m.icon}
-              </span>
-              <div className="flex-1">
-                <p className="font-bold">{m.label}</p>
-                <p className="text-xs text-muted-foreground">{m.sub}</p>
-              </div>
-            </button>
-          ))}
-        </div>
+        <NerdacoloModePicker onSelect={m => void selectMode(m)} />
       </AppShell>
     );
   }
 
-  if (loadingPool || !pool.length) {
+  if (loadingPool) {
     return (
       <AppShell title={`${NERDACOLO.name} scansiona TMDB…`}>
-        <NerdacoloLoader title="Carico titoli reali…" />
+        <NerdacoloLoader title="Raccolgo candidati da trending, discover e watchlist…" />
       </AppShell>
     );
   }
 
-  if (finishing) {
+  if (consulting) {
     return (
-      <AppShell title="Calcolo in corso…">
-        <NerdacoloLoader />
+      <AppShell title="Consultazione…">
+        <NerdacoloConsultingPulse line={oracleLine || "Sto consultando la sfera"} />
       </AppShell>
     );
   }
 
-  if (!q && step >= total) {
-    return (
-      <AppShell title="Calcolo in corso…">
-        <NerdacoloLoader />
-      </AppShell>
-    );
-  }
-
-  if (!q) {
+  if (!session || !currentQuestion) {
     return (
       <AppShell title="Ops">
-        <p className="text-sm text-muted-foreground">
-          Nessuna altra domanda disponibile.{" "}
-          <button type="button" className="text-accent underline" onClick={() => goToResult(answers)}>
-            Vedi risultato
-          </button>
-        </p>
+        <p className="text-sm text-muted-foreground">Sessione non valida.</p>
+        <button type="button" className="mt-4 text-accent underline" onClick={goBack}>
+          Ricomincia
+        </button>
       </AppShell>
     );
   }
 
-  const progress = (step / total) * 100;
-
-  const answer = (idx: number) => {
-    const next = { ...answers, [q.id]: idx };
-    setAnswers(next);
-    const nextHistory = [...history, q];
-    setHistory(nextHistory);
-
-    if (nextHistory.length >= total || !pickNextQuestion(mode, next, nextHistory.length, pool, profile)) {
-      goToResult(next);
-    }
-  };
-
-  const goBack = () => {
-    if (!history.length) {
-      setMode(null);
-      setPool([]);
-      return;
-    }
-    const prev = history[history.length - 1]!;
-    const nextAnswers = { ...answers };
-    delete nextAnswers[prev.id];
-    setAnswers(nextAnswers);
-    setHistory(h => h.slice(0, -1));
-  };
-
   return (
-    <AppShell subtitle={`Domanda ${step + 1} / ~${total}`} title={`${NERDACOLO.name} interroga…`}>
-      <p className="mb-1 text-[10px] uppercase tracking-widest text-accent">
-        Pool: {pool.length} titoli TMDB
-      </p>
-      <p className="mb-3 text-xs text-muted-foreground">
-        {step === 0 ? intro : q.masterLine ?? NERDACOLO.tagline}
-      </p>
-
-      <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
-        <div className="h-full bg-hero transition-all" style={{ width: `${progress}%` }} />
-      </div>
-
-      <div className="glass rounded-3xl p-5 shadow-glow">
-        <div className="flex items-start gap-3">
-          <BrandIcon className="h-10 w-10 shrink-0" compact />
-          <p className="text-lg font-bold leading-snug">{q.question}</p>
-        </div>
-      </div>
-
-      <div className="mt-4 space-y-2">
-        {q.choices.map((c, i) => (
-          <button
-            key={i}
-            onClick={() => answer(i)}
-            className="w-full rounded-2xl border border-border bg-surface/60 p-4 text-left transition hover:border-accent hover:bg-accent/10"
-          >
-            <p className="text-sm font-semibold">{c.label}</p>
-          </button>
-        ))}
-      </div>
-
-      <button onClick={goBack} className="mt-4 w-full text-center text-xs text-muted-foreground">
-        ← indietro
-      </button>
+    <AppShell subtitle={NERDACOLO.title} title={`${NERDACOLO.name} interroga…`}>
+      <NerdacoloQuizView
+        question={currentQuestion}
+        session={session}
+        oracleLine={oracleLine}
+        onAnswer={handleAnswer}
+        onBack={goBack}
+      />
     </AppShell>
   );
 }

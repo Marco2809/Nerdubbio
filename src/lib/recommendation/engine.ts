@@ -14,6 +14,7 @@ export interface UserProfile {
   moodProfile?: string[];
   watchlistIds?: string[];
   excludedGenres?: string[];
+  highlyRatedIds?: string[];
 }
 
 export interface RecommendationResult {

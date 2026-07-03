@@ -594,24 +594,30 @@ function computeWatchFrontier(
   return { watched: watchedSet, lastS, lastE, hasFrontier: lastS > 0 && lastE > 0 };
 }
 
-async function findNextUnwatchedEpisode(
-  tmdbId: number,
-  watched: string[],
-  lastSeason?: number,
-  lastEpisode?: number,
-): Promise<NextUnwatchedInfo | null> {
-  const today = new Date().toISOString().slice(0, 10);
-  const { watched: watchedSet, lastS, lastE, hasFrontier } = computeWatchFrontier(watched, lastSeason, lastEpisode);
+export const NEXT_UNWATCHED_BATCH_KEY = ["tmdb", "next-unwatched-batch"] as const;
 
-  let det: any;
-  try { det = await tmdb<any>(`/tv/${tmdbId}`); } catch { return null; }
-  const seasons: any[] = (det.seasons ?? [])
-    .filter((s: any) => s && s.season_number > 0 && (s.episode_count ?? 0) > 0)
-    .sort((a: any, b: any) => a.season_number - b.season_number);
+async function scanSeasonsForNext(
+  tmdbId: number,
+  seasons: any[],
+  today: string,
+  opts: {
+    watchedSet: Set<string>;
+    lastS: number;
+    lastE: number;
+    hasFrontier: boolean;
+    mode: "after_frontier" | "any_unwatched";
+  },
+): Promise<NextUnwatchedInfo | null> {
+  const { watchedSet, lastS, lastE, hasFrontier, mode } = opts;
 
   for (const s of seasons) {
-    if (hasFrontier && s.season_number < lastS) continue;
-    if (s.air_date && s.air_date > today && (!hasFrontier || s.season_number > lastS)) {
+    if (mode === "after_frontier" && hasFrontier && s.season_number < lastS) continue;
+    if (
+      mode === "after_frontier"
+      && s.air_date
+      && s.air_date > today
+      && (!hasFrontier || s.season_number > lastS)
+    ) {
       return {
         kind: "premiere",
         season: s.season_number,
@@ -628,8 +634,12 @@ async function findNextUnwatchedEpisode(
     const eps: any[] = Array.isArray(sd.episodes) ? sd.episodes : [];
     for (const e of eps) {
       const key = `S${e.season_number}E${e.episode_number}`;
-      if (hasFrontier) {
-        if (!isAfterEpisode(e.season_number, e.episode_number, lastS, lastE)) continue;
+      if (mode === "after_frontier") {
+        if (hasFrontier) {
+          if (!isAfterEpisode(e.season_number, e.episode_number, lastS, lastE)) continue;
+        } else if (watchedSet.has(key)) {
+          continue;
+        }
       } else if (watchedSet.has(key)) {
         continue;
       }
@@ -646,6 +656,44 @@ async function findNextUnwatchedEpisode(
       };
     }
   }
+  return null;
+}
+
+async function findNextUnwatchedEpisode(
+  tmdbId: number,
+  watched: string[],
+  lastSeason?: number,
+  lastEpisode?: number,
+): Promise<NextUnwatchedInfo | null> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { watched: watchedSet, lastS, lastE, hasFrontier } = computeWatchFrontier(watched, lastSeason, lastEpisode);
+
+  let det: any;
+  try { det = await tmdb<any>(`/tv/${tmdbId}`); } catch { return null; }
+  const seasons: any[] = (det.seasons ?? [])
+    .filter((s: any) => s && s.season_number > 0 && (s.episode_count ?? 0) > 0)
+    .sort((a: any, b: any) => a.season_number - b.season_number);
+
+  const primary = await scanSeasonsForNext(tmdbId, seasons, today, {
+    watchedSet,
+    lastS,
+    lastE,
+    hasFrontier,
+    mode: "after_frontier",
+  });
+  if (primary) return primary;
+
+  // Frontier oltre gli episodi TMDB (import errati) — primo buco nella watchlist
+  if (hasFrontier && watchedSet.size > 0) {
+    return scanSeasonsForNext(tmdbId, seasons, today, {
+      watchedSet,
+      lastS,
+      lastE,
+      hasFrontier: false,
+      mode: "any_unwatched",
+    });
+  }
+
   return null;
 }
 
@@ -801,6 +849,35 @@ async function similarItems(type: "movie" | "tv", tmdbId: number, limit = 8): Pr
   }
 }
 
+async function recommendationItems(type: "movie" | "tv", tmdbId: number, limit = 6): Promise<TmdbItem[]> {
+  try {
+    const res = await tmdb<any>(`/${type}/${tmdbId}/recommendations`, { page: 1 });
+    const rows = (res.results ?? []).slice(0, limit);
+    return (await Promise.all(rows.map((r: any) => enrichDiscoverRow(r, type)))).filter(Boolean) as TmdbItem[];
+  } catch {
+    return [];
+  }
+}
+
+async function hiddenGemPage(type: "movie" | "tv", page: number): Promise<any[]> {
+  const params: Record<string, string | number> = {
+    sort_by: "vote_average.desc",
+    include_adult: "false",
+    "vote_count.gte": 120,
+    "vote_average.gte": 7.4,
+    page,
+  };
+  if (type === "movie") {
+    params.region = "IT";
+    params["with_runtime.lte"] = 180;
+  } else {
+    params.watch_region = "IT";
+  }
+  const path = type === "movie" ? "/discover/movie" : "/discover/tv";
+  const res = await tmdb<any>(path, params);
+  return res.results ?? [];
+}
+
 export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
   .inputValidator((data) =>
     z
@@ -809,6 +886,7 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
         favoriteGenres: z.array(z.string()).optional(),
         moodGenres: z.array(z.string()).optional(),
         watchlistIds: z.array(z.string()).optional(),
+        highlyRatedIds: z.array(z.string()).optional(),
         excludeIds: z.array(z.string()).optional(),
       })
       .parse(data),
@@ -829,6 +907,18 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
       byKey.set(key, tmdbToCatalogItem(t, { fromWatchlist }));
     };
 
+    // Trending TMDB
+    try {
+      const trend = await tmdb<any>("/trending/all/week");
+      for (const r of (trend.results ?? []).slice(0, 25)) {
+        const mt = r.media_type === "movie" || r.media_type === "tv" ? r.media_type : null;
+        if (!mt || !types.includes(mt)) continue;
+        add(await enrichDiscoverRow(r, mt));
+      }
+    } catch {
+      /* skip */
+    }
+
     // Watchlist utente (priorità)
     const wl = (data.watchlistIds ?? []).slice(0, 12);
     for (const id of wl) {
@@ -839,6 +929,25 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
       try {
         const det = await tmdb<any>(`/${parsed.type}/${parsed.tmdbId}`);
         add(mapDetail(det, parsed.type), true);
+        const sim = await similarItems(parsed.type, parsed.tmdbId, 5);
+        sim.forEach(s => add(s));
+        const rec = await recommendationItems(parsed.type, parsed.tmdbId, 5);
+        rec.forEach(s => add(s));
+      } catch {
+        /* skip */
+      }
+    }
+
+    // Recommendations da titoli votati bene
+    const rated = (data.highlyRatedIds ?? []).slice(0, 8);
+    for (const id of rated) {
+      const parsed = parseMediaKey(id);
+      if (!parsed) continue;
+      if (data.mode === "movie" && parsed.type !== "movie") continue;
+      if (data.mode === "tv" && parsed.type !== "tv") continue;
+      try {
+        const rec = await recommendationItems(parsed.type, parsed.tmdbId, 6);
+        rec.forEach(s => add(s));
         const sim = await similarItems(parsed.type, parsed.tmdbId, 4);
         sim.forEach(s => add(s));
       } catch {
@@ -849,7 +958,7 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
     // Discover TMDB per genere
     for (const type of types) {
       const ids = tmdbGenreIds(genreNames, type);
-      for (const page of [1, 2, 3]) {
+      for (const page of [1, 2, 3, 4]) {
         const rows = await discoverPage(type, ids, page);
         for (const r of rows) {
           add(await enrichDiscoverRow(r, type));
@@ -857,17 +966,27 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
       }
     }
 
+    // Hidden gems — buon rating, popolarità media
+    for (const type of types) {
+      for (const page of [1, 2]) {
+        const rows = await hiddenGemPage(type, page);
+        for (const r of rows) {
+          add(await enrichDiscoverRow(r, type));
+        }
+      }
+    }
+
     // Fallback popolari se pool troppo piccolo
-    if (byKey.size < 25) {
+    if (byKey.size < 40) {
       for (const type of types) {
-        for (const page of [1, 2]) {
+        for (const page of [1, 2, 3]) {
           const rows = await discoverPage(type, [], page);
           for (const r of rows) add(await enrichDiscoverRow(r, type));
         }
       }
     }
 
-    const items = [...byKey.values()].slice(0, 120);
+    const items = [...byKey.values()].slice(0, 150);
     return { items, count: items.length };
   });
 
