@@ -5,8 +5,8 @@ import { findById, type CatalogItem } from "@/lib/mock-catalog";
 import { useUserStore, isEpisodeWatched, type UserStatus } from "@/lib/user-store";
 import { Plus, Heart, CheckCircle2, Pause, X, Star, Check, Loader2, PlayCircle, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { tmdbDetail, tmdbCredits, tmdbSeason, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
 import { useReturnPath, useSmartBack } from "@/lib/media-nav";
 import { toast } from "sonner";
 import {
@@ -583,13 +583,32 @@ function EpisodeRow({
 
 
 function CastSection({ cast, loading, returnPath }: { cast: CastMember[]; loading: boolean; returnPath: string }) {
+  const queryClient = useQueryClient();
+
+  const prefetchPerson = (personId: number) => {
+    void queryClient.prefetchQuery({
+      queryKey: ["tmdb", "person", personId],
+      queryFn: () => tmdbPerson({ data: { personId } }),
+      staleTime: 1000 * 60 * 60,
+    });
+  };
+
   if (loading) {
     return (
       <section className="mt-6">
-        <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">Cast</h2>
-        <div className="flex gap-3 overflow-x-auto pb-2">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-bold uppercase tracking-wider">Cast</h2>
+          <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+            Caricamento…
+          </p>
+        </div>
+        <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-32 w-24 shrink-0 animate-pulse rounded-2xl bg-surface-2" />
+            <div key={i} className="w-24 shrink-0">
+              <div className="h-32 w-24 animate-pulse rounded-2xl bg-surface-2" />
+              <div className="mt-2 h-3 w-full animate-pulse rounded bg-surface-2" />
+            </div>
           ))}
         </div>
       </section>
@@ -606,13 +625,20 @@ function CastSection({ cast, loading, returnPath }: { cast: CastMember[]; loadin
             to="/person/$id"
             params={{ id: String(c.id) }}
             state={{ from: returnPath }}
-            className="w-24 shrink-0"
+            className="w-24 shrink-0 active:opacity-70"
+            onMouseEnter={() => prefetchPerson(c.id)}
+            onFocus={() => prefetchPerson(c.id)}
+            onTouchStart={() => prefetchPerson(c.id)}
           >
-            <div
-              className="h-32 w-24 rounded-2xl border border-border bg-surface-2 bg-cover bg-center shadow-md"
-              style={c.profileUrl ? { backgroundImage: `url(${c.profileUrl})` } : undefined}
-            >
-              {!c.profileUrl && (
+            <div className="relative h-32 w-24 overflow-hidden rounded-2xl border border-border bg-surface-2 shadow-md">
+              {c.profileUrl ? (
+                <img
+                  src={c.profileUrl}
+                  alt=""
+                  loading="lazy"
+                  className="h-full w-full object-cover object-top"
+                />
+              ) : (
                 <div className="grid h-full w-full place-items-center text-2xl text-muted-foreground">
                   {c.name.charAt(0)}
                 </div>
