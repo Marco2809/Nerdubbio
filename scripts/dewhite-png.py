@@ -11,6 +11,11 @@ ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = ROOT / "public"
 ASSETS = ROOT / "assets"
 
+# Sfondo home screen — allineato a manifest background_color (#150a2a)
+PWA_BG = (21, 10, 42, 255)
+# Logo ~70% canvas (safe zone iOS / maskable)
+PWA_ICON_SCALE = 0.70
+
 
 def luminance(r: int, g: int, b: int) -> float:
     return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0
@@ -123,17 +128,32 @@ def trim_transparent(im: Image.Image, pad: int = 2) -> Image.Image:
     return im.crop((x0, y0, x1, y1))
 
 
-def resize_icon(src: Path, size: int, dest: Path) -> None:
-    im = Image.open(src).convert("RGBA")
+def square_icon(src: Image.Image) -> Image.Image:
+    im = src.convert("RGBA")
     side = min(im.size)
     x = (im.width - side) // 2
     y = (im.height - side) // 2
     im = im.crop((x, y, x + side, y + side))
-    im = im.resize((size, size), Image.Resampling.LANCZOS)
     im = decontaminate_white_matte(im)
     im = remove_edge_halo(im)
-    clean_transparent_rgb(im)
-    im.save(dest, "PNG", optimize=True)
+    return clean_transparent_rgb(im)
+
+
+def compose_pwa_icon(src: Path, size: int, dest: Path, scale: float = PWA_ICON_SCALE) -> None:
+    """Icona add-to-home: sfondo scuro + sfera ridotta al centro (stile QuestMaster)."""
+    im = square_icon(Image.open(src))
+    inner = max(1, int(size * scale))
+    im = im.resize((inner, inner), Image.Resampling.LANCZOS)
+    canvas = Image.new("RGBA", (size, size), PWA_BG)
+    ox = (size - inner) // 2
+    oy = (size - inner) // 2
+    canvas.paste(im, (ox, oy), im)
+    canvas.save(dest, "PNG", optimize=True)
+
+
+def resize_icon(src: Path, size: int, dest: Path) -> None:
+    """Favicon tab browser — sfondo scuro, icona più piccola."""
+    compose_pwa_icon(src, size, dest, scale=0.82)
 
 
 def remove_edge_halo(im: Image.Image) -> Image.Image:
@@ -217,10 +237,11 @@ def main() -> None:
 
     icon = PUBLIC / "icon.png"
     if icon.exists():
+        compose_pwa_icon(icon, 192, PUBLIC / "icon-192.png")
+        compose_pwa_icon(icon, 512, PUBLIC / "icon-512.png")
+        compose_pwa_icon(icon, 180, PUBLIC / "apple-touch-icon.png")
         resize_icon(icon, 32, PUBLIC / "favicon.png")
-        resize_icon(icon, 192, PUBLIC / "icon-192.png")
-        resize_icon(icon, 512, PUBLIC / "icon-512.png")
-        print("regenerated favicons")
+        print("regenerated PWA icons (dark bg + scaled logo)")
 
 
 if __name__ == "__main__":
