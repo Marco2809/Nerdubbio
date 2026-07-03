@@ -30,7 +30,7 @@ export function Wordmark({ lang = "it", className, withIcon = false }: Props) {
         alt=""
         width={1024}
         height={256}
-        className="h-[1em] w-auto max-w-full object-contain object-left"
+        className="h-[1em] w-auto max-w-full bg-transparent object-contain object-left"
         decoding="async"
         fetchPriority="high"
       />

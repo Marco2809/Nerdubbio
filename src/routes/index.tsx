@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Gamepad2, Layers, Sparkles, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Wordmark } from "@/components/nerdubbio/Wordmark";
+import { TmdbAttribution } from "@/components/nerdubbio/TmdbAttribution";
 import { LandingBackdrop, NerdHudStrip, NerdTags } from "@/components/nerdubbio/LandingDecor";
 import { useUserStore } from "@/lib/user-store";
 import { useAuth } from "@/lib/auth";
@@ -251,8 +252,11 @@ function Landing() {
         </Link>
       </section>
 
-      <footer className="relative mx-auto max-w-5xl px-4 pb-10 text-center font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-        {isIt ? "Nerdubbio" : "Nerdoubt"} · {t.footer}
+      <footer className="relative mx-auto max-w-5xl space-y-6 px-4 pb-10">
+        <TmdbAttribution compact />
+        <p className="text-center font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          {isIt ? "Nerdubbio" : "Nerdoubt"} · {t.footer}
+        </p>
       </footer>
     </div>
   );

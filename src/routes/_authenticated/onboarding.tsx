@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { tmdbTrending, type TmdbItem } from "@/lib/tmdb/tmdb.functions";
 import { CATALOG, type CatalogItem } from "@/lib/mock-catalog";
 import { Wordmark } from "@/components/nerdubbio/Wordmark";
+import { NERDACOLO, QUEST } from "@/lib/brand";
 import { libraryApi, LIBRARY_QUERY_KEY } from "@/lib/php/library-client";
 
 function catalogToTmdb(c: CatalogItem): TmdbItem {
@@ -198,7 +199,7 @@ function Onboarding() {
           </div>
           {step === "dubbio" && (
             <span className="text-[11px] font-semibold uppercase tracking-widest text-cyan-300">
-              Quest {dubbioIdx + 1}/{DUBBIO.length}
+              {NERDACOLO.name} {dubbioIdx + 1}/{DUBBIO.length}
             </span>
           )}
         </div>
@@ -324,7 +325,7 @@ function Onboarding() {
           {step === "dubbio" && (
             <div key={dubbioQ.id} className="animate-in fade-in slide-in-from-right-6">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-cyan-300">
-                Quest nerd
+                {QUEST.onboardingLabel}
               </div>
               <h2 className="text-3xl font-black leading-tight">{dubbioQ.q}</h2>
               <p className="mt-2 text-sm text-muted-foreground">{dubbioQ.sub}</p>

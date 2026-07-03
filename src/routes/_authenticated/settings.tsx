@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
+import { TmdbAttribution } from "@/components/nerdubbio/TmdbAttribution";
 import { useUserStore } from "@/lib/user-store";
 import { ArrowLeft, Globe, Shield, Trash2, Download, Sparkles, PlayCircle, Popcorn } from "lucide-react";
 
@@ -66,7 +67,11 @@ function Settings() {
         <Row icon={<Trash2 className="h-4 w-4"/>} label="Cancella account" danger />
       </section>
 
-      <p className="mt-8 text-center text-[10px] text-muted-foreground">Privacy by design. Nessun dato venduto. Mai.</p>
+      <section className="mt-8">
+        <TmdbAttribution />
+      </section>
+
+      <p className="mt-6 text-center text-[10px] text-muted-foreground">Privacy by design. Nessun dato venduto. Mai.</p>
     </AppShell>
   );
 }

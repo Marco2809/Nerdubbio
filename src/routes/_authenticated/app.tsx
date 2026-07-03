@@ -6,7 +6,7 @@ import { Sparkles, Flame, Trophy, TrendingUp } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { tmdbTrending, tmdbNextUnwatched } from "@/lib/tmdb/tmdb.functions";
 import { PremiereReminderButton } from "@/components/nerdubbio/PremiereReminderButton";
-import { QUEST } from "@/lib/brand";
+import { NERDACOLO, QUEST } from "@/lib/brand";
 import { NerdacoloTrigger } from "@/components/nerdubbio/NerdacoloTrigger";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { useEffect } from "react";
@@ -110,7 +110,7 @@ function HomeDashboard() {
               <Sparkles className="h-7 w-7 text-white" />
             </span>
             <div className="flex-1 min-w-0">
-              <p className="text-xs uppercase tracking-widest text-white/70">{QUEST.ctaHomeBadge}</p>
+              <p className="text-xs uppercase tracking-widest text-white/70">{NERDACOLO.name}</p>
               <p className="text-lg font-extrabold text-white">{QUEST.ctaHome}</p>
             </div>
           </div>

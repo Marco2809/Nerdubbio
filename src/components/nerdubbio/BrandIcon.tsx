@@ -16,7 +16,7 @@ export function BrandIcon({ className, compact }: Props) {
       aria-hidden
       decoding="async"
       className={cn(
-        "aspect-square object-contain",
+        "aspect-square bg-transparent object-contain",
         compact ? className : cn("drop-shadow-[0_0_14px_rgba(236,72,153,0.45)]", className),
       )}
     />
