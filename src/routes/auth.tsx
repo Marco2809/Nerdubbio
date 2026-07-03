@@ -86,15 +86,15 @@ function AuthPage() {
   return (
     <div className="min-h-screen">
       <div className="mx-auto flex max-w-sm flex-col px-4 pt-10 pb-16">
-        <Link to="/" className="mb-6 flex items-center justify-center">
-          <Wordmark priority className="h-12 w-auto drop-shadow-[0_0_24px_rgba(236,72,153,0.4)]" />
+        <Link to="/" className="mb-6 flex items-center justify-center text-foreground">
+          <Wordmark withIcon className="h-12 drop-shadow-[0_0_24px_rgba(168,85,247,0.4)]" />
         </Link>
 
         <h1 className="text-3xl font-extrabold">
           {mode === "login" ? "Bentornato nerd" : "Crea il tuo profilo"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {mode === "login" ? "Il Genio ti stava aspettando." : "Prometti solo di non abbandonare troppe serie."}
+          {mode === "login" ? "Nerdacolo ti stava aspettando." : "Prometti solo di non abbandonare troppe serie."}
         </p>
 
         <div className="mt-6">

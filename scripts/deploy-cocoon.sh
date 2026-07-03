@@ -16,7 +16,10 @@ mysql -u root < api/schema.sql
 mysql -u root -e "CREATE USER IF NOT EXISTS 'nerdubbio_user'@'localhost' IDENTIFIED BY '${DBPASS}'; GRANT SELECT, INSERT, UPDATE, DELETE ON nerdubbio.* TO 'nerdubbio_user'@'localhost'; FLUSH PRIVILEGES;" 2>/dev/null || \
 mysql -u root -e "ALTER USER 'nerdubbio_user'@'localhost' IDENTIFIED BY '${DBPASS}'; GRANT SELECT, INSERT, UPDATE, DELETE ON nerdubbio.* TO 'nerdubbio_user'@'localhost'; FLUSH PRIVILEGES;"
 
-GOOGLE_ID=$(grep google_client_id /var/www/demos/questmaster/api/config.php | cut -d"'" -f4)
+GOOGLE_ID=$(grep google_client_id "$APP_DIR/api/config.php" 2>/dev/null | cut -d"'" -f4 || true)
+if [ -z "$GOOGLE_ID" ]; then
+  GOOGLE_ID="889742684906-1409j6k9627nun2qe2d8a2i2phcaf75p.apps.googleusercontent.com"
+fi
 
 cat > api/config.php << PHP_EOF
 <?php

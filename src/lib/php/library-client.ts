@@ -1,5 +1,6 @@
 import { api } from '@/lib/php/client';
 import type { MediaMeta, UserMediaEntry, UserStatus } from '@/lib/user-store';
+import type { TvTimePendingItem } from '@/lib/tvtime-import';
 
 export interface LibraryState {
   xp: number;
@@ -19,6 +20,7 @@ export interface LibraryState {
     includeMovies: boolean;
   };
   localMigrated: boolean;
+  importPending: TvTimePendingItem[];
 }
 
 export const libraryApi = {
@@ -91,8 +93,16 @@ export const libraryApi = {
     });
   },
 
-  bulkImport(entries: UserMediaEntry[]): Promise<LibraryState> {
-    return api<LibraryState>('/api/library.php?action=bulk_import', 'POST', { entries });
+  bulkImport(
+    entries: UserMediaEntry[],
+    importPending?: TvTimePendingItem[],
+    opts?: { withXp?: boolean },
+  ): Promise<LibraryState> {
+    return api<LibraryState>('/api/library.php?action=bulk_import', 'POST', {
+      entries,
+      importPending,
+      withXp: opts?.withXp,
+    });
   },
 
   importLocal(localState: LibraryState): Promise<LibraryState> {

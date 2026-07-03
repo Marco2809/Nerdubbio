@@ -6,6 +6,9 @@ import { Sparkles, Flame, Trophy, TrendingUp } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { tmdbTrending, tmdbNextUnwatched } from "@/lib/tmdb/tmdb.functions";
 import { PremiereReminderButton } from "@/components/nerdubbio/PremiereReminderButton";
+import { QUEST } from "@/lib/brand";
+import { NerdacoloTrigger } from "@/components/nerdubbio/NerdacoloTrigger";
+import { useAuthUser } from "@/hooks/use-auth-user";
 import { useEffect } from "react";
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -53,15 +56,13 @@ function paramsFor(card: LibCard) {
 }
 
 function HomeDashboard() {
-  const { state } = useUserStore();
+  const { state, loading } = useUserStore();
+  const { user, profile } = useAuthUser();
   const navigate = useNavigate();
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    // Il flag viene idratato dal load(); se dopo il primo tick è ancora false, mandiamo all'onboarding.
-    const raw = localStorage.getItem("nerdubbio:v2");
-    const done = raw ? !!JSON.parse(raw).onboardingDone : false;
-    if (!done) navigate({ to: "/onboarding", replace: true });
-  }, [navigate]);
+    if (loading) return;
+    if (!state.onboardingDone) navigate({ to: "/onboarding", replace: true });
+  }, [navigate, loading, state.onboardingDone]);
   const stats = computeStats(state);
 
   const watching = Object.values(state.media)
@@ -91,14 +92,16 @@ function HomeDashboard() {
   });
 
 
+  const greetName = profile?.display_name || user?.email?.split("@")[0] || "nerd";
+
   return (
-    <AppShell subtitle="Ciao nerd" title="Cosa stai guardando?"
+    <AppShell subtitle={`Ciao ${greetName}`} title="Cosa stai guardando?"
       right={
         <div className="flex items-center gap-1 rounded-full bg-hero px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-glow">
           <Flame className="h-3.5 w-3.5" /> {state.streak}
         </div>
       }>
-      {/* CTA Dubbio */}
+      {/* CTA Main Quest */}
       <Link to="/dubbio" className="block">
         <div className="relative overflow-hidden rounded-3xl bg-hero p-5 shadow-glow-pink">
           <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
@@ -107,12 +110,14 @@ function HomeDashboard() {
               <Sparkles className="h-7 w-7 text-white" />
             </span>
             <div className="flex-1 min-w-0">
-              <p className="text-xs uppercase tracking-widest text-white/70">Ho un dubbio nerd</p>
-              <p className="text-lg font-extrabold text-white">Cosa guardo stasera?</p>
+              <p className="text-xs uppercase tracking-widest text-white/70">{QUEST.ctaHomeBadge}</p>
+              <p className="text-lg font-extrabold text-white">{QUEST.ctaHome}</p>
             </div>
           </div>
         </div>
       </Link>
+
+      <NerdacoloTrigger />
 
       {/* Migrazione TV Time */}
       <Link to="/da-tvtime" className="mt-3 block">

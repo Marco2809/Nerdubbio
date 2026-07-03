@@ -41,6 +41,25 @@ function uuid(): string {
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 }
 
+function parse_json(mixed $val, mixed $default = []): mixed {
+    if ($val === null || $val === '') return $default;
+    if (is_array($val)) return $val;
+    $d = json_decode((string) $val, true);
+    return json_last_error() === JSON_ERROR_NONE ? $d : $default;
+}
+
+function to_json(mixed $val): string {
+    return json_encode($val, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
+function normalize_datetime(mixed $v): ?string {
+    if ($v === null || $v === '') return null;
+    if (!is_string($v)) return null;
+    $ts = strtotime($v);
+    if ($ts === false) return null;
+    return date('Y-m-d H:i:s', $ts);
+}
+
 function send_mail(string $to, string $subject, string $html): bool {
     $host = (string) app_config('smtp_host');
     if ($host === '') return false;

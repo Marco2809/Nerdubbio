@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_authenticated/premium")({
 });
 
 const FEATURES = [
-  "Dubbio illimitato ogni giorno",
+  "Quest illimitate ogni giorno",
   "Statistiche avanzate e insight AI",
   "Import da TV Time / Trakt / Letterboxd",
   "Liste illimitate e backup dati",
@@ -26,7 +26,7 @@ function Premium() {
       <div className="relative overflow-hidden rounded-3xl bg-hero p-6 text-primary-foreground shadow-glow-pink">
         <Crown className="h-8 w-8" />
         <h1 className="mt-3 text-3xl font-extrabold">Nerdubbio Premium</h1>
-        <p className="mt-2 text-sm opacity-90">Sblocca il Genio senza limiti. Zero pubblicità, tutta magia.</p>
+        <p className="mt-2 text-sm opacity-90">Sblocca Nerdacolo senza limiti. Zero pubblicità, tutta magia.</p>
         <div className="mt-4 flex items-baseline gap-1">
           <span className="text-4xl font-black">4,99€</span>
           <span className="opacity-80">/mese</span>

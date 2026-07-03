@@ -92,7 +92,11 @@ if ($action === 'set_reaction') {
 
 if ($action === 'bulk_import') {
     $entries = is_array($body['entries'] ?? null) ? $body['entries'] : [];
-    json_out(library_bulk_import($pdo, $userId, $entries, true));
+    $importPending = array_key_exists('importPending', $body) && is_array($body['importPending'])
+        ? $body['importPending']
+        : null;
+    $withXp = !array_key_exists('withXp', $body) || $body['withXp'] !== false;
+    json_out(library_bulk_import($pdo, $userId, $entries, $withXp, $importPending));
 }
 
 if ($action === 'import_local') {

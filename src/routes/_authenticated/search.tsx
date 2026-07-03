@@ -148,7 +148,7 @@ function SearchPage() {
 
       {!loading && results.length === 0 && debouncedQ && (
         <div className="mt-10 text-center text-sm text-muted-foreground">
-          Nulla trovato. Il Genio suggerisce di cambiare parola.
+          Nulla trovato. Nerdacolo suggerisce di cambiare parola.
         </div>
       )}
 

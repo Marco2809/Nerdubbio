@@ -93,6 +93,12 @@ if ($action === 'google') {
                  WHERE id = ?'
             )->execute([$sub, $avatar, $name ?: explode('@', $email)[0], $user['id']]);
             $id = $user['id'];
+            if (!fetch_profile($pdo, $id)) {
+                bootstrap_new_user($pdo, $id, $email, $name, $avatar);
+            } else {
+                require_once __DIR__ . '/lib/library.php';
+                library_ensure_stats($pdo, $id);
+            }
         } else {
             $id = uuid();
             $pdo->prepare(

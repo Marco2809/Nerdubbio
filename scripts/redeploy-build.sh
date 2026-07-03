@@ -44,7 +44,7 @@ verify_assets() {
       missing=$((missing + 1))
     fi
   done < <(grep -oE '"/assets/[^"]+"' "$manifest" | tr -d '"' | sort -u)
-  for static in manifest.webmanifest favicon.png; do
+  for static in manifest.webmanifest favicon.svg favicon.png icon-192.png icon-512.png; do
     if [ ! -f ".output/public/$static" ]; then
       echo "MANCANTE: .output/public/$static"
       missing=$((missing + 1))

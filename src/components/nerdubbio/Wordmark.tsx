@@ -1,32 +1,39 @@
-import wordmarkIt from "@/assets/wordmark-nerdubbio.png";
-import wordmarkEn from "@/assets/wordmark-nerdoubt.png";
+import { cn } from "@/lib/utils";
+import { BrandIcon } from "./BrandIcon";
 
 type Props = {
   lang?: "it" | "en";
   className?: string;
-  priority?: boolean;
+  /** Sfera oracle + wordmark affiancati (landing, auth, onboarding). */
+  withIcon?: boolean;
 };
 
-/**
- * Nerdubbio brand wordmark.
- * - lang="it" → "Nerdubbio" (default)
- * - lang="en" → "Nerdoubt"
- */
-export function Wordmark({ lang = "it", className, priority = false }: Props) {
-  const isIt = lang === "it";
-  const src = isIt ? wordmarkIt : wordmarkEn;
-  const alt = isIt ? "Nerdubbio" : "Nerdoubt";
+/** Wordmark NERDUBBIO — asset ufficiale con gradient neon e play nel «O». */
+export function Wordmark({ lang = "it", className, withIcon = false }: Props) {
+  const label = lang === "it" ? "Nerdubbio" : "Nerdoubt";
+
   return (
-    <img
-      src={src}
-      alt={alt}
-      width={1600}
-      height={544}
-      loading={priority ? "eager" : "lazy"}
-      decoding="async"
-      className={className ?? "h-10 w-auto drop-shadow-[0_0_18px_rgba(236,72,153,0.35)]"}
-    />
+    <span
+      className={cn(
+        "inline-flex items-center select-none",
+        withIcon && "gap-2.5 sm:gap-3",
+        className,
+      )}
+      role="img"
+      aria-label={label}
+    >
+      {withIcon && (
+        <BrandIcon className="h-[1.2em] w-[1.2em] shrink-0" compact />
+      )}
+      <img
+        src="/wordmark.png"
+        alt=""
+        width={1024}
+        height={256}
+        className="h-[1em] w-auto max-w-full object-contain object-left"
+        decoding="async"
+        fetchPriority="high"
+      />
+    </span>
   );
 }
-
-export { wordmarkIt, wordmarkEn };

@@ -1,11 +1,12 @@
 import { Link, useLocation } from "@tanstack/react-router";
+import { QUEST } from "@/lib/brand";
 import { Home, Search, Sparkles, CalendarDays, User } from "lucide-react";
 
 type NavItem = { to: string; label: string; icon: typeof Home; primary?: boolean };
 const items: NavItem[] = [
   { to: "/app", label: "Home", icon: Home },
   { to: "/search", label: "Cerca", icon: Search },
-  { to: "/dubbio", label: "Dubbio", icon: Sparkles, primary: true },
+  { to: "/dubbio", label: QUEST.short, icon: Sparkles, primary: true },
   { to: "/prossimi", label: "In arrivo", icon: CalendarDays },
   { to: "/profile", label: "Profilo", icon: User },
 ];

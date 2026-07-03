@@ -10,7 +10,7 @@ export const Route = createFileRoute("/_authenticated/profile")({
 });
 
 const BADGES = [
-  { code: "primo-dubbio", title: "Primo Dubbio Risolto", icon: "🧞" },
+  { code: "primo-dubbio", title: "Prima Quest completata", icon: "🎲" },
   { code: "serial-watcher", title: "Serial Watcher", icon: "📺" },
   { code: "binge-warrior", title: "Binge Warrior", icon: "⚔️" },
   { code: "plot-twist", title: "Plot Twist Survivor", icon: "🌀" },
@@ -83,11 +83,11 @@ function Profile() {
         </Link>
         <Link to="/premium" className="glass flex items-center gap-3 rounded-2xl p-4">
           <Crown className="h-5 w-5 text-accent" />
-          <div className="flex-1"><p className="text-sm font-semibold">Passa a Premium</p><p className="text-xs text-muted-foreground">Dubbio illimitato, AI avanzata, temi</p></div>
+          <div className="flex-1"><p className="text-sm font-semibold">Passa a Premium</p><p className="text-xs text-muted-foreground">Quest illimitate, AI avanzata, temi</p></div>
         </Link>
         <Link to="/gruppo" className="glass flex items-center gap-3 rounded-2xl p-4">
           <Users className="h-5 w-5 text-accent" />
-          <div className="flex-1"><p className="text-sm font-semibold">Dubbio di gruppo</p><p className="text-xs text-muted-foreground">Decidete insieme cosa guardare</p></div>
+          <div className="flex-1"><p className="text-sm font-semibold">Quest di gruppo</p><p className="text-xs text-muted-foreground">Decidete insieme cosa guardare</p></div>
         </Link>
         <Link to="/import" className="glass flex items-center gap-3 rounded-2xl p-4">
           <Download className="h-5 w-5 text-accent" />

@@ -29,6 +29,7 @@ import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/ap
 import { Route as AuthenticatedAmiciRouteImport } from './routes/_authenticated/amici'
 import { Route as AuthenticatedPersonIdRouteImport } from './routes/_authenticated/person.$id'
 import { Route as AuthenticatedDubbioRisultatoRouteImport } from './routes/_authenticated/dubbio.risultato'
+import { Route as AuthenticatedNerdacoloRouteImport } from './routes/_authenticated/nerdacolo'
 import { Route as AuthenticatedMediaTypeIdRouteImport } from './routes/_authenticated/media.$type.$id'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -131,6 +132,11 @@ const AuthenticatedDubbioRisultatoRoute =
     path: '/risultato',
     getParentRoute: () => AuthenticatedDubbioRoute,
   } as any)
+const AuthenticatedNerdacoloRoute = AuthenticatedNerdacoloRouteImport.update({
+  id: '/nerdacolo',
+  path: '/nerdacolo',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedMediaTypeIdRoute =
   AuthenticatedMediaTypeIdRouteImport.update({
     id: '/media/$type/$id',
@@ -148,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/dubbio': typeof AuthenticatedDubbioRouteWithChildren
   '/gruppo': typeof AuthenticatedGruppoRoute
   '/import': typeof AuthenticatedImportRoute
+  '/nerdacolo': typeof AuthenticatedNerdacoloRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/premium': typeof AuthenticatedPremiumRoute
   '/profile': typeof AuthenticatedProfileRoute
@@ -170,6 +177,7 @@ export interface FileRoutesByTo {
   '/dubbio': typeof AuthenticatedDubbioRouteWithChildren
   '/gruppo': typeof AuthenticatedGruppoRoute
   '/import': typeof AuthenticatedImportRoute
+  '/nerdacolo': typeof AuthenticatedNerdacoloRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/premium': typeof AuthenticatedPremiumRoute
   '/profile': typeof AuthenticatedProfileRoute
@@ -194,6 +202,7 @@ export interface FileRoutesById {
   '/_authenticated/dubbio': typeof AuthenticatedDubbioRouteWithChildren
   '/_authenticated/gruppo': typeof AuthenticatedGruppoRoute
   '/_authenticated/import': typeof AuthenticatedImportRoute
+  '/_authenticated/nerdacolo': typeof AuthenticatedNerdacoloRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/premium': typeof AuthenticatedPremiumRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
@@ -218,6 +227,7 @@ export interface FileRouteTypes {
     | '/dubbio'
     | '/gruppo'
     | '/import'
+    | '/nerdacolo'
     | '/onboarding'
     | '/premium'
     | '/profile'
@@ -240,6 +250,7 @@ export interface FileRouteTypes {
     | '/dubbio'
     | '/gruppo'
     | '/import'
+    | '/nerdacolo'
     | '/onboarding'
     | '/premium'
     | '/profile'
@@ -263,6 +274,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dubbio'
     | '/_authenticated/gruppo'
     | '/_authenticated/import'
+    | '/_authenticated/nerdacolo'
     | '/_authenticated/onboarding'
     | '/_authenticated/premium'
     | '/_authenticated/profile'
@@ -426,6 +438,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDubbioRisultatoRouteImport
       parentRoute: typeof AuthenticatedDubbioRoute
     }
+    '/_authenticated/nerdacolo': {
+      id: '/_authenticated/nerdacolo'
+      path: '/nerdacolo'
+      fullPath: '/nerdacolo'
+      preLoaderRoute: typeof AuthenticatedNerdacoloRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/media/$type/$id': {
       id: '/_authenticated/media/$type/$id'
       path: '/media/$type/$id'
@@ -454,6 +473,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDubbioRoute: typeof AuthenticatedDubbioRouteWithChildren
   AuthenticatedGruppoRoute: typeof AuthenticatedGruppoRoute
   AuthenticatedImportRoute: typeof AuthenticatedImportRoute
+  AuthenticatedNerdacoloRoute: typeof AuthenticatedNerdacoloRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedPremiumRoute: typeof AuthenticatedPremiumRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
@@ -472,6 +492,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDubbioRoute: AuthenticatedDubbioRouteWithChildren,
   AuthenticatedGruppoRoute: AuthenticatedGruppoRoute,
   AuthenticatedImportRoute: AuthenticatedImportRoute,
+  AuthenticatedNerdacoloRoute: AuthenticatedNerdacoloRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedPremiumRoute: AuthenticatedPremiumRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,

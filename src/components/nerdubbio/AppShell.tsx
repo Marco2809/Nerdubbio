@@ -24,9 +24,9 @@ export function AppShell({ children, title, subtitle, right }: {
           <Link
             to="/app"
             aria-label={lang === "en" ? "Nerdoubt home" : "Nerdubbio home"}
-            className="inline-flex items-center rounded-lg transition-opacity hover:opacity-80 active:opacity-70"
+            className="inline-flex items-center rounded-lg transition-opacity hover:opacity-80 active:opacity-70 text-foreground"
           >
-            <Wordmark lang={lang} className="h-6 w-auto drop-shadow-[0_0_12px_rgba(236,72,153,0.35)]" />
+            <Wordmark lang={lang} className="h-6 drop-shadow-[0_0_12px_rgba(168,85,247,0.35)]" />
           </Link>
           <AccountMenu />
         </div>

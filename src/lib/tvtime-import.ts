@@ -1,10 +1,48 @@
-/** Parser CSV per l'export GDPR di TV Time. Robusto ai vari nomi di colonna. */
+/** Parser CSV/JSON per l'export GDPR di TV Time. Robusto ai vari nomi di colonna e formati. */
 
 export interface ParsedRow {
   title: string;
   year?: number;
   type?: "movie" | "tv";
   status?: "watching" | "completed" | "plan_to_watch" | "favorite" | "paused" | "dropped";
+  /** Episodi visti in formato S1E3 (quando disponibili nel CSV). */
+  watchedEpisodes?: string[];
+  /** Conteggio aggregato TV Time (fallback se mancano i singoli episodi). */
+  episodesSeen?: number;
+  tvShowId?: string;
+}
+
+/** "Battlestar Galactica (2003)" → titolo pulito + anno per TMDB. */
+export function cleanTitleForMatch(title: string): { title: string; year?: number } {
+  const paren = title.match(/^(.+?)\s*\((\d{4})\)\s*$/);
+  if (paren) return { title: paren[1].trim(), year: Number(paren[2]) };
+  return { title: title.trim() };
+}
+
+export function matchQueryFromRow(row: ParsedRow): {
+  title: string;
+  year?: number;
+  type?: "movie" | "tv";
+} {
+  const cleaned = cleanTitleForMatch(row.title);
+  return {
+    title: cleaned.title,
+    year: row.year ?? cleaned.year,
+    type: row.type,
+  };
+}
+
+export interface TvTimeImportSummary {
+  rows: ParsedRow[];
+  counts: {
+    shows: number;
+    favorites: number;
+    forLater: number;
+    movies: number;
+    episodes: number;
+  };
+  /** File riconosciuti nell'archivio (per debug). */
+  filesFound: string[];
 }
 
 /** Semplice parser CSV (RFC-4180-ish, gestisce virgolette e virgole nei campi). */
@@ -39,10 +77,13 @@ export function parseCSV(text: string): Record<string, string>[] {
   });
 }
 
-const TITLE_KEYS = ["title", "show", "show_name", "name", "movie", "movie_name", "series_title", "titolo"];
+const TITLE_KEYS = ["title", "show", "show_name", "name", "movie", "movie_name", "series_title", "series_name", "tv_show_name", "titolo"];
 const YEAR_KEYS = ["year", "release_year", "first_air_year", "anno"];
 const TYPE_KEYS = ["type", "media_type", "kind"];
 const STATUS_KEYS = ["status", "list", "watchlist", "state"];
+const SHOW_KEYS = ["tv_show_name", "show_name", "series_name", "series", "name"];
+const SEASON_KEYS = ["episode_season_number", "season_number", "season", "season_num"];
+const EPISODE_KEYS = ["episode_number", "episode", "episode_num"];
 
 function pick(o: Record<string, string>, keys: string[]): string | undefined {
   for (const k of keys) if (o[k]) return o[k];
@@ -59,7 +100,398 @@ function normalizeStatus(s?: string): ParsedRow["status"] {
   if (v.includes("favorite") || v.includes("favourite") || v.includes("loved")) return "favorite";
   if (v.includes("paus") || v.includes("hiatus")) return "paused";
   if (v.includes("drop") || v.includes("stopped")) return "dropped";
+  if (v === "watch") return "completed";
   return undefined;
+}
+
+function episodeKey(season: number, episode: number): string {
+  return `S${season}E${episode}`;
+}
+
+function parseEpisodeRef(seasonStr?: string, episodeStr?: string): string | null {
+  const season = Number(seasonStr);
+  const episode = Number(episodeStr);
+  if (!Number.isFinite(season) || !Number.isFinite(episode) || season < 1 || episode < 1) return null;
+  return episodeKey(season, episode);
+}
+
+function showKey(id?: string, title?: string): string {
+  return (id && id.trim()) || `t:${(title || "").toLowerCase().trim()}`;
+}
+
+function basename(path: string): string {
+  return path.split("/").pop()!.toLowerCase();
+}
+
+function csvByPattern(map: Record<string, Record<string, string>[]>, ...patterns: string[]): Record<string, string>[] {
+  for (const pattern of patterns) {
+    const p = pattern.toLowerCase();
+    for (const [path, rows] of Object.entries(map)) {
+      const name = basename(path);
+      if (name === p || name.includes(p)) return rows;
+    }
+  }
+  return [];
+}
+
+function indexCsvFiles(files: Record<string, string>): Record<string, Record<string, string>[]> {
+  const map: Record<string, Record<string, string>[]> = {};
+  for (const [path, text] of Object.entries(files)) {
+    const name = basename(path);
+    if (!name.endsWith(".csv")) continue;
+    try {
+      const rows = parseCSV(text);
+      if (map[name]) map[name].push(...rows);
+      else map[name] = rows;
+    } catch { /* skip */ }
+  }
+  return map;
+}
+
+function collectEpisodeRows(map: Record<string, Record<string, string>[]>): Record<string, string>[] {
+  const out: Record<string, string>[] = [];
+  for (const pattern of [
+    "seen_episode.csv",
+    "seen_episode_source.csv",
+    "tracking-prod-records-v2.csv",
+  ]) {
+    const rows = csvByPattern(map, pattern);
+    if (rows.length) out.push(...rows);
+  }
+  return out;
+}
+
+type EpisodeAgg = { title: string; id?: string; eps: Set<string> };
+
+function addEpisodeToShow(
+  episodesByShow: Map<string, EpisodeAgg>,
+  showTitle: string | undefined,
+  showId: string | undefined,
+  seasonStr?: string,
+  episodeStr?: string,
+) {
+  if (!showTitle?.trim()) return;
+  const ep = parseEpisodeRef(seasonStr, episodeStr);
+  if (!ep) return;
+  const k = showKey(showId, showTitle);
+  const cur = episodesByShow.get(k) ?? { title: showTitle.trim(), id: showId, eps: new Set<string>() };
+  cur.eps.add(ep);
+  episodesByShow.set(k, cur);
+}
+
+function ingestEpisodeRows(
+  episodesByShow: Map<string, EpisodeAgg>,
+  rows: Record<string, string>[],
+) {
+  for (const r of rows) {
+    const title = pick(r, SHOW_KEYS);
+    const showId = r["tv_show_id"] || r["show_id"] || r["series_id"];
+    const epNum = pick(r, EPISODE_KEYS);
+    if (!epNum) continue;
+    addEpisodeToShow(episodesByShow, title, showId, pick(r, SEASON_KEYS), epNum);
+  }
+}
+
+function ingestJsonEpisodes(episodesByShow: Map<string, EpisodeAgg>, data: unknown) {
+  const list = Array.isArray(data) ? data : (data && typeof data === "object" && Array.isArray((data as { episodes?: unknown }).episodes))
+    ? (data as { episodes: unknown[] }).episodes
+    : null;
+  if (!list) return;
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const title = String(o.tv_show_name ?? o.show_name ?? o.series_name ?? o.name ?? "");
+    const showId = o.tv_show_id != null ? String(o.tv_show_id) : o.show_id != null ? String(o.show_id) : undefined;
+    addEpisodeToShow(
+      episodesByShow,
+      title,
+      showId,
+      String(o.episode_season_number ?? o.season_number ?? o.season ?? ""),
+      String(o.episode_number ?? o.episode ?? ""),
+    );
+  }
+}
+
+/** Esclude chiavi di configurazione TV Time (user_setting.csv) scambiate per titoli. */
+export function isLikelyMediaTitle(title: string): boolean {
+  const t = title.trim();
+  if (!t || t.length > 200) return false;
+  if (/^#[0-9a-f]{3,8}$/i.test(t)) return false;
+  if (/^\d+$/.test(t)) return false;
+  if (/^(signup|show_skip|profile_giftbox|auto_share|episode_airing|latest-version|locale|last_time|last_reco|last_notifications)/i.test(t)) {
+    return false;
+  }
+  // snake_case senza spazi → impostazioni app, non titoli
+  if (!/\s/.test(t) && /_/.test(t) && !/[A-Z]/.test(t)) return false;
+  // kebab-case tutto minuscolo con keyword da settings
+  if (!/\s/.test(t) && /^[a-z0-9]+(-[a-z0-9]+)+$/.test(t)) {
+    if (/hint|signup|giftbox|popover|skip|cta|min-days|text-color|bg-color|style|smart-categories|notifications|loaded|version/.test(t)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+const MOVIE_NAME_KEYS = ["movie_name", "title", "film_name", "film"];
+const MOVIE_NAME_FALLBACK_KEYS = ["name"];
+const MOVIE_YEAR_KEYS = ["year", "release_year", "first_release_date", "first_air_year", "release_date"];
+
+function metaOf(o: Record<string, unknown>): Record<string, unknown> | null {
+  const meta = o.meta;
+  return meta && typeof meta === "object" && !Array.isArray(meta) ? meta as Record<string, unknown> : null;
+}
+
+function parseYearFromValue(v: unknown): number | undefined {
+  if (v == null || v === "") return undefined;
+  const n = Number(String(v).slice(0, 4));
+  return Number.isFinite(n) && n > 1888 ? n : undefined;
+}
+
+function pickMovieTitle(r: Record<string, string>, filename: string): string | undefined {
+  const direct = pick(r, MOVIE_NAME_KEYS);
+  if (direct) return direct;
+  const fn = filename.toLowerCase();
+  if (/movie|film|rating.*vote/.test(fn)) return pick(r, MOVIE_NAME_FALLBACK_KEYS);
+  return undefined;
+}
+
+function movieStatusFromCsv(r: Record<string, string>): ParsedRow["status"] {
+  return normalizeStatus(pick(r, STATUS_KEYS)) ?? normalizeStatus(pick(r, TYPE_KEYS)) ?? "completed";
+}
+
+function extractJsonRecords(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== "object") return [];
+  const o = data as Record<string, unknown>;
+  if (Array.isArray(o.objects)) return o.objects;
+  if (Array.isArray(o.items)) return o.items;
+  if (Array.isArray(o.records)) return o.records;
+  if (Array.isArray(o.movies)) return o.movies;
+  if (Array.isArray(o.episodes)) return o.episodes;
+  if (o.data && typeof o.data === "object") {
+    const d = o.data as Record<string, unknown>;
+    if (Array.isArray(d.objects)) return d.objects;
+    if (Array.isArray(d.items)) return d.items;
+    if (Array.isArray(d.movies)) return d.movies;
+    if (Array.isArray(d.episodes)) return d.episodes;
+  }
+  return [];
+}
+
+function isJsonTvEpisodeItem(o: Record<string, unknown>): boolean {
+  if (o.tv_show_name || o.show_name || o.series_name) return true;
+  if (o.episode_number != null || o.episode_id != null) return true;
+  if (Array.isArray(o.seasons)) return true;
+  const meta = metaOf(o);
+  if (meta?.season_count != null || meta?.number_of_seasons != null) return true;
+  const entity = String(o.entity_type ?? o.entityType ?? o.media_type ?? meta?.entity_type ?? meta?.type ?? "").toLowerCase();
+  return entity === "show" || entity === "tv" || entity === "series" || entity === "episode";
+}
+
+function isJsonMovieItem(o: Record<string, unknown>, filename = ""): boolean {
+  if (isJsonTvEpisodeItem(o)) return false;
+  const meta = metaOf(o);
+  const entity = String(
+    o.entity_type ?? o.entityType ?? o.media_type ?? meta?.entity_type ?? meta?.type ?? "",
+  ).toLowerCase();
+  if (entity.includes("movie") || entity === "film") return true;
+  if (entity === "show" || entity === "tv" || entity === "series") return false;
+  if (o.movie_name) return true;
+  if (meta?.name && !o.episode_number) return true;
+  const fn = filename.toLowerCase();
+  if ((fn.includes("movie") || fn.includes("film")) && (meta?.name || o.title || o.name)) return true;
+  return false;
+}
+
+function ingestJsonMovieObject(movies: Map<string, ParsedRow>, o: Record<string, unknown>) {
+  const meta = metaOf(o);
+  const title = String(o.movie_name ?? meta?.name ?? o.title ?? o.name ?? "").trim();
+  if (!title) return;
+  const year = parseYearFromValue(
+    o.year ?? o.release_date ?? meta?.first_release_date ?? meta?.release_date ?? meta?.year,
+  );
+  const status =
+    normalizeStatus(String(o.status ?? o.state ?? "")) ??
+    (o.watched_at || o.is_watched === true || String(o.type ?? "").toLowerCase() === "watch"
+      ? "completed"
+      : normalizeStatus(String(o.type ?? ""))) ??
+    "completed";
+  const key = title.toLowerCase();
+  const prev = movies.get(key);
+  movies.set(key, {
+    title,
+    type: "movie",
+    status: prev?.status ?? status,
+    year: year ?? prev?.year,
+  });
+}
+
+function ingestJsonPayload(
+  movies: Map<string, ParsedRow>,
+  episodesByShow: Map<string, EpisodeAgg>,
+  data: unknown,
+  filename: string,
+) {
+  const records = extractJsonRecords(data);
+  if (!records.length && data && typeof data === "object") {
+    const o = data as Record<string, unknown>;
+    if (isJsonMovieItem(o, filename)) ingestJsonMovieObject(movies, o);
+    return;
+  }
+  const fn = filename.toLowerCase();
+  const movieHint = fn.includes("movie") || fn.includes("film");
+  const showHint = fn.includes("show") || fn.includes("episode") || fn.includes("series");
+
+  for (const item of records) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    if (isJsonTvEpisodeItem(o) || (showHint && !isJsonMovieItem(o, filename))) {
+      ingestJsonEpisodes(episodesByShow, [item]);
+      continue;
+    }
+    if (isJsonMovieItem(o, filename) || movieHint) {
+      ingestJsonMovieObject(movies, o);
+    }
+  }
+}
+
+function ingestMovieCsvRow(
+  movies: Map<string, ParsedRow>,
+  r: Record<string, string>,
+  filename: string,
+) {
+  if (r.tv_show_id || r.tv_show_name || r.episode_number || r.episode_id) return;
+  const entity = (r.entity_type || r.media_type || "").toLowerCase();
+  if (entity === "show" || entity === "tv" || entity === "series") return;
+
+  const title = pickMovieTitle(r, filename);
+  if (!title || !isLikelyMediaTitle(title)) return;
+
+  const fn = filename.toLowerCase();
+  const looksTvFile = /tv_show|episode|followed_tv|seen_episode|user_tv|special_status/.test(fn);
+  if (looksTvFile && !fn.includes("movie")) return;
+
+  const year = parseYearFromValue(pick(r, MOVIE_YEAR_KEYS));
+  addMovieToMap(movies, title, movieStatusFromCsv(r), year);
+}
+
+function mergeMovieStatus(
+  prev?: ParsedRow["status"],
+  next?: ParsedRow["status"],
+): ParsedRow["status"] {
+  if (prev === "completed" || next === "completed") return "completed";
+  if (prev === "watching" || next === "watching") return "watching";
+  if (prev === "favorite" || next === "favorite") return "favorite";
+  return next ?? prev ?? "completed";
+}
+
+function ingestTrackingProdRecordsMovies(
+  movies: Map<string, ParsedRow>,
+  rows: Record<string, string>[],
+) {
+  for (const r of rows) {
+    const entity = (r.entity_type || "").toLowerCase();
+    const typeCol = (r.type || "").toLowerCase();
+    if (typeCol.startsWith("count-watch")) continue;
+    if (entity === "episode") continue;
+
+    const title = r.movie_name?.trim();
+    if (!title || !isLikelyMediaTitle(title)) continue;
+    if (entity && entity !== "movie") continue;
+
+    const year = parseYearFromValue(r.release_date);
+    let status: ParsedRow["status"];
+    if (typeCol === "watch") status = "completed";
+    else if (typeCol === "follow") status = "plan_to_watch";
+    else status = movieStatusFromCsv(r);
+
+    const key = title.toLowerCase();
+    const prev = movies.get(key);
+    movies.set(key, {
+      title,
+      type: "movie",
+      status: mergeMovieStatus(prev?.status, status),
+      year: year ?? prev?.year,
+    });
+  }
+}
+
+const SKIP_MOVIE_SCAN = new RegExp(
+  [
+    "comments-prod",
+    "lists-prod",
+    "notifications-prod",
+    "recommendations-prod",
+    "stats-prod",
+    "tracking-prod-count",
+    "tracking-deployment",
+    "where-to-watch",
+    "user_connection",
+    "user_facebook",
+    "user_quiz",
+    "user_badge",
+    "user_setting",
+    "user_session",
+    "user_statistics",
+    "user_personal",
+    "user_social",
+    "user_platform",
+    "user_device",
+    "user_list",
+    "user_object",
+    "user_last",
+    "^user\\.csv$",
+    "friend\\.csv",
+    "profile_comment",
+    "auth-prod",
+    "access_token",
+    "refresh_token",
+    "device_",
+    "webhook",
+    "ip_address",
+    "installed_app",
+    "gdpr_requests",
+    "install_tracking",
+    "ad_identifier",
+    "_appsflyer",
+    "show_addiction",
+    "show_character",
+    "episode_comments",
+    "seen_episode_latest",
+    "show_seen_episode",
+    "tv_show_rate",
+    "followed_tv_show_source",
+  ].join("|"),
+  "i",
+);
+
+function addMovieToMap(
+  movies: Map<string, ParsedRow>,
+  title: string,
+  status: ParsedRow["status"] = "completed",
+  year?: number,
+) {
+  const t = title.trim();
+  if (!t || !isLikelyMediaTitle(t)) return;
+  const key = t.toLowerCase();
+  const prev = movies.get(key);
+  movies.set(key, {
+    title: t,
+    type: "movie",
+    status: mergeMovieStatus(prev?.status, status),
+    year: year ?? prev?.year,
+  });
+}
+
+function scanAllCsvForMovies(
+  csvMap: Record<string, Record<string, string>[]>,
+  movies: Map<string, ParsedRow>,
+) {
+  for (const [filename, rows] of Object.entries(csvMap)) {
+    if (SKIP_MOVIE_SCAN.test(filename)) continue;
+    if (filename === "tracking-prod-records.csv") continue;
+    for (const r of rows) ingestMovieCsvRow(movies, r, filename);
+  }
 }
 
 /** Interpreta le righe grezze del CSV in ParsedRow tipizzati. */
@@ -84,32 +516,14 @@ export function toParsedRows(rows: Record<string, string>[], kind?: "movie" | "t
   }).filter((x): x is ParsedRow => !!x);
 }
 
-/* -------------------------------------------------------------------------- */
-/*  TV Time GDPR export (multi-CSV / .zip)                                    */
-/* -------------------------------------------------------------------------- */
-
-export interface TvTimeImportSummary {
-  rows: ParsedRow[];
-  counts: {
-    shows: number;
-    favorites: number;
-    forLater: number;
-    movies: number;
-    episodes: number;
-  };
-}
-
-/** Legge un mapping filename → CSV text prodotto dall'export GDPR TV Time. */
+/** Legge un mapping filename → CSV/JSON text prodotto dall'export GDPR TV Time. */
 export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSummary {
-  // normalizza le chiavi: prende solo il basename
-  const map: Record<string, Record<string, string>[]> = {};
-  for (const [path, text] of Object.entries(files)) {
-    const name = path.split("/").pop()!.toLowerCase();
-    if (!name.endsWith(".csv")) continue;
-    try { map[name] = parseCSV(text); } catch { /* skip */ }
-  }
+  const csvMap = indexCsvFiles(files);
+  const filesFound = [
+    ...Object.keys(csvMap).map(n => n),
+    ...Object.keys(files).filter(p => basename(p).endsWith(".json")),
+  ];
 
-  // aggregatori per show (chiave = tv_show_id oppure title)
   type ShowAgg = {
     id?: string;
     title: string;
@@ -117,25 +531,40 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
     forLater: boolean;
     followed: boolean;
     episodesSeen: number;
+    watchedEpisodes: Set<string>;
   };
   const shows = new Map<string, ShowAgg>();
-  const keyFor = (id?: string, title?: string) => (id && id.trim()) || `t:${(title || "").toLowerCase()}`;
+  const episodesByShow = new Map<string, EpisodeAgg>();
 
   const upsert = (id: string | undefined, title: string, patch: Partial<ShowAgg>) => {
     if (!title) return;
-    const k = keyFor(id, title);
-    const cur = shows.get(k) ?? { id, title, isFavorite: false, forLater: false, followed: false, episodesSeen: 0 };
-    shows.set(k, { ...cur, ...patch, id: cur.id ?? id, title: cur.title || title });
+    const k = showKey(id, title);
+    const cur = shows.get(k) ?? {
+      id,
+      title,
+      isFavorite: false,
+      forLater: false,
+      followed: false,
+      episodesSeen: 0,
+      watchedEpisodes: new Set<string>(),
+    };
+    shows.set(k, {
+      ...cur,
+      ...patch,
+      id: cur.id ?? id,
+      title: cur.title || title,
+      watchedEpisodes: patch.watchedEpisodes ?? cur.watchedEpisodes,
+    });
   };
 
   // 1) serie seguite
-  for (const r of map["followed_tv_show.csv"] ?? []) {
+  for (const r of csvByPattern(csvMap, "followed_tv_show.csv")) {
     if (r["active"] !== "1") continue;
-    upsert(r["tv_show_id"], r["tv_show_name"], { followed: true });
+    upsert(r["tv_show_id"], r["tv_show_name"] || r["name"], { followed: true });
   }
 
   // 2) status speciali (favorite / for_later)
-  for (const r of map["user_show_special_status.csv"] ?? []) {
+  for (const r of csvByPattern(csvMap, "user_show_special_status.csv")) {
     const s = (r["status"] || "").toLowerCase();
     upsert(r["tv_show_id"], r["tv_show_name"], {
       isFavorite: s === "favorite" ? true : undefined,
@@ -143,8 +572,8 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
     } as Partial<ShowAgg>);
   }
 
-  // 3) episodi visti aggregati per show
-  for (const r of map["user_tv_show_data.csv"] ?? []) {
+  // 3) aggregati per show
+  for (const r of csvByPattern(csvMap, "user_tv_show_data.csv")) {
     const n = Number(r["nb_episodes_seen"] || "0");
     upsert(r["tv_show_id"], r["tv_show_name"], {
       episodesSeen: Number.isFinite(n) ? n : 0,
@@ -153,68 +582,182 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
     } as Partial<ShowAgg>);
   }
 
-  // 4) fallback: se manca il conteggio, deriva da seen_episode_source
-  if (!map["user_tv_show_data.csv"]) {
-    const byShow = new Map<string, number>();
-    for (const r of map["seen_episode_source.csv"] ?? []) {
-      const k = keyFor(undefined, r["tv_show_name"]);
-      byShow.set(k, (byShow.get(k) ?? 0) + 1);
-    }
-    for (const [k, n] of byShow) {
-      const cur = shows.get(k);
-      if (cur) shows.set(k, { ...cur, episodesSeen: n });
+  // 4) episodi singoli (fonte principale per S1E3)
+  ingestEpisodeRows(episodesByShow, collectEpisodeRows(csvMap));
+  for (const [k, agg] of episodesByShow) {
+    const watched = [...agg.eps];
+    const cur = shows.get(k);
+    if (cur) {
+      for (const ep of watched) cur.watchedEpisodes.add(ep);
+      cur.episodesSeen = Math.max(cur.episodesSeen, watched.length);
+    } else {
+      shows.set(k, {
+        id: agg.id,
+        title: agg.title,
+        isFavorite: false,
+        forLater: false,
+        followed: true,
+        episodesSeen: watched.length,
+        watchedEpisodes: new Set(watched),
+      });
     }
   }
 
-  // 5) film valutati (poche righe di solito)
+  // 5) film — tracking-prod-records.csv (formato GDPR TV Time classico)
   const movies = new Map<string, ParsedRow>();
-  for (const r of map["ratings-live-votes.csv"] ?? []) {
-    const t = r["movie_name"]?.trim();
-    if (!t) continue;
-    movies.set(t.toLowerCase(), { title: t, type: "movie", status: "completed" });
+
+  ingestTrackingProdRecordsMovies(movies, csvByPattern(csvMap, "tracking-prod-records.csv"));
+
+  for (const r of csvByPattern(csvMap, "ratings-live-votes.csv")) {
+    const t = pickMovieTitle(r, "ratings-live-votes.csv");
+    if (t) addMovieToMap(movies, t, "completed");
   }
 
-  // Costruisce le righe finali
+  for (const r of csvByPattern(
+    csvMap,
+    "user_movie_data.csv",
+    "followed_movie.csv",
+    "movie_watched.csv",
+    "movies.csv",
+  )) {
+    ingestMovieCsvRow(movies, r, "user_movie_data.csv");
+  }
+
+  scanAllCsvForMovies(csvMap, movies);
+
+  // 6) JSON (export recenti TV Time — spesso solo JSON, zero CSV)
+  for (const [path, text] of Object.entries(files)) {
+    if (!basename(path).endsWith(".json")) continue;
+    try {
+      ingestJsonPayload(movies, episodesByShow, JSON.parse(text) as unknown, basename(path));
+    } catch { /* skip malformed json */ }
+  }
+
+  // Re-merge episodi JSON nel map shows
+  for (const [k, agg] of episodesByShow) {
+    const cur = shows.get(k);
+    if (cur) {
+      for (const ep of agg.eps) cur.watchedEpisodes.add(ep);
+      cur.episodesSeen = Math.max(cur.episodesSeen, cur.watchedEpisodes.size);
+    }
+  }
+
   const rows: ParsedRow[] = [];
   let favCount = 0, laterCount = 0;
   for (const s of shows.values()) {
-    if (!s.followed && !s.forLater && !s.isFavorite && s.episodesSeen === 0) continue;
+    if (!s.followed && !s.forLater && !s.isFavorite && s.episodesSeen === 0 && s.watchedEpisodes.size === 0) continue;
+    const watched = [...s.watchedEpisodes].sort();
     const status: ParsedRow["status"] = s.isFavorite
       ? "favorite"
       : s.forLater
       ? "plan_to_watch"
-      : s.episodesSeen > 0
+      : watched.length > 0 || s.episodesSeen > 0
       ? "watching"
       : "plan_to_watch";
     if (s.isFavorite) favCount++;
     if (s.forLater) laterCount++;
-    rows.push({ title: s.title, type: "tv", status });
+    rows.push({
+      title: s.title,
+      type: "tv",
+      status,
+      tvShowId: s.id,
+      watchedEpisodes: watched.length ? watched : undefined,
+      episodesSeen: s.episodesSeen > 0 ? s.episodesSeen : undefined,
+    });
   }
   for (const m of movies.values()) rows.push(m);
 
-  // dedupe per title+type
   const seen = new Set<string>();
   const unique = rows.filter(r => {
+    if (!isLikelyMediaTitle(r.title)) return false;
     const k = `${r.type}:${r.title.toLowerCase()}`;
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
   });
 
-  const totalEps = Array.from(shows.values()).reduce((a, s) => a + s.episodesSeen, 0);
+  const episodeRows = unique.reduce((n, r) => n + (r.watchedEpisodes?.length ?? r.episodesSeen ?? 0), 0);
   return {
     rows: unique,
     counts: {
       shows: unique.filter(r => r.type === "tv").length,
       favorites: favCount,
       forLater: laterCount,
-      movies: movies.size,
-      episodes: totalEps,
+      movies: unique.filter(r => r.type === "movie").length,
+      episodes: episodeRows,
     },
+    filesFound,
   };
 }
 
-/** Estrae un archivio .zip TV Time e restituisce mapping filename → testo CSV. */
+function maxWatchedEpisode(watched: string[]): { season: number; episode: number } {
+  let maxS = 0;
+  let maxE = 0;
+  for (const key of watched) {
+    const m = key.match(/^S(\d+)E(\d+)$/);
+    if (!m) continue;
+    const s = Number(m[1]);
+    const e = Number(m[2]);
+    if (s > maxS || (s === maxS && e > maxE)) {
+      maxS = s;
+      maxE = e;
+    }
+  }
+  return { season: maxS, episode: maxE };
+}
+
+/** Deriva currentSeason/Episode da watchedEpisodes o episodesSeen aggregato. */
+export function deriveEpisodeProgress(row: ParsedRow): {
+  watchedEpisodes?: string[];
+  currentSeason?: number;
+  currentEpisode?: number;
+} {
+  if (row.watchedEpisodes?.length) {
+    const { season, episode } = maxWatchedEpisode(row.watchedEpisodes);
+    return {
+      watchedEpisodes: row.watchedEpisodes,
+      currentSeason: season || undefined,
+      currentEpisode: episode || undefined,
+    };
+  }
+  if (row.episodesSeen && row.episodesSeen > 0) {
+    return {
+      watchedEpisodes: Array.from({ length: row.episodesSeen }, (_, i) => episodeKey(1, i + 1)),
+      currentSeason: 1,
+      currentEpisode: row.episodesSeen,
+    };
+  }
+  return {};
+}
+
+export interface TvTimePendingItem {
+  id: string;
+  title: string;
+  year?: number;
+  type?: "movie" | "tv";
+  status?: ParsedRow["status"];
+  watchedEpisodes?: string[];
+  episodesSeen?: number;
+  source: "tvtime";
+  addedAt: string;
+}
+
+export function pendingFromRow(row: ParsedRow): TvTimePendingItem {
+  const progress = deriveEpisodeProgress(row);
+  return {
+    id: `pending:${row.type ?? "tv"}:${row.title.toLowerCase().replace(/\s+/g, "-")}`,
+    title: row.title,
+    year: row.year,
+    type: row.type,
+    status: row.status,
+    watchedEpisodes: progress.watchedEpisodes,
+    episodesSeen: row.episodesSeen,
+    source: "tvtime",
+    addedAt: new Date().toISOString(),
+  };
+}
+
+/** Estrae un archivio .zip TV Time e restituisce mapping filename → testo CSV/JSON. */
 export async function readTvTimeZip(file: File): Promise<Record<string, string>> {
   const { default: JSZip } = await import("jszip");
   const zip = await JSZip.loadAsync(file);
@@ -222,10 +765,10 @@ export async function readTvTimeZip(file: File): Promise<Record<string, string>>
   await Promise.all(
     Object.values(zip.files).map(async (entry) => {
       if (entry.dir) return;
-      if (!entry.name.toLowerCase().endsWith(".csv")) return;
+      const lower = entry.name.toLowerCase();
+      if (!lower.endsWith(".csv") && !lower.endsWith(".json")) return;
       out[entry.name] = await entry.async("string");
     }),
   );
   return out;
 }
-

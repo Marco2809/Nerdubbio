@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getToken } from '@/lib/php/client';
+import type { TvTimePendingItem } from '@/lib/tvtime-import';
 import {
   libraryApi,
   LIBRARY_QUERY_KEY,
@@ -42,6 +43,7 @@ const initial: LibraryState = {
   favoriteGenres: [],
   upcomingFilters: { newSeries: true, seasonPremieres: true, includeMovies: true },
   localMigrated: false,
+  importPending: [],
 };
 
 export function useUserStore() {
@@ -141,8 +143,8 @@ export function useUserStore() {
   );
 
   const bulkImport = useCallback(
-    (entries: UserMediaEntry[]) => {
-      void apply(() => libraryApi.bulkImport(entries));
+    (entries: UserMediaEntry[], importPending?: TvTimePendingItem[]) => {
+      void apply(() => libraryApi.bulkImport(entries, importPending));
     },
     [apply],
   );

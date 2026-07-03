@@ -17,7 +17,9 @@ export interface CatalogItem {
   genres: string[];
   moods: MoodTag[];
   overview: string;
-  poster: string;         // gradient placeholder
+  poster: string;         // gradient placeholder o url() CSS
+  posterUrl?: string | null;
+  backdropUrl?: string | null;
   where?: string[];
   similar?: string[];
 }

@@ -1,7 +1,7 @@
 {
   "name": "Nerdubbio",
   "short_name": "Nerdubbio",
-  "description": "Il Genio del Dubbio Nerd: cosa guardi stasera?",
+  "description": "Nerdacolo: cosa guardi stasera?",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",
@@ -9,6 +9,8 @@
   "background_color": "#150a2a",
   "theme_color": "#a855f7",
   "icons": [
-    { "src": "/favicon.ico", "sizes": "64x64", "type": "image/x-icon" }
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/favicon.png", "sizes": "32x32", "type": "image/png", "purpose": "any" }
   ]
 }

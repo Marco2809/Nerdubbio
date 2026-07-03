@@ -60,13 +60,14 @@ function library_save_stats(PDO $pdo, string $userId, array $patch): void {
     $allowed = [
         'xp', 'level', 'streak_days', 'last_active_day', 'onboarding_done', 'language',
         'favorite_genres', 'mood_profile', 'upcoming_filters', 'dismissed', 'achievements', 'local_migrated',
+        'import_pending',
     ];
     $sets = [];
     $vals = [];
     foreach ($allowed as $k) {
         if (!array_key_exists($k, $patch)) continue;
         $v = $patch[$k];
-        if (in_array($k, ['favorite_genres', 'mood_profile', 'upcoming_filters', 'dismissed', 'achievements'], true)) {
+        if (in_array($k, ['favorite_genres', 'mood_profile', 'upcoming_filters', 'dismissed', 'achievements', 'import_pending'], true)) {
             $v = to_json($v);
         }
         if ($k === 'onboarding_done' || $k === 'local_migrated') {
@@ -147,6 +148,7 @@ function library_fetch_state(PDO $pdo, string $userId): array {
         'moodProfile'      => parse_json($stats['mood_profile'] ?? null, null),
         'upcomingFilters'  => $filters,
         'localMigrated'    => !empty($stats['local_migrated']),
+        'importPending'    => parse_json($stats['import_pending'] ?? null, []),
     ];
 }
 
@@ -190,7 +192,7 @@ function library_upsert_media(PDO $pdo, string $userId, string $mediaKey, array 
         $entry['backdropUrl'] ?? null,
         $entry['year'] ?? null,
         $entry['source'] ?? 'manual',
-        $entry['addedAt'] ?? null,
+        normalize_datetime($entry['addedAt'] ?? null),
         isset($entry['lastWatchedAt']) ? normalize_datetime($entry['lastWatchedAt']) : null,
     ]);
 }
@@ -393,7 +395,7 @@ function library_set_reaction(PDO $pdo, string $userId, string $id, int $season,
     return library_fetch_state($pdo, $userId);
 }
 
-function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $withXp): array {
+function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $withXp, ?array $importPending = null): array {
     $added = 0;
     foreach ($entries as $e) {
         if (!is_array($e) || empty($e['id'])) continue;
@@ -405,6 +407,9 @@ function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $wit
         if (empty($existing['status']) || $existing['status'] === 'watching' && count($existing['watchedEpisodes'] ?? []) === 0) {
             $added++;
         }
+    }
+    if ($importPending !== null) {
+        library_save_stats($pdo, $userId, ['import_pending' => $importPending]);
     }
     if ($withXp && $added > 0) {
         library_apply_xp($pdo, $userId, $added * 5, false);
@@ -456,6 +461,7 @@ function library_patch_settings(PDO $pdo, string $userId, array $patch): array {
         'streak'          => 'streak_days',
         'lastActiveDay'   => 'last_active_day',
         'localMigrated'   => 'local_migrated',
+        'importPending'   => 'import_pending',
     ];
     $dbPatch = [];
     foreach ($map as $client => $db) {

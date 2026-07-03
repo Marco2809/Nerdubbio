@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { tmdbGenreIds } from "@/lib/recommendation/genre-map";
+import { tmdbToCatalogItem } from "@/lib/recommendation/tmdb-catalog";
 
 const TMDB_BASE = "https://api.themoviedb.org/3";
 const IMG_BASE = "https://image.tmdb.org/t/p";
@@ -27,18 +29,40 @@ export interface TmdbItem {
 }
 
 async function tmdb<T = any>(path: string, params: Record<string, string | number | undefined> = {}): Promise<T> {
-  const token = process.env.TMDB_READ_ACCESS_TOKEN;
-  if (!token) throw new Error("TMDB_READ_ACCESS_TOKEN missing");
+  const bearer = process.env.TMDB_READ_ACCESS_TOKEN;
+  const apiKey = process.env.TMDB_API_KEY;
+  if (!bearer && !apiKey) {
+    throw new Error("TMDB credentials missing (TMDB_READ_ACCESS_TOKEN or TMDB_API_KEY)");
+  }
+
   const url = new URL(`${TMDB_BASE}${path}`);
   url.searchParams.set("language", "it-IT");
+  if (apiKey && !bearer) url.searchParams.set("api_key", apiKey);
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
   }
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-  });
+
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (bearer) headers.Authorization = `Bearer ${bearer}`;
+
+  const res = await fetch(url, { headers });
   if (!res.ok) throw new Error(`TMDB ${res.status}: ${await res.text()}`);
   return res.json() as Promise<T>;
+}
+
+/** Fetch TMDB con lingua custom (es. fallback EN). */
+async function tmdbFetch(path: string, language: string): Promise<Response> {
+  const bearer = process.env.TMDB_READ_ACCESS_TOKEN;
+  const apiKey = process.env.TMDB_API_KEY;
+  if (!bearer && !apiKey) throw new Error("TMDB credentials missing");
+
+  const url = new URL(`${TMDB_BASE}${path}`);
+  url.searchParams.set("language", language);
+  if (apiKey && !bearer) url.searchParams.set("api_key", apiKey);
+
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (bearer) headers.Authorization = `Bearer ${bearer}`;
+  return fetch(url, { headers });
 }
 
 const posterUrl = (p?: string | null, size = "w342") => (p ? `${IMG_BASE}/${size}${p}` : null);
@@ -104,6 +128,28 @@ export const tmdbSearch = createServerFn({ method: "GET" })
     return { items };
   });
 
+function cleanMatchTitle(title: string): { title: string; year?: number } {
+  const paren = title.match(/^(.+?)\s*\((\d{4})\)\s*$/);
+  if (paren) return { title: paren[1].trim(), year: Number(paren[2]) };
+  return { title: title.trim() };
+}
+
+function rankMatches(mapped: TmdbItem[], q: { title: string; year?: number }): TmdbItem[] {
+  const want = q.title.toLowerCase();
+  return [...mapped].sort((a, b) => {
+    const ay = q.year && a.year === q.year ? 1 : 0;
+    const by = q.year && b.year === q.year ? 1 : 0;
+    if (ay !== by) return by - ay;
+    const at = a.title.toLowerCase() === want ? 1 : 0;
+    const bt = b.title.toLowerCase() === want ? 1 : 0;
+    if (at !== bt) return bt - at;
+    const aInc = a.title.toLowerCase().includes(want) ? 1 : 0;
+    const bInc = b.title.toLowerCase().includes(want) ? 1 : 0;
+    if (aInc !== bInc) return bInc - aInc;
+    return b.popularity - a.popularity;
+  });
+}
+
 /** Match "best guess" per titolo — usato dall'import CSV TV Time. */
 export const tmdbMatchTitles = createServerFn({ method: "POST" })
   .inputValidator((data) => z.object({
@@ -114,27 +160,25 @@ export const tmdbMatchTitles = createServerFn({ method: "POST" })
     })).max(80),
   }).parse(data))
   .handler(async ({ data }) => {
-    const results = await Promise.all(data.items.map(async (q) => {
+    const results = await Promise.all(data.items.map(async (raw) => {
+      const cleaned = cleanMatchTitle(raw.title);
+      const q = {
+        title: cleaned.title,
+        year: raw.year ?? cleaned.year,
+        type: raw.type,
+      };
       try {
         const endpoint = q.type ? `/search/${q.type}` : `/search/multi`;
         const params: Record<string, string | number> = { query: q.title, include_adult: "false", page: 1 };
         if (q.year && q.type === "movie") params.year = q.year;
         if (q.year && q.type === "tv") params.first_air_date_year = q.year;
         const res = await tmdb<any>(endpoint, params);
-        const raws = (res.results ?? []).slice(0, 5);
+        const raws = (res.results ?? []).slice(0, 8);
         const mapped = raws.map((r: any) => mapMulti(q.type ? { ...r, media_type: q.type } : r)).filter((x: TmdbItem | null): x is TmdbItem => !!x);
-        mapped.sort((a: TmdbItem, b: TmdbItem) => {
-          const ay = q.year && a.year === q.year ? 1 : 0;
-          const by = q.year && b.year === q.year ? 1 : 0;
-          if (ay !== by) return by - ay;
-          const at = a.title.toLowerCase() === q.title.toLowerCase() ? 1 : 0;
-          const bt = b.title.toLowerCase() === q.title.toLowerCase() ? 1 : 0;
-          if (at !== bt) return bt - at;
-          return b.popularity - a.popularity;
-        });
-        return { query: q, match: mapped[0] ?? null };
+        const ranked = rankMatches(mapped, q);
+        return { query: raw, match: ranked[0] ?? null, suggestions: ranked.slice(0, 6) };
       } catch {
-        return { query: q, match: null };
+        return { query: raw, match: null, suggestions: [] as TmdbItem[] };
       }
     }));
     return { results };
@@ -250,14 +294,8 @@ export const tmdbPerson = createServerFn({ method: "GET" })
     let biography: string = p.biography ?? "";
     if (!biography) {
       try {
-        const pEn = await tmdb<any>(`/person/${data.personId}`);
-        // richiama con lingua override tramite fetch diretta
-        const token = process.env.TMDB_READ_ACCESS_TOKEN;
-        const url = new URL(`${TMDB_BASE}/person/${data.personId}`);
-        url.searchParams.set("language", "en-US");
-        const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
+        const r = await tmdbFetch(`/person/${data.personId}`, "en-US");
         if (r.ok) { const j = await r.json(); biography = j.biography ?? ""; }
-        void pEn;
       } catch { /* ignore */ }
     }
     const list: PersonCredit[] = (credits.cast ?? [])
@@ -573,6 +611,128 @@ export const tmdbNextUnwatched = createServerFn({ method: "POST" })
       }
     }
     return null;
+  });
+
+
+// ============================================================
+// Main Quest — pool candidati TMDB + watchlist
+// ============================================================
+
+function parseMediaKey(key: string): { type: "movie" | "tv"; tmdbId: number } | null {
+  const m = key.match(/^(tv|movie)-(\d+)$/);
+  if (!m) return null;
+  return { type: m[1] as "movie" | "tv", tmdbId: Number(m[2]) };
+}
+
+async function discoverPage(
+  type: "movie" | "tv",
+  genreIds: number[],
+  page: number,
+): Promise<any[]> {
+  const params: Record<string, string | number> = {
+    sort_by: "popularity.desc",
+    include_adult: "false",
+    "vote_count.gte": 80,
+    "vote_average.gte": 6.2,
+    page,
+  };
+  if (genreIds.length) params.with_genres = genreIds.slice(0, 4).join("|");
+  if (type === "movie") params.region = "IT";
+  else params.watch_region = "IT";
+
+  const path = type === "movie" ? "/discover/movie" : "/discover/tv";
+  const res = await tmdb<any>(path, params);
+  return res.results ?? [];
+}
+
+async function enrichDiscoverRow(r: any, type: "movie" | "tv"): Promise<TmdbItem | null> {
+  try {
+    const det = await tmdb<any>(`/${type}/${r.id}`);
+    return mapDetail(det, type);
+  } catch {
+    const base = mapMulti({ ...r, media_type: type });
+    return base;
+  }
+}
+
+async function similarItems(type: "movie" | "tv", tmdbId: number, limit = 8): Promise<TmdbItem[]> {
+  try {
+    const res = await tmdb<any>(`/${type}/${tmdbId}/similar`, { page: 1 });
+    const rows = (res.results ?? []).slice(0, limit);
+    return (await Promise.all(rows.map((r: any) => enrichDiscoverRow(r, type)))).filter(Boolean) as TmdbItem[];
+  } catch {
+    return [];
+  }
+}
+
+export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
+  .inputValidator((data) =>
+    z
+      .object({
+        mode: z.enum(["movie", "tv", "surprise"]),
+        favoriteGenres: z.array(z.string()).optional(),
+        moodGenres: z.array(z.string()).optional(),
+        watchlistIds: z.array(z.string()).optional(),
+        excludeIds: z.array(z.string()).optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const exclude = new Set(data.excludeIds ?? []);
+    const genreNames = [...new Set([...(data.favoriteGenres ?? []), ...(data.moodGenres ?? [])])];
+
+    const types: ("movie" | "tv")[] =
+      data.mode === "movie" ? ["movie"] : data.mode === "tv" ? ["tv"] : ["movie", "tv"];
+
+    const byKey = new Map<string, ReturnType<typeof tmdbToCatalogItem>>();
+
+    const add = (t: TmdbItem | null, fromWatchlist = false) => {
+      if (!t) return;
+      const key = `${t.type}-${t.tmdb_id}`;
+      if (exclude.has(key)) return;
+      byKey.set(key, tmdbToCatalogItem(t, { fromWatchlist }));
+    };
+
+    // Watchlist utente (priorità)
+    const wl = (data.watchlistIds ?? []).slice(0, 12);
+    for (const id of wl) {
+      const parsed = parseMediaKey(id);
+      if (!parsed) continue;
+      if (data.mode === "movie" && parsed.type !== "movie") continue;
+      if (data.mode === "tv" && parsed.type !== "tv") continue;
+      try {
+        const det = await tmdb<any>(`/${parsed.type}/${parsed.tmdbId}`);
+        add(mapDetail(det, parsed.type), true);
+        const sim = await similarItems(parsed.type, parsed.tmdbId, 4);
+        sim.forEach(s => add(s));
+      } catch {
+        /* skip */
+      }
+    }
+
+    // Discover TMDB per genere
+    for (const type of types) {
+      const ids = tmdbGenreIds(genreNames, type);
+      for (const page of [1, 2, 3]) {
+        const rows = await discoverPage(type, ids, page);
+        for (const r of rows) {
+          add(await enrichDiscoverRow(r, type));
+        }
+      }
+    }
+
+    // Fallback popolari se pool troppo piccolo
+    if (byKey.size < 25) {
+      for (const type of types) {
+        for (const page of [1, 2]) {
+          const rows = await discoverPage(type, [], page);
+          for (const r of rows) add(await enrichDiscoverRow(r, type));
+        }
+      }
+    }
+
+    const items = [...byKey.values()].slice(0, 120);
+    return { items, count: items.length };
   });
 
 

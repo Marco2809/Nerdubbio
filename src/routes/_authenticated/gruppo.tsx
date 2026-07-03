@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { SOCIAL_GROUPS_KEY, socialApi, type Group } from "@/lib/php/social-client";
 
 export const Route = createFileRoute("/_authenticated/gruppo")({
-  head: () => ({ meta: [{ title: "Dubbio di gruppo — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: "Quest di gruppo — Nerdubbio" }] }),
   component: Gruppo,
 });
 
@@ -61,7 +61,7 @@ function Gruppo() {
           <Users className="h-6 w-6" />
         </span>
         <div>
-          <h1 className="text-2xl font-extrabold">Dubbio di gruppo</h1>
+          <h1 className="text-2xl font-extrabold">Quest di gruppo</h1>
           <p className="text-xs text-muted-foreground">Crea un gruppo e invita gli amici. Il quiz condiviso arriva presto.</p>
         </div>
       </div>
@@ -159,7 +159,7 @@ function Gruppo() {
           </form>
 
           <div className="mt-6 rounded-3xl border border-dashed border-border p-5 text-center text-sm text-muted-foreground">
-            <p className="font-semibold text-foreground">Dubbio di gruppo — in arrivo</p>
+            <p className="font-semibold text-foreground">Quest di gruppo — in arrivo</p>
             <p className="mt-1">Il quiz condiviso per decidere cosa guardare stasera sarà lo step successivo.</p>
           </div>
 

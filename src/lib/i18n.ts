@@ -5,10 +5,10 @@ export type Locale = "it" | "en";
 const dict: Record<string, Record<Locale, string>> = {
   home: { it: "Home", en: "Home" },
   search: { it: "Cerca", en: "Search" },
-  doubt: { it: "Il Dubbio", en: "The Doubt" },
+  quest: { it: "Main Quest", en: "Main Quest" },
   watchlist: { it: "Watchlist", en: "Watchlist" },
   profile: { it: "Profilo", en: "Profile" },
-  havedoubt: { it: "Ho un dubbio nerd: cosa guardo?", en: "I have a nerd doubt: what should I watch?" },
+  havequest: { it: "Main Quest: cosa guardo stasera?", en: "Main quest: what should I watch tonight?" },
 };
 
 export const LocaleContext = createContext<Locale>("it");
