@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { useUserStore, computeStats } from "@/lib/user-store";
 import { useAuthUser } from "@/hooks/use-auth-user";
-import { Trophy, Flame, Star, Settings2, Crown, Users, Download, ExternalLink, BarChart3 } from "lucide-react";
+import { Trophy, Flame, Star, Settings2, Crown, Users, Download, ExternalLink, BarChart3, Tv, Clapperboard } from "lucide-react";
+import { countAllMovies, countAllSeries } from "@/lib/library-display";
 
 export const Route = createFileRoute("/_authenticated/profile")({
   head: () => ({ meta: [{ title: "Profilo — Nerdubbio" }] }),
@@ -22,6 +23,8 @@ function Profile() {
   const { state } = useUserStore();
   const { user, profile } = useAuthUser();
   const stats = computeStats(state);
+  const seriesCount = countAllSeries(state.media);
+  const moviesCount = countAllMovies(state.media);
   const xpToNext = 400;
   const name = profile?.display_name || user?.email?.split("@")[0] || "Nerd";
   const handle = profile?.handle ?? "nerd";
@@ -60,6 +63,40 @@ function Profile() {
         <Stat icon={<Trophy className="h-4 w-4"/>} label="Badge" value={state.achievements.length} />
         <Stat icon={<Star className="h-4 w-4"/>} label="Ore" value={stats.hours} />
       </div>
+
+      <section className="mt-4">
+        <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">La tua libreria</p>
+        <div className="grid grid-cols-2 gap-2">
+          <Link
+            to="/profilo/serie"
+            search={{ tab: "in_corso" }}
+            className="glass flex flex-col gap-2 rounded-2xl p-4 transition hover:border-accent/40"
+          >
+            <div className="flex items-center justify-between">
+              <Tv className="h-5 w-5 text-accent" />
+              <span className="text-lg font-extrabold text-gradient">{seriesCount}</span>
+            </div>
+            <div>
+              <p className="text-sm font-bold">Serie</p>
+              <p className="text-[11px] text-muted-foreground">In corso · Da vedere · Viste</p>
+            </div>
+          </Link>
+          <Link
+            to="/profilo/film"
+            search={{ tab: "da_vedere" }}
+            className="glass flex flex-col gap-2 rounded-2xl p-4 transition hover:border-accent/40"
+          >
+            <div className="flex items-center justify-between">
+              <Clapperboard className="h-5 w-5 text-accent" />
+              <span className="text-lg font-extrabold text-gradient">{moviesCount}</span>
+            </div>
+            <div>
+              <p className="text-sm font-bold">Film</p>
+              <p className="text-[11px] text-muted-foreground">Da vedere · Visti</p>
+            </div>
+          </Link>
+        </div>
+      </section>
 
       <Link to="/statistiche" className="mt-3 glass flex items-center gap-3 rounded-2xl p-4">
         <BarChart3 className="h-5 w-5 text-accent" />

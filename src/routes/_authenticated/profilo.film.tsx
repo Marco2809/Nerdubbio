@@ -1,0 +1,59 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { z } from "zod";
+import { AppShell } from "@/components/nerdubbio/AppShell";
+import { LibraryGrid } from "@/components/nerdubbio/LibraryGrid";
+import { StatusTabs } from "@/components/nerdubbio/StatusTabs";
+import {
+  countMovieTab,
+  filterByMovieTab,
+} from "@/lib/library-display";
+import { useUserStore } from "@/lib/user-store";
+import { ArrowLeft } from "lucide-react";
+
+const tabSchema = z.enum(["da_vedere", "visti"]).default("da_vedere");
+
+export const Route = createFileRoute("/_authenticated/profilo/film")({
+  head: () => ({ meta: [{ title: "I tuoi film — Nerdubbio" }] }),
+  validateSearch: (s) => ({ tab: tabSchema.parse(s.tab ?? "da_vedere") }),
+  component: ProfiloFilmPage,
+});
+
+const TAB_LABELS: Record<string, string> = {
+  da_vedere: "Da vedere",
+  visti: "Visti",
+};
+
+const EMPTY: Record<string, string> = {
+  da_vedere: "Nessun film in lista. Aggiungine uno dalla ricerca.",
+  visti: "Nessun film segnato come visto.",
+};
+
+function ProfiloFilmPage() {
+  const { state } = useUserStore();
+  const { tab } = Route.useSearch();
+  const items = filterByMovieTab(state.media, tab);
+
+  const tabs = (["da_vedere", "visti"] as const).map(id => ({
+    id,
+    label: TAB_LABELS[id]!,
+    count: countMovieTab(state.media, id),
+  }));
+
+  return (
+    <AppShell subtitle="La tua libreria" title="Film">
+      <Link to="/profile" className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="h-3 w-3" /> Profilo
+      </Link>
+
+      <StatusTabs
+        tabs={tabs}
+        active={tab}
+        buildTo={id => ({ to: "/profilo/film", search: { tab: id } })}
+      />
+
+      <p className="mt-3 text-xs text-muted-foreground">{items.length} titoli</p>
+
+      <LibraryGrid items={items} emptyEmoji="🎬" emptyText={EMPTY[tab]} />
+    </AppShell>
+  );
+}
