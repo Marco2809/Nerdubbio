@@ -569,14 +569,35 @@ export interface NextUnwatchedInfo {
   aired: boolean;
 }
 
+function isAfterEpisode(season: number, episode: number, lastS: number, lastE: number): boolean {
+  return season > lastS || (season === lastS && episode > lastE);
+}
+
 export const tmdbNextUnwatched = createServerFn({ method: "POST" })
   .inputValidator((data) => z.object({
     tmdbId: z.number().int().positive(),
     watched: z.array(z.string()).default([]),
+    /** Ultimo episodio segnato visto — il prossimo sarà quello immediatamente dopo. */
+    lastSeason: z.number().int().positive().optional(),
+    lastEpisode: z.number().int().positive().optional(),
   }).parse(data))
   .handler(async ({ data }): Promise<NextUnwatchedInfo | null> => {
     const today = new Date().toISOString().slice(0, 10);
     const watched = new Set(data.watched);
+    let lastS = data.lastSeason ?? 0;
+    let lastE = data.lastEpisode ?? 0;
+    for (const key of watched) {
+      const m = key.match(/^S(\d+)E(\d+)$/);
+      if (!m) continue;
+      const s = Number(m[1]);
+      const e = Number(m[2]);
+      if (s > lastS || (s === lastS && e > lastE)) {
+        lastS = s;
+        lastE = e;
+      }
+    }
+    const hasFrontier = lastS > 0 && lastE > 0;
+
     let det: any;
     try { det = await tmdb<any>(`/tv/${data.tmdbId}`); } catch { return null; }
     const seasons: any[] = (det.seasons ?? [])
@@ -584,8 +605,9 @@ export const tmdbNextUnwatched = createServerFn({ method: "POST" })
       .sort((a: any, b: any) => a.season_number - b.season_number);
 
     for (const s of seasons) {
-      // Intera stagione ancora nel futuro → premiere annunciata.
-      if (s.air_date && s.air_date > today) {
+      if (hasFrontier && s.season_number < lastS) continue;
+      // Intera stagione ancora nel futuro → premiere annunciata (solo se oltre il frontier).
+      if (s.air_date && s.air_date > today && (!hasFrontier || s.season_number > lastS)) {
         return {
           kind: "premiere",
           season: s.season_number,
@@ -602,7 +624,11 @@ export const tmdbNextUnwatched = createServerFn({ method: "POST" })
       const eps: any[] = Array.isArray(sd.episodes) ? sd.episodes : [];
       for (const e of eps) {
         const key = `S${e.season_number}E${e.episode_number}`;
-        if (watched.has(key)) continue;
+        if (hasFrontier) {
+          if (!isAfterEpisode(e.season_number, e.episode_number, lastS, lastE)) continue;
+        } else if (watched.has(key)) {
+          continue;
+        }
         const aired = !!e.air_date && e.air_date <= today;
         return {
           kind: aired ? "episode" : "upcoming",

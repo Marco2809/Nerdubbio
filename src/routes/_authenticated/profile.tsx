@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { useUserStore, computeStats } from "@/lib/user-store";
 import { useAuthUser } from "@/hooks/use-auth-user";
-import { Trophy, Flame, Star, Settings2, Crown, Users, Download, ExternalLink } from "lucide-react";
+import { Trophy, Flame, Star, Settings2, Crown, Users, Download, ExternalLink, BarChart3 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/profile")({
   head: () => ({ meta: [{ title: "Profilo — Nerdubbio" }] }),
@@ -60,6 +60,15 @@ function Profile() {
         <Stat icon={<Trophy className="h-4 w-4"/>} label="Badge" value={state.achievements.length} />
         <Stat icon={<Star className="h-4 w-4"/>} label="Ore" value={stats.hours} />
       </div>
+
+      <Link to="/statistiche" className="mt-3 glass flex items-center gap-3 rounded-2xl p-4">
+        <BarChart3 className="h-5 w-5 text-accent" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold">Statistiche binge</p>
+          <p className="text-[11px] text-muted-foreground">Episodi/mese, ore totali, serie più viste</p>
+        </div>
+        <span className="text-xs font-bold text-accent">→</span>
+      </Link>
 
       <section className="mt-6">
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">Achievements</h2>

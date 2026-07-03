@@ -113,6 +113,17 @@ export const libraryApi = {
   skipLocalMigration(): Promise<LibraryState> {
     return api<LibraryState>('/api/library.php?action=skip_local_migration', 'POST', {});
   },
+
+  getWatchStats(): Promise<WatchStats> {
+    return api<WatchStats>('/api/library.php?action=watch_stats');
+  },
 };
+
+export interface WatchStats {
+  totalEpisodes: number;
+  hoursEstimate: number;
+  byMonth: { month: string; episodes: number }[];
+  topShows: { title: string; mediaKey: string; episodes: number }[];
+}
 
 export const LIBRARY_QUERY_KEY = ['user-library'] as const;

@@ -5,6 +5,7 @@ import { useUserStore, computeStats, type UserMediaEntry } from "@/lib/user-stor
 import { Sparkles, Flame, Trophy, TrendingUp } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { tmdbTrending, tmdbNextUnwatched } from "@/lib/tmdb/tmdb.functions";
+import { maxWatchedFrontier, pickFeaturedWatchingShow } from "@/lib/next-episode";
 import { PremiereReminderButton } from "@/components/nerdubbio/PremiereReminderButton";
 import { NERDACOLO, QUEST } from "@/lib/brand";
 import { useReturnPath } from "@/lib/media-nav";
@@ -82,12 +83,21 @@ function HomeDashboard() {
   const trendingItems = (trending.data?.items ?? []).filter((it: { id: string }) => !state.media[it.id]);
   const suggestion = trendingItems[0];
 
-  const next = watching[0];
-  const nextUser = next ? state.media[next.id] : null;
+  const featured = pickFeaturedWatchingShow(state.media);
+  const next = featured ? entryToCard(featured.entry) : null;
+  const nextUser = featured?.entry ?? null;
   const nextTmdbId = next && next.type === "tv" ? Number(/^tv-(\d+)$/.exec(next.id)?.[1]) : 0;
+  const frontier = nextUser ? maxWatchedFrontier(nextUser) : null;
   const nextUnwatched = useQuery({
-    queryKey: ["tmdb", "next-unwatched", nextTmdbId, nextUser?.watchedEpisodes ?? []],
-    queryFn: () => tmdbNextUnwatched({ data: { tmdbId: nextTmdbId, watched: nextUser?.watchedEpisodes ?? [] } }),
+    queryKey: ["tmdb", "next-unwatched", nextTmdbId, nextUser?.watchedEpisodes ?? [], frontier],
+    queryFn: () => tmdbNextUnwatched({
+      data: {
+        tmdbId: nextTmdbId,
+        watched: nextUser?.watchedEpisodes ?? [],
+        lastSeason: frontier?.season,
+        lastEpisode: frontier?.episode,
+      },
+    }),
     enabled: nextTmdbId > 0,
     staleTime: 1000 * 60 * 10,
   });
@@ -202,7 +212,12 @@ function HomeDashboard() {
                 if (nextTmdbId > 0 && !nu && !nextUnwatched.isLoading) {
                   return <p className="text-xs text-muted-foreground">Sei aggiornato — nessun episodio in programma</p>;
                 }
-                return <p className="text-xs text-muted-foreground">S{nextUser.currentSeason ?? 1} · E{nextUser.currentEpisode ?? 1}</p>;
+                if (frontier) {
+                  const ns = nu ? nu.season : frontier.season;
+                  const ne = nu ? nu.episode : frontier.episode + 1;
+                  return <p className="text-xs text-muted-foreground">Prossimo: S{ns} · E{ne}</p>;
+                }
+                return <p className="text-xs text-muted-foreground">S1 · E1</p>;
               })()}
             </div>
 

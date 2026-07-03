@@ -17,6 +17,8 @@ export interface UserMediaEntry {
   currentSeason?: number;
   currentEpisode?: number;
   watchedEpisodes?: string[];
+  /** Date visione per episodio (import TV Time), chiave S1E3. */
+  episodeDates?: Record<string, string>;
   reactions?: Record<string, string>;
   notes?: string;
   addedAt: string;

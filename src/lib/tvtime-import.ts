@@ -9,6 +9,10 @@ export interface ParsedRow {
   watchedEpisodes?: string[];
   /** Conteggio aggregato TV Time (fallback se mancano i singoli episodi). */
   episodesSeen?: number;
+  /** Voto utente 1–10 (da tv_show_rate.csv). */
+  rating?: number;
+  /** Data visione per episodio (ISO), chiave S1E3. */
+  episodeDates?: Record<string, string>;
   tvShowId?: string;
 }
 
@@ -168,7 +172,14 @@ function collectEpisodeRows(map: Record<string, Record<string, string>[]>): Reco
   return out;
 }
 
-type EpisodeAgg = { title: string; id?: string; eps: Set<string> };
+type EpisodeAgg = { title: string; id?: string; eps: Set<string>; epDates: Map<string, string> };
+
+function pickWatchedAt(r: Record<string, string>): string | undefined {
+  const raw = r.created_at || r.updated_at || r.watched_at || r.date || "";
+  if (!raw.trim()) return undefined;
+  const d = new Date(raw.replace(" ", "T"));
+  return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
+}
 
 function addEpisodeToShow(
   episodesByShow: Map<string, EpisodeAgg>,
@@ -176,13 +187,18 @@ function addEpisodeToShow(
   showId: string | undefined,
   seasonStr?: string,
   episodeStr?: string,
+  watchedAt?: string,
 ) {
   if (!showTitle?.trim()) return;
   const ep = parseEpisodeRef(seasonStr, episodeStr);
   if (!ep) return;
   const k = showKey(showId, showTitle);
-  const cur = episodesByShow.get(k) ?? { title: showTitle.trim(), id: showId, eps: new Set<string>() };
+  const cur = episodesByShow.get(k) ?? { title: showTitle.trim(), id: showId, eps: new Set<string>(), epDates: new Map() };
   cur.eps.add(ep);
+  if (watchedAt) {
+    const prev = cur.epDates.get(ep);
+    if (!prev || watchedAt > prev) cur.epDates.set(ep, watchedAt);
+  }
   episodesByShow.set(k, cur);
 }
 
@@ -200,7 +216,7 @@ function ingestEpisodeRows(
     const typeCol = (r.type || "").toLowerCase();
     if (entity === "movie") continue;
     if (typeCol.startsWith("count-watch") || typeCol === "last-episode-watched") continue;
-    addEpisodeToShow(episodesByShow, title, showId, pick(r, SEASON_KEYS), epNum);
+    addEpisodeToShow(episodesByShow, title, showId, pick(r, SEASON_KEYS), epNum, pickWatchedAt(r));
   }
 }
 
@@ -220,6 +236,7 @@ function ingestJsonEpisodes(episodesByShow: Map<string, EpisodeAgg>, data: unkno
       showId,
       String(o.episode_season_number ?? o.season_number ?? o.season ?? ""),
       String(o.episode_number ?? o.episode ?? ""),
+      typeof o.created_at === "string" ? pickWatchedAt({ created_at: o.created_at }) : undefined,
     );
   }
 }
@@ -403,16 +420,28 @@ function mergeShowStatus(a?: ParsedRow["status"], b?: ParsedRow["status"]): Pars
 function mergeParsedRows(prev: ParsedRow, next: ParsedRow): ParsedRow {
   const watched = new Set([...(prev.watchedEpisodes ?? []), ...(next.watchedEpisodes ?? [])]);
   const watchedList = [...watched].sort();
+  const dates: Record<string, string> = { ...(prev.episodeDates ?? {}), ...(next.episodeDates ?? {}) };
   const episodesSeen = Math.max(prev.episodesSeen ?? 0, next.episodesSeen ?? 0, watchedList.length);
+  const rating = Math.max(prev.rating ?? 0, next.rating ?? 0) || undefined;
   return {
     ...prev,
     ...next,
     tvShowId: prev.tvShowId ?? next.tvShowId,
     year: prev.year ?? next.year,
     watchedEpisodes: watchedList.length ? watchedList : undefined,
+    episodeDates: Object.keys(dates).length ? dates : undefined,
     episodesSeen: episodesSeen > 0 ? episodesSeen : undefined,
+    rating: rating && rating > 0 ? rating : undefined,
     status: mergeShowStatus(prev.status, next.status),
   };
+}
+
+/** TV Time usa 0–5 stelle; Nerdubbio 1–10. */
+function tvTimeRatingToApp(raw: string | undefined): number | undefined {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  if (n <= 5) return Math.min(10, Math.max(1, Math.round(n * 2)));
+  return Math.min(10, Math.max(1, Math.round(n)));
 }
 
 function mergeMovieStatus(
@@ -571,7 +600,9 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
     forLater: boolean;
     followed: boolean;
     episodesSeen: number;
+    rating?: number;
     watchedEpisodes: Set<string>;
+    episodeDates: Map<string, string>;
   };
   const shows = new Map<string, ShowAgg>();
   const episodesByShow = new Map<string, EpisodeAgg>();
@@ -587,6 +618,7 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
       followed: false,
       episodesSeen: 0,
       watchedEpisodes: new Set<string>(),
+      episodeDates: new Map<string, string>(),
     };
     shows.set(k, {
       ...cur,
@@ -612,6 +644,13 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
     } as Partial<ShowAgg>);
   }
 
+  // 3b) voti serie (tv_show_rate.csv)
+  for (const r of csvByPattern(csvMap, "tv_show_rate.csv")) {
+    const rating = tvTimeRatingToApp(r.rating);
+    if (!rating) continue;
+    upsert(r.tv_show_id, r.tv_show_name, { rating } as Partial<ShowAgg>);
+  }
+
   // 3) aggregati per show
   for (const r of csvByPattern(csvMap, "user_tv_show_data.csv")) {
     const n = Number(r["nb_episodes_seen"] || "0");
@@ -629,6 +668,10 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
     const cur = shows.get(k);
     if (cur) {
       for (const ep of watched) cur.watchedEpisodes.add(ep);
+      for (const [ep, dt] of agg.epDates) {
+        const prev = cur.episodeDates.get(ep);
+        if (!prev || dt > prev) cur.episodeDates.set(ep, dt);
+      }
       cur.episodesSeen = Math.max(cur.episodesSeen, watched.length);
     } else {
       shows.set(k, {
@@ -639,6 +682,7 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
         followed: true,
         episodesSeen: watched.length,
         watchedEpisodes: new Set(watched),
+        episodeDates: new Map(agg.epDates),
       });
     }
   }
@@ -678,6 +722,10 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
     const cur = shows.get(k);
     if (cur) {
       for (const ep of agg.eps) cur.watchedEpisodes.add(ep);
+      for (const [ep, dt] of agg.epDates) {
+        const prev = cur.episodeDates.get(ep);
+        if (!prev || dt > prev) cur.episodeDates.set(ep, dt);
+      }
       cur.episodesSeen = Math.max(cur.episodesSeen, cur.watchedEpisodes.size);
     }
   }
@@ -701,7 +749,9 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
       type: "tv",
       status,
       tvShowId: s.id,
+      rating: s.rating,
       watchedEpisodes: watched.length ? watched : undefined,
+      episodeDates: s.episodeDates.size ? Object.fromEntries(s.episodeDates) : undefined,
       episodesSeen: s.episodesSeen > 0 ? s.episodesSeen : undefined,
     });
   }
@@ -775,6 +825,8 @@ export interface TvTimePendingItem {
   status?: ParsedRow["status"];
   watchedEpisodes?: string[];
   episodesSeen?: number;
+  episodeDates?: Record<string, string>;
+  rating?: number;
   source: "tvtime";
   addedAt: string;
 }
@@ -789,22 +841,33 @@ export function pendingFromRow(row: ParsedRow): TvTimePendingItem {
     status: row.status,
     watchedEpisodes: progress.watchedEpisodes,
     episodesSeen: row.episodesSeen,
+    episodeDates: row.episodeDates,
+    rating: row.rating,
     source: "tvtime",
     addedAt: new Date().toISOString(),
   };
 }
 
 /** Estrae un archivio .zip TV Time e restituisce mapping filename → testo CSV/JSON. */
-export async function readTvTimeZip(file: File): Promise<Record<string, string>> {
+export async function readTvTimeZip(
+  file: File,
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<Record<string, string>> {
   const { default: JSZip } = await import("jszip");
   const zip = await JSZip.loadAsync(file);
   const out: Record<string, string> = {};
+  const entries = Object.values(zip.files).filter(e => {
+    if (e.dir) return false;
+    const lower = e.name.toLowerCase();
+    return lower.endsWith(".csv") || lower.endsWith(".json");
+  });
+  const total = entries.length || 1;
+  let loaded = 0;
   await Promise.all(
-    Object.values(zip.files).map(async (entry) => {
-      if (entry.dir) return;
-      const lower = entry.name.toLowerCase();
-      if (!lower.endsWith(".csv") && !lower.endsWith(".json")) return;
+    entries.map(async (entry) => {
       out[entry.name] = await entry.async("string");
+      loaded++;
+      onProgress?.(loaded, total);
     }),
   );
   return out;

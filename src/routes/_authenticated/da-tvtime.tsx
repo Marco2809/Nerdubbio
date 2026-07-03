@@ -32,6 +32,7 @@ function DaTvTimePage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [kindOverride, setKindOverride] = useState<"auto" | "tv" | "movie">("auto");
   const [summary, setSummary] = useState<TvTimeImportSummary["counts"] | null>(null);
+  const [parseProgress, setParseProgress] = useState<{ stage: string; pct: number } | null>(null);
   const cleanedPendingRef = useRef(false);
 
   const validPending = useMemo(
@@ -57,12 +58,19 @@ function DaTvTimePage() {
     setFileName(file.name);
     setMatches(null);
     setSummary(null);
+    setParseProgress(null);
 
     // ZIP GDPR TV Time completo
     if (file.name.toLowerCase().endsWith(".zip")) {
       try {
-        const files = await readTvTimeZip(file);
+        setParseProgress({ stage: "Lettura archivio…", pct: 0 });
+        const files = await readTvTimeZip(file, (loaded, total) => {
+          setParseProgress({ stage: "Lettura archivio…", pct: Math.round((loaded / total) * 60) });
+        });
+        setParseProgress({ stage: "Analisi CSV…", pct: 65 });
+        await new Promise(r => setTimeout(r, 0));
         const res = parseTvTimeExport(files);
+        setParseProgress({ stage: "Fatto", pct: 100 });
         if (res.rows.length === 0) { toast.error("Zip letto ma nessuna serie/film trovato."); return; }
         setRows(res.rows);
         setSummary(res.counts);
@@ -76,6 +84,8 @@ function DaTvTimePage() {
         }
       } catch (e) {
         toast.error("Impossibile leggere lo zip. Estrai i CSV e caricali singolarmente.");
+      } finally {
+        setTimeout(() => setParseProgress(null), 400);
       }
       return;
     }
@@ -145,6 +155,8 @@ function DaTvTimePage() {
         return {
           id: `${m.match!.type}-${m.match!.tmdb_id}`,
           status: m.row.status ?? "plan_to_watch",
+          rating: m.row.rating,
+          episodeDates: m.row.episodeDates,
           addedAt: new Date().toISOString(),
           source: "tvtime",
           title: m.match!.title,
@@ -164,9 +176,15 @@ function DaTvTimePage() {
       const importPending = [...pendingById.values()];
 
       let next = state;
+      const totalChunks = Math.ceil(entries.length / IMPORT_CHUNK);
       for (let i = 0; i < entries.length; i += IMPORT_CHUNK) {
         const chunk = entries.slice(i, i + IMPORT_CHUNK);
         const isLast = i + IMPORT_CHUNK >= entries.length;
+        const chunkNum = Math.floor(i / IMPORT_CHUNK) + 1;
+        setParseProgress({
+          stage: `Import libreria (${chunkNum}/${totalChunks})…`,
+          pct: Math.round((chunkNum / totalChunks) * 100),
+        });
         next = await libraryApi.bulkImport(
           chunk,
           isLast ? importPending : undefined,
@@ -190,6 +208,7 @@ function DaTvTimePage() {
       toast.error("Errore durante l'import. Riprova.", { description: msg });
     } finally {
       setBusy("idle");
+      setTimeout(() => setParseProgress(null), 400);
     }
   };
 
@@ -276,6 +295,18 @@ function DaTvTimePage() {
           <input type="file" accept=".zip,.csv,text/csv,application/zip,application/x-zip-compressed" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
         </label>
+
+        {parseProgress && (
+          <div className="mt-3">
+            <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>{parseProgress.stage}</span>
+              <span>{parseProgress.pct}%</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
+              <div className="h-full rounded-full bg-hero transition-all duration-300" style={{ width: `${parseProgress.pct}%` }} />
+            </div>
+          </div>
+        )}
 
         {summary && (
           <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-5">
@@ -532,6 +563,8 @@ function PendingSection({ pending }: { pending: TvTimePendingItem[] }) {
       const entry: UserMediaEntry = {
         id: `${item.type}-${item.tmdb_id}`,
         status: p.status ?? "plan_to_watch",
+        rating: p.rating,
+        episodeDates: p.episodeDates,
         addedAt: new Date().toISOString(),
         source: "tvtime",
         title: item.title,

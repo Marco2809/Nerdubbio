@@ -108,4 +108,8 @@ if ($action === 'skip_local_migration') {
     json_out(library_skip_local_migration($pdo, $userId));
 }
 
+if ($action === 'watch_stats') {
+    json_out(library_fetch_watch_stats($pdo, $userId));
+}
+
 json_out(['error' => 'Azione non valida'], 400);

@@ -197,16 +197,31 @@ function library_upsert_media(PDO $pdo, string $userId, string $mediaKey, array 
     ]);
 }
 
-function library_sync_episodes(PDO $pdo, string $userId, string $mediaKey, array $watchedKeys): void {
+function library_entry_episode_dates(array $entry): ?array {
+    $dates = $entry['episodeDates'] ?? null;
+    return is_array($dates) && $dates ? $dates : null;
+}
+
+function library_sync_episodes(PDO $pdo, string $userId, string $mediaKey, array $watchedKeys, ?array $episodeDates = null): void {
     $pdo->prepare('DELETE FROM user_episodes WHERE user_id = ? AND media_key = ?')->execute([$userId, $mediaKey]);
     if (!$watchedKeys) return;
 
     $ins = $pdo->prepare(
-        'INSERT INTO user_episodes (user_id, media_key, season, episode, watched_at) VALUES (?, ?, ?, ?, NOW())'
+        'INSERT INTO user_episodes (user_id, media_key, season, episode, watched_at) VALUES (?, ?, ?, ?, ?)'
     );
     foreach ($watchedKeys as $key) {
         if (!preg_match('/^S(\d+)E(\d+)$/', $key, $m)) continue;
-        $ins->execute([$userId, $mediaKey, (int) $m[1], (int) $m[2]]);
+        $watchedAt = null;
+        if (is_array($episodeDates) && isset($episodeDates[$key])) {
+            $watchedAt = normalize_datetime($episodeDates[$key]);
+        }
+        $ins->execute([
+            $userId,
+            $mediaKey,
+            (int) $m[1],
+            (int) $m[2],
+            $watchedAt ?? date('Y-m-d H:i:s'),
+        ]);
     }
 }
 
@@ -416,7 +431,7 @@ function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $wit
             $merged['watchedEpisodes'] = array_values(array_unique(array_merge($wExisting, $wNew)));
         }
         library_upsert_media($pdo, $userId, $e['id'], $merged);
-        library_sync_episodes($pdo, $userId, $e['id'], $merged['watchedEpisodes'] ?? []);
+        library_sync_episodes($pdo, $userId, $e['id'], $merged['watchedEpisodes'] ?? [], library_entry_episode_dates($merged));
         if (empty($existing['status']) || $existing['status'] === 'watching' && count($existing['watchedEpisodes'] ?? []) === 0) {
             $added++;
         }
@@ -490,4 +505,47 @@ function library_patch_settings(PDO $pdo, string $userId, array $patch): array {
 function library_skip_local_migration(PDO $pdo, string $userId): array {
     library_save_stats($pdo, $userId, ['local_migrated' => 1]);
     return library_fetch_state($pdo, $userId);
+}
+
+/** Statistiche di visione aggregate (episodi/mese, top binge). */
+function library_fetch_watch_stats(PDO $pdo, string $userId): array {
+    $monthStmt = $pdo->prepare(
+        'SELECT DATE_FORMAT(watched_at, "%Y-%m") AS ym, COUNT(*) AS cnt
+         FROM user_episodes WHERE user_id = ? GROUP BY ym ORDER BY ym ASC'
+    );
+    $monthStmt->execute([$userId]);
+    $byMonth = [];
+    foreach ($monthStmt->fetchAll() as $row) {
+        $byMonth[] = ['month' => $row['ym'], 'episodes' => (int) $row['cnt']];
+    }
+
+    $topStmt = $pdo->prepare(
+        'SELECT um.title, um.media_key, COUNT(*) AS ep_count
+         FROM user_episodes ue
+         JOIN user_media um ON um.user_id = ue.user_id AND um.media_key = ue.media_key
+         WHERE ue.user_id = ?
+         GROUP BY ue.media_key, um.title
+         ORDER BY ep_count DESC
+         LIMIT 10'
+    );
+    $topStmt->execute([$userId]);
+    $topShows = [];
+    foreach ($topStmt->fetchAll() as $row) {
+        $topShows[] = [
+            'title'    => $row['title'] ?? $row['media_key'],
+            'mediaKey' => $row['media_key'],
+            'episodes' => (int) $row['ep_count'],
+        ];
+    }
+
+    $totStmt = $pdo->prepare('SELECT COUNT(*) FROM user_episodes WHERE user_id = ?');
+    $totStmt->execute([$userId]);
+    $totalEpisodes = (int) $totStmt->fetchColumn();
+
+    return [
+        'totalEpisodes' => $totalEpisodes,
+        'hoursEstimate' => (int) round($totalEpisodes * 45 / 60),
+        'byMonth'       => $byMonth,
+        'topShows'      => $topShows,
+    ];
 }
