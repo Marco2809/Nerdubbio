@@ -84,8 +84,18 @@ function library_save_stats(PDO $pdo, string $userId, array $patch): void {
 function library_row_to_entry(array $row, array $episodes): array {
     $watched = [];
     $reactions = parse_json($row['reactions'] ?? null, []);
+    $lastFromEps = null;
     foreach ($episodes as $ep) {
         $watched[] = library_episode_key((int) $ep['season'], (int) $ep['episode']);
+        if (!empty($ep['watched_at'])) {
+            $t = date('c', strtotime($ep['watched_at']));
+            if (!$lastFromEps || $t > $lastFromEps) $lastFromEps = $t;
+        }
+    }
+
+    $lastWatched = $row['last_watched_at'] ? date('c', strtotime($row['last_watched_at'])) : null;
+    if ($lastFromEps && (!$lastWatched || $lastFromEps > $lastWatched)) {
+        $lastWatched = $lastFromEps;
     }
 
     return [
@@ -98,7 +108,8 @@ function library_row_to_entry(array $row, array $episodes): array {
         'reactions'       => is_array($reactions) ? $reactions : [],
         'notes'           => $row['notes'] ?? null,
         'addedAt'         => date('c', strtotime($row['added_at'])),
-        'lastWatchedAt'   => $row['last_watched_at'] ? date('c', strtotime($row['last_watched_at'])) : null,
+        'updatedAt'       => date('c', strtotime($row['updated_at'])),
+        'lastWatchedAt'   => $lastWatched,
         'source'          => $row['source'] ?? 'manual',
         'title'           => $row['title'] ?? null,
         'posterUrl'       => $row['poster_url'] ?? null,
@@ -116,7 +127,7 @@ function library_fetch_state(PDO $pdo, string $userId): array {
     $mediaRows = $mediaStmt->fetchAll();
 
     $epStmt = $pdo->prepare(
-        'SELECT media_key, season, episode FROM user_episodes WHERE user_id = ? ORDER BY season, episode'
+        'SELECT media_key, season, episode, watched_at FROM user_episodes WHERE user_id = ? ORDER BY season, episode'
     );
     $epStmt->execute([$userId]);
     $epRows = $epStmt->fetchAll();
@@ -440,6 +451,18 @@ function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $wit
         if (!empty($existing['addedAt'])) $merged['addedAt'] = $existing['addedAt'];
         $statusMerged = library_merge_status($existing, $e);
         if ($statusMerged !== null) $merged['status'] = $statusMerged;
+        $epDates = library_entry_episode_dates($merged);
+        if ($epDates) {
+            $maxWatch = null;
+            foreach ($epDates as $d) {
+                $n = normalize_datetime($d);
+                if (!$maxWatch || $n > $maxWatch) $maxWatch = $n;
+            }
+            if ($maxWatch) {
+                $cur = isset($merged['lastWatchedAt']) ? normalize_datetime($merged['lastWatchedAt']) : null;
+                if (!$cur || $maxWatch > $cur) $merged['lastWatchedAt'] = date('c', strtotime($maxWatch));
+            }
+        }
         $wExisting = is_array($existing['watchedEpisodes'] ?? null) ? $existing['watchedEpisodes'] : [];
         $wNew = is_array($e['watchedEpisodes'] ?? null) ? $e['watchedEpisodes'] : [];
         if ($replaceEpisodes && ($e['source'] ?? '') === 'tvtime') {

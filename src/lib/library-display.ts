@@ -60,11 +60,13 @@ export function filterBySeriesTab(
   tab: keyof typeof SERIES_TAB_STATUSES,
 ): LibraryDisplayItem[] {
   const allowed = new Set(SERIES_TAB_STATUSES[tab] ?? []);
+  const sortMode: SeriesSortMode =
+    tab === "da_vedere" ? "status_added" : "last_viewed";
   return Object.values(media)
     .filter(m => inferMediaType(m) === "tv" && allowed.has(m.status))
     .map(entryToDisplayItem)
     .filter((x): x is LibraryDisplayItem => !!x)
-    .sort((a, b) => sortLibraryItems(a, b, tab === "da_vedere" ? "added" : "recent"));
+    .sort((a, b) => sortSeriesItems(a, b, sortMode));
 }
 
 export function filterByMovieTab(
@@ -87,6 +89,30 @@ export function countSeriesTab(media: Record<string, UserMediaEntry>, tab: keyof
 export function countMovieTab(media: Record<string, UserMediaEntry>, tab: keyof typeof MOVIE_TAB_STATUSES): number {
   const allowed = new Set(MOVIE_TAB_STATUSES[tab] ?? []);
   return Object.values(media).filter(m => inferMediaType(m) === "movie" && allowed.has(m.status)).length;
+}
+
+type SeriesSortMode = "last_viewed" | "status_added";
+
+/** Timestamp ultimo episodio visto (DB, toggle o date import TV Time). */
+export function lastViewedTimestamp(entry: UserMediaEntry): string {
+  let max = entry.lastWatchedAt ?? "";
+  if (entry.episodeDates) {
+    for (const d of Object.values(entry.episodeDates)) {
+      if (d > max) max = d;
+    }
+  }
+  return max;
+}
+
+function sortSeriesItems(a: LibraryDisplayItem, b: LibraryDisplayItem, mode: SeriesSortMode): number {
+  if (mode === "status_added") {
+    const aT = a.entry.updatedAt ?? a.entry.addedAt ?? "";
+    const bT = b.entry.updatedAt ?? b.entry.addedAt ?? "";
+    return bT.localeCompare(aT);
+  }
+  const aT = lastViewedTimestamp(a.entry) || a.entry.addedAt || "";
+  const bT = lastViewedTimestamp(b.entry) || b.entry.addedAt || "";
+  return bT.localeCompare(aT);
 }
 
 function sortLibraryItems(a: LibraryDisplayItem, b: LibraryDisplayItem, mode: "recent" | "added"): number {

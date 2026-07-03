@@ -22,6 +22,8 @@ export interface UserMediaEntry {
   reactions?: Record<string, string>;
   notes?: string;
   addedAt: string;
+  /** Ultimo aggiornamento (es. cambio stato in Da vedere). */
+  updatedAt?: string;
   lastWatchedAt?: string;
   source?: 'manual' | 'tvtime' | 'trakt' | 'status_sync';
   title?: string;
