@@ -250,13 +250,19 @@ export interface CastMember {
 export const tmdbCredits = createServerFn({ method: "GET" })
   .inputValidator((data) => z.object({ type: z.enum(["movie", "tv"]), tmdbId: z.number().int().positive() }).parse(data))
   .handler(async ({ data }) => {
-    const res = await tmdb<any>(`/${data.type}/${data.tmdbId}/credits`);
+    // Per le serie /credits torna solo il cast dell'ultima stagione:
+    // aggregate_credits aggrega tutte le stagioni (i personaggi stanno in roles[]).
+    const endpoint = data.type === "tv"
+      ? `/tv/${data.tmdbId}/aggregate_credits`
+      : `/movie/${data.tmdbId}/credits`;
+    const res = await tmdb<any>(endpoint);
     const cast: CastMember[] = (res.cast ?? [])
-      .slice(0, 30)
+      .slice(0, 40)
       .map((c: any) => ({
         id: c.id,
         name: c.name ?? "",
-        character: c.character ?? "",
+        character: c.character
+          ?? (c.roles ?? []).map((r: any) => r.character).filter(Boolean).slice(0, 2).join(" / "),
         profileUrl: c.profile_path ? `${IMG_BASE}/w185${c.profile_path}` : null,
         order: c.order ?? 999,
       }));

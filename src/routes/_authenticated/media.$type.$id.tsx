@@ -78,6 +78,22 @@ function MediaDetail() {
   const goBack = useSmartBack("/app");
   const returnPath = useReturnPath();
 
+  // Deve stare prima dei return anticipati: aggiungere hook dopo un render
+  // condizionale fa crashare React ("Rendered more hooks than during the previous render").
+  const streamingOn = useMemo(() => {
+    if ((mockItem?.where?.length ?? 0) > 0) return mockItem!.where!;
+    const wp = providersQuery.data?.providers;
+    if (!wp) return [];
+    const providers = wp.flatrate.length
+      ? wp.flatrate
+      : wp.free.length
+        ? wp.free
+        : wp.rent.length
+          ? wp.rent
+          : wp.buy;
+    return providers.map(p => p.name);
+  }, [mockItem, providersQuery.data]);
+
   if (!mockItem && !shouldFetchTmdb) throw notFound();
 
   if (!mockItem && tmdbQuery.isLoading) {
@@ -93,20 +109,6 @@ function MediaDetail() {
 
   const item: CatalogItem = mockItem ?? tmdbToCatalogItem(tmdbQuery.data!.item);
   const entry = state.media[item.id];
-
-  const streamingOn = useMemo(() => {
-    if ((mockItem?.where?.length ?? 0) > 0) return mockItem!.where!;
-    const wp = providersQuery.data?.providers;
-    if (!wp) return [];
-    const providers = wp.flatrate.length
-      ? wp.flatrate
-      : wp.free.length
-        ? wp.free
-        : wp.rent.length
-          ? wp.rent
-          : wp.buy;
-    return providers.map(p => p.name);
-  }, [mockItem, providersQuery.data]);
 
   const actions: { s: UserStatus; label: string; icon: React.ReactNode }[] = [
     { s: "plan_to_watch", label: "Da vedere", icon: <Plus className="h-4 w-4" /> },
@@ -312,21 +314,22 @@ function MediaDetail() {
             totalSeasons={item.seasons}
             watched={entry?.watchedEpisodes ?? []}
             entry={entry}
-            onToggle={(s, e, epsInSeason) => {
+            onToggle={(s, e, epsInSeason, opts) => {
               const wasWatched = isEpisodeWatched(entry, s, e);
               toggleEpisode(item.id, s, e, epsInSeason, item.seasons!);
-              toast(
-                wasWatched
-                  ? `S${s}E${e} segnato come non visto`
-                  : `S${s}E${e} visto! +15 XP`,
-                {
-                  action: {
-                    label: "Annulla",
-                    onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!),
-                  },
-                  duration: 4000,
+              if (opts?.silent) return;
+              const undo = {
+                action: {
+                  label: "Annulla",
+                  onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!),
                 },
-              );
+                duration: 4000,
+              };
+              if (wasWatched) {
+                toast(`S${s}E${e} segnato come non visto`, undo);
+              } else {
+                toast.reward(`S${s}E${e} visto!`, 15, undo);
+              }
             }}
           />
 
@@ -386,7 +389,7 @@ function SeasonsTracker({
   totalSeasons: number;
   watched: string[];
   entry: ReturnType<typeof useUserStore>["state"]["media"][string] | undefined;
-  onToggle: (season: number, episode: number, episodesInSeason: number) => void;
+  onToggle: (season: number, episode: number, episodesInSeason: number, opts?: { silent?: boolean }) => void;
 }) {
   const [openSeason, setOpenSeason] = useState<number>(entry?.currentSeason ?? 1);
   useEffect(() => {
@@ -438,7 +441,7 @@ function SeasonCard({
   onToggleOpen: () => void;
   watchedSet: Set<string>;
   entry: ReturnType<typeof useUserStore>["state"]["media"][string] | undefined;
-  onToggle: (season: number, episode: number, episodesInSeason: number) => void;
+  onToggle: (season: number, episode: number, episodesInSeason: number, opts?: { silent?: boolean }) => void;
 }) {
   const q = useQuery({
     queryKey: ["tmdb", "season", tmdbId, seasonNumber],
@@ -453,15 +456,20 @@ function SeasonCard({
     .filter(k => watchedSet.has(k)).length;
   const pct = epsCount ? (watchedInSeason / epsCount) * 100 : 0;
 
+  // Toggle silenzioso per episodio + un unico toast riassuntivo (niente spam di notifiche).
   const markAll = () => {
-    episodes.forEach(ep => {
-      if (!watchedSet.has(`S${seasonNumber}E${ep.episodeNumber}`)) onToggle(seasonNumber, ep.episodeNumber, epsCount);
-    });
+    const missing = episodes.filter(ep => !watchedSet.has(`S${seasonNumber}E${ep.episodeNumber}`));
+    missing.forEach(ep => onToggle(seasonNumber, ep.episodeNumber, epsCount, { silent: true }));
+    if (missing.length) {
+      toast.reward(`Stagione ${seasonNumber} completata!`, missing.length * 15 + 50, {
+        description: `${missing.length} episodi segnati come visti`,
+      });
+    }
   };
   const unmarkAll = () => {
-    episodes.forEach(ep => {
-      if (watchedSet.has(`S${seasonNumber}E${ep.episodeNumber}`)) onToggle(seasonNumber, ep.episodeNumber, epsCount);
-    });
+    const marked = episodes.filter(ep => watchedSet.has(`S${seasonNumber}E${ep.episodeNumber}`));
+    marked.forEach(ep => onToggle(seasonNumber, ep.episodeNumber, epsCount, { silent: true }));
+    if (marked.length) toast(`Stagione ${seasonNumber} segnata come non vista`);
   };
 
   return (

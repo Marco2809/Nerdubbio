@@ -1,8 +1,8 @@
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { BrandIcon } from "@/components/nerdubbio/BrandIcon";
 import { cn } from "@/lib/utils";
 
-export type ToastVariant = "default" | "success" | "error" | "info" | "warning" | "loading";
+export type ToastVariant = "default" | "success" | "error" | "info" | "warning" | "loading" | "reward";
 
 const ring: Record<ToastVariant, string> = {
   default: "ring-primary/40",
@@ -11,6 +11,7 @@ const ring: Record<ToastVariant, string> = {
   info: "ring-secondary/45",
   warning: "ring-neon/45",
   loading: "ring-primary/35",
+  reward: "ring-neon/60",
 };
 
 /** Icona toast Nerdubbio — sfera oracle con alone per tipo. */
@@ -25,6 +26,12 @@ export function ToastBrandIcon({ variant = "default" }: { variant?: ToastVariant
       )}
     >
       <BrandIcon compact className="h-7 w-7" />
+      {variant === "reward" && (
+        <Sparkles
+          className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-background p-0.5 text-neon"
+          aria-hidden
+        />
+      )}
       {variant === "loading" && (
         <Loader2
           className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 animate-spin rounded-full bg-background text-primary"

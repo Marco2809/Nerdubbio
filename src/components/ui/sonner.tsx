@@ -16,11 +16,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
         bottom: "calc(5.25rem + env(safe-area-inset-bottom, 0px))",
       }}
       className="toaster group"
+      style={{ "--width": "min(100vw - 2rem, 26rem)" } as React.CSSProperties}
       toastOptions={{
         unstyled: true,
         classNames: {
           toast:
-            "nerdubbio-toast group toast relative flex w-[calc(100vw-2rem)] max-w-[22rem] items-start gap-3 rounded-2xl border border-border/70 bg-surface/95 p-3.5 pr-9 pl-3 shadow-glow backdrop-blur-xl",
+            "nerdubbio-toast group toast relative flex w-full items-start gap-3 rounded-2xl border border-border/70 bg-surface/95 p-3.5 pr-9 pl-3 shadow-glow backdrop-blur-xl",
           title: "text-sm font-semibold leading-snug text-foreground",
           description: "mt-0.5 text-xs leading-relaxed text-muted-foreground",
           content: "flex-1 min-w-0",
