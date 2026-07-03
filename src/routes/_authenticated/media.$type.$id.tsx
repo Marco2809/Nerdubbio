@@ -4,9 +4,9 @@ import { OverlayBackButton } from "@/components/nerdubbio/OverlayBackButton";
 import { findById, type CatalogItem } from "@/lib/mock-catalog";
 import { useUserStore, isEpisodeWatched, type UserStatus } from "@/lib/user-store";
 import { Plus, Heart, CheckCircle2, Pause, X, Star, Check, Loader2, PlayCircle, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
+import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, tmdbWatchProviders, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
 import { useReturnPath, useSmartBack } from "@/lib/media-nav";
 import { toast } from "@/lib/toast";
 import {
@@ -40,7 +40,6 @@ function tmdbToCatalogItem(t: TmdbItem): CatalogItem {
     moods: [],
     overview: t.overview,
     poster: t.posterUrl ? `url(${t.posterUrl}) center/cover` : "linear-gradient(135deg,#3b1361,#0ea5e9)",
-    where: [],
     similar: [],
   };
 }
@@ -67,6 +66,13 @@ function MediaDetail() {
     staleTime: 1000 * 60 * 60,
   });
 
+  const providersQuery = useQuery({
+    queryKey: ["tmdb", "providers", type, numericId],
+    queryFn: () => tmdbWatchProviders({ data: { type: type as "movie" | "tv", tmdbId: numericId } }),
+    enabled: shouldFetchTmdb,
+    staleTime: 1000 * 60 * 60 * 24,
+  });
+
   const { state, addToList, removeFromList, toggleEpisode, setRating, markAllSeriesWatched, clearWatchedEpisodes } = useUserStore();
   const [syncOpen, setSyncOpen] = useState(false);
   const goBack = useSmartBack("/app");
@@ -87,6 +93,20 @@ function MediaDetail() {
 
   const item: CatalogItem = mockItem ?? tmdbToCatalogItem(tmdbQuery.data!.item);
   const entry = state.media[item.id];
+
+  const streamingOn = useMemo(() => {
+    if ((mockItem?.where?.length ?? 0) > 0) return mockItem!.where!;
+    const wp = providersQuery.data?.providers;
+    if (!wp) return [];
+    const providers = wp.flatrate.length
+      ? wp.flatrate
+      : wp.free.length
+        ? wp.free
+        : wp.rent.length
+          ? wp.rent
+          : wp.buy;
+    return providers.map(p => p.name);
+  }, [mockItem, providersQuery.data]);
 
   const actions: { s: UserStatus; label: string; icon: React.ReactNode }[] = [
     { s: "plan_to_watch", label: "Da vedere", icon: <Plus className="h-4 w-4" /> },
@@ -117,14 +137,14 @@ function MediaDetail() {
           {item.genres.map(g => <span key={g} className="rounded-full border border-border px-2 py-0.5 text-[10px]">{g}</span>)}
         </div>
 
-        <p className="mt-4 text-sm leading-relaxed text-foreground/90">{item.overview}</p>
+        <p className="mt-4 text-sm leading-relaxed text-foreground/90">{item.overview || "Sinossi non disponibile."}</p>
 
-        {(item.where?.length ?? 0) > 0 && (
+        {streamingOn.length > 0 ? (
           <div className="mt-4">
             <p className="text-xs uppercase tracking-widest text-muted-foreground">Dove vederlo</p>
-            <p className="mt-1 text-sm font-semibold">{item.where.join(" · ")}</p>
+            <p className="mt-1 text-sm font-semibold">{streamingOn.join(" · ")}</p>
           </div>
-        )}
+        ) : null}
 
         <div className="mt-6">
           <div className="flex items-center justify-between">
@@ -316,11 +336,11 @@ function MediaDetail() {
 
         <CastSection cast={creditsQuery.data?.cast ?? []} loading={creditsQuery.isLoading} returnPath={returnPath} />
 
-        {(item.similar?.length ?? 0) > 0 && (
+        {(item.similar?.length ?? 0) > 0 ? (
           <section className="mt-6">
             <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">Simili</h2>
             <div className="grid grid-cols-3 gap-2">
-              {item.similar.map(sid => {
+              {item.similar!.map(sid => {
                 const s = findById(sid); if (!s) return null;
                 return (
                   <Link key={sid} to="/media/$type/$id" params={{ type: s.type, id: s.id }}
@@ -330,7 +350,7 @@ function MediaDetail() {
               })}
             </div>
           </section>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -400,11 +420,11 @@ function SeasonsTracker({
           );
         })}
       </div>
-      {entry?.currentSeason && entry.currentEpisode && (
+      {(entry?.currentSeason ?? 0) > 0 && (entry?.currentEpisode ?? 0) > 0 ? (
         <p className="mt-3 text-center text-xs text-accent">
-          Ultimo episodio: S{entry.currentSeason}E{entry.currentEpisode}. Un altro episodio e poi dormi?
+          Ultimo episodio: S{entry!.currentSeason}E{entry!.currentEpisode}. Un altro episodio e poi dormi?
         </p>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -552,11 +572,11 @@ function EpisodeRow({
             )}
           </div>
           <div className="mt-1 flex items-center gap-2">
-            {ep.overview && (
+            {ep.overview ? (
               <button onClick={() => setExpanded(v => !v)} className="text-[11px] font-semibold text-accent hover:underline">
                 {expanded ? "Nascondi" : "Trama"}
               </button>
-            )}
+            ) : null}
             <button
               onClick={onToggle}
               disabled={!!isFuture && !watched}
@@ -572,11 +592,11 @@ function EpisodeRow({
           </div>
         </div>
       </div>
-      {expanded && ep.overview && (
+      {expanded && ep.overview ? (
         <p className="border-t border-border/40 p-3 text-xs leading-relaxed text-muted-foreground">
           {ep.overview}
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
