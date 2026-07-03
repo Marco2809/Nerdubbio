@@ -14,8 +14,8 @@ const items: NavItem[] = [
 export function BottomNav() {
   const { pathname } = useLocation();
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-50 pb-[env(safe-area-inset-bottom)]">
-      <div className="mx-auto max-w-md px-3 pb-3">
+    <nav className="fixed bottom-0 inset-x-0 z-50 pb-safe">
+      <div className="mx-auto max-w-md px-safe pb-3">
         <div className="glass rounded-3xl shadow-glow flex items-end justify-between px-2 py-2">
           {items.map(it => {
             const Icon = it.icon;

@@ -112,6 +112,19 @@
   h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.02em; }
 }
 
+@layer utilities {
+  .pt-safe {
+    padding-top: max(1rem, env(safe-area-inset-top, 0px));
+  }
+  .px-safe {
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  }
+  .pb-safe {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  }
+}
+
 @keyframes d20-wobble {
   0%, 100% { transform: rotate(-8deg) scale(1); }
   50% { transform: rotate(8deg) scale(1.06); }

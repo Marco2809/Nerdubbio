@@ -136,7 +136,7 @@ function Landing() {
     <div className="relative min-h-screen">
       <LandingBackdrop />
 
-      <header className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-5">
+      <header className="relative mx-auto flex max-w-6xl items-center justify-between px-safe pb-5 pt-safe">
         <Link
           to="/"
           aria-label={isIt ? "Nerdubbio home" : "Nerdoubt home"}

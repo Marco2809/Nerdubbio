@@ -50,7 +50,7 @@ function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto flex max-w-sm flex-col px-4 pt-10">
+      <div className="mx-auto flex max-w-sm flex-col px-safe pb-16 pt-safe">
         <Link to="/" className="mb-6 flex items-center gap-2">
           <span className="grid h-9 w-9 place-items-center rounded-2xl bg-hero shadow-glow-pink">
             <Sparkles className="h-5 w-5 text-primary-foreground" />

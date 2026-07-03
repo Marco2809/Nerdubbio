@@ -19,7 +19,7 @@ export function AppShell({ children, title, subtitle, right }: {
   useEffect(() => { scheduleAllReminders(); }, []);
   return (
     <div className="min-h-screen pb-32">
-      <div className="mx-auto max-w-md px-4 pt-4">
+      <div className="mx-auto max-w-md px-safe pt-safe">
         <div className="mb-3 flex items-center justify-between">
           <Link
             to="/app"

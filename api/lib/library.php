@@ -402,6 +402,11 @@ function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $wit
         $existing = library_get_entry($pdo, $userId, $e['id']);
         $merged = array_merge($existing, $e);
         if (!empty($existing['addedAt'])) $merged['addedAt'] = $existing['addedAt'];
+        $wExisting = is_array($existing['watchedEpisodes'] ?? null) ? $existing['watchedEpisodes'] : [];
+        $wNew = is_array($merged['watchedEpisodes'] ?? null) ? $merged['watchedEpisodes'] : [];
+        if ($wExisting || $wNew) {
+            $merged['watchedEpisodes'] = array_values(array_unique(array_merge($wExisting, $wNew)));
+        }
         library_upsert_media($pdo, $userId, $e['id'], $merged);
         library_sync_episodes($pdo, $userId, $e['id'], $merged['watchedEpisodes'] ?? []);
         if (empty($existing['status']) || $existing['status'] === 'watching' && count($existing['watchedEpisodes'] ?? []) === 0) {

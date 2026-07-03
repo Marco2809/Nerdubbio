@@ -187,7 +187,7 @@ function Onboarding() {
         <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-violet-500/25 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto flex min-h-screen max-w-md flex-col px-5 pb-10 pt-8">
+      <div className="relative mx-auto flex min-h-screen max-w-md flex-col px-safe pb-10 pt-safe">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-2">

@@ -82,8 +82,12 @@ const YEAR_KEYS = ["year", "release_year", "first_air_year", "anno"];
 const TYPE_KEYS = ["type", "media_type", "kind"];
 const STATUS_KEYS = ["status", "list", "watchlist", "state"];
 const SHOW_KEYS = ["tv_show_name", "show_name", "series_name", "series", "name"];
-const SEASON_KEYS = ["episode_season_number", "season_number", "season", "season_num"];
-const EPISODE_KEYS = ["episode_number", "episode", "episode_num"];
+const SEASON_KEYS = ["episode_season_number", "season_number", "season", "season_num", "s_no"];
+const EPISODE_KEYS = ["episode_number", "episode", "episode_num", "ep_no"];
+
+function pickShowId(r: Record<string, string>): string | undefined {
+  return r["tv_show_id"] || r["show_id"] || r["series_id"] || r["s_id"] || undefined;
+}
 
 function pick(o: Record<string, string>, keys: string[]): string | undefined {
   for (const k of keys) if (o[k]) return o[k];
@@ -115,8 +119,9 @@ function parseEpisodeRef(seasonStr?: string, episodeStr?: string): string | null
   return episodeKey(season, episode);
 }
 
-function showKey(id?: string, title?: string): string {
-  return (id && id.trim()) || `t:${(title || "").toLowerCase().trim()}`;
+/** Chiave per serie: sempre per titolo così episodi e follow condividono lo stesso bucket. */
+function showKey(_id: string | undefined, title: string): string {
+  return `t:${(title || "").toLowerCase().trim()}`;
 }
 
 function basename(path: string): string {
@@ -153,6 +158,8 @@ function collectEpisodeRows(map: Record<string, Record<string, string>[]>): Reco
   for (const pattern of [
     "seen_episode.csv",
     "seen_episode_source.csv",
+    "seen_episode_latest.csv",
+    "tracking-prod-records.csv",
     "tracking-prod-records-v2.csv",
   ]) {
     const rows = csvByPattern(map, pattern);
@@ -185,9 +192,14 @@ function ingestEpisodeRows(
 ) {
   for (const r of rows) {
     const title = pick(r, SHOW_KEYS);
-    const showId = r["tv_show_id"] || r["show_id"] || r["series_id"];
+    const showId = pickShowId(r);
     const epNum = pick(r, EPISODE_KEYS);
     if (!epNum) continue;
+    // Salta righe aggregate / film nel tracking-prod-records
+    const entity = (r.entity_type || "").toLowerCase();
+    const typeCol = (r.type || "").toLowerCase();
+    if (entity === "movie") continue;
+    if (typeCol.startsWith("count-watch") || typeCol === "last-episode-watched") continue;
     addEpisodeToShow(episodesByShow, title, showId, pick(r, SEASON_KEYS), epNum);
   }
 }
@@ -373,6 +385,34 @@ function ingestMovieCsvRow(
 
   const year = parseYearFromValue(pick(r, MOVIE_YEAR_KEYS));
   addMovieToMap(movies, title, movieStatusFromCsv(r), year);
+}
+
+function mergeShowStatus(a?: ParsedRow["status"], b?: ParsedRow["status"]): ParsedRow["status"] {
+  const rank: Record<string, number> = {
+    favorite: 5,
+    watching: 4,
+    completed: 3,
+    plan_to_watch: 2,
+    paused: 1,
+    dropped: 0,
+  };
+  const pick = (s?: ParsedRow["status"]) => (s ? rank[s] ?? 0 : -1);
+  return (pick(a) >= pick(b) ? a : b) ?? "plan_to_watch";
+}
+
+function mergeParsedRows(prev: ParsedRow, next: ParsedRow): ParsedRow {
+  const watched = new Set([...(prev.watchedEpisodes ?? []), ...(next.watchedEpisodes ?? [])]);
+  const watchedList = [...watched].sort();
+  const episodesSeen = Math.max(prev.episodesSeen ?? 0, next.episodesSeen ?? 0, watchedList.length);
+  return {
+    ...prev,
+    ...next,
+    tvShowId: prev.tvShowId ?? next.tvShowId,
+    year: prev.year ?? next.year,
+    watchedEpisodes: watchedList.length ? watchedList : undefined,
+    episodesSeen: episodesSeen > 0 ? episodesSeen : undefined,
+    status: mergeShowStatus(prev.status, next.status),
+  };
 }
 
 function mergeMovieStatus(
@@ -667,14 +707,14 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
   }
   for (const m of movies.values()) rows.push(m);
 
-  const seen = new Set<string>();
-  const unique = rows.filter(r => {
-    if (!isLikelyMediaTitle(r.title)) return false;
-    const k = `${r.type}:${r.title.toLowerCase()}`;
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+  const byKey = new Map<string, ParsedRow>();
+  for (const r of rows) {
+    if (!isLikelyMediaTitle(r.title)) continue;
+    const k = `${r.type ?? "tv"}:${r.title.toLowerCase()}`;
+    const prev = byKey.get(k);
+    byKey.set(k, prev ? mergeParsedRows(prev, r) : r);
+  }
+  const unique = [...byKey.values()];
 
   const episodeRows = unique.reduce((n, r) => n + (r.watchedEpisodes?.length ?? r.episodesSeen ?? 0), 0);
   return {
@@ -720,12 +760,9 @@ export function deriveEpisodeProgress(row: ParsedRow): {
       currentEpisode: episode || undefined,
     };
   }
-  if (row.episodesSeen && row.episodesSeen > 0) {
-    return {
-      watchedEpisodes: Array.from({ length: row.episodesSeen }, (_, i) => episodeKey(1, i + 1)),
-      currentSeason: 1,
-      currentEpisode: row.episodesSeen,
-    };
+  if (row.episodesSeen && row.episodesSeen > 0 && !row.watchedEpisodes?.length) {
+    // Solo conteggio aggregato — non inventare S1E1..N (fuorviante su serie lunghe)
+    return { episodesSeen: row.episodesSeen };
   }
   return {};
 }

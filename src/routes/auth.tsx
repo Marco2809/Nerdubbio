@@ -85,7 +85,7 @@ function AuthPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto flex max-w-sm flex-col px-4 pt-10 pb-16">
+      <div className="mx-auto flex max-w-sm flex-col px-safe pb-16 pt-safe">
         <Link to="/" className="mb-6 flex items-center justify-center text-foreground">
           <Wordmark withIcon className="h-12 drop-shadow-[0_0_24px_rgba(168,85,247,0.4)]" />
         </Link>
