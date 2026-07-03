@@ -4,9 +4,8 @@ import { findById } from "@/lib/mock-catalog";
 import { useUserStore, computeStats, type UserMediaEntry } from "@/lib/user-store";
 import { Sparkles, Flame, Trophy, TrendingUp } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { tmdbTrending, tmdbNextUnwatched } from "@/lib/tmdb/tmdb.functions";
-import { maxWatchedFrontier, pickFeaturedWatchingShow } from "@/lib/next-episode";
-import { PremiereReminderButton } from "@/components/nerdubbio/PremiereReminderButton";
+import { tmdbTrending } from "@/lib/tmdb/tmdb.functions";
+import { HomeNextEpisodesSection } from "@/components/nerdubbio/HomeNextEpisodesSection";
 import { NERDACOLO, QUEST } from "@/lib/brand";
 import { useReturnPath } from "@/lib/media-nav";
 import { NerdacoloTrigger } from "@/components/nerdubbio/NerdacoloTrigger";
@@ -83,26 +82,6 @@ function HomeDashboard() {
   const trendingItems = (trending.data?.items ?? []).filter((it: { id: string }) => !state.media[it.id]);
   const suggestion = trendingItems[0];
 
-  const featured = pickFeaturedWatchingShow(state.media);
-  const next = featured ? entryToCard(featured.entry) : null;
-  const nextUser = featured?.entry ?? null;
-  const nextTmdbId = next && next.type === "tv" ? Number(/^tv-(\d+)$/.exec(next.id)?.[1]) : 0;
-  const frontier = nextUser ? maxWatchedFrontier(nextUser) : null;
-  const nextUnwatched = useQuery({
-    queryKey: ["tmdb", "next-unwatched", nextTmdbId, nextUser?.watchedEpisodes ?? [], frontier],
-    queryFn: () => tmdbNextUnwatched({
-      data: {
-        tmdbId: nextTmdbId,
-        watched: nextUser?.watchedEpisodes ?? [],
-        lastSeason: frontier?.season,
-        lastEpisode: frontier?.episode,
-      },
-    }),
-    enabled: nextTmdbId > 0,
-    staleTime: 1000 * 60 * 10,
-  });
-
-
   const greetName = profile?.display_name || user?.email?.split("@")[0] || "nerd";
   const from = useReturnPath();
 
@@ -150,80 +129,8 @@ function HomeDashboard() {
         <StatChip icon={<Flame className="h-4 w-4" />} label="Streak" value={`${state.streak}g`} />
       </div>
 
-      {/* Prossimo episodio */}
-      {next && nextUser && (
-        <section className="mt-6">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">Prossimo episodio</h2>
-          <Link to="/media/$type/$id" params={paramsFor(next)} state={{ from }}
-            className="glass flex items-center gap-3 rounded-2xl p-3">
-            <div className="h-20 w-14 shrink-0 overflow-hidden rounded-xl bg-surface-2">
-              {next.posterUrl && <img src={next.posterUrl} alt={next.title} className="h-full w-full object-cover" loading="lazy" />}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">{next.title}</p>
-              {(() => {
-                const nu = nextUnwatched.data;
-                if (nextTmdbId > 0 && nu) {
-                  const label = `S${nu.season} · E${nu.episode}`;
-                  const badge = nu.kind === "premiere"
-                    ? "Premiere di stagione"
-                    : nu.aired
-                      ? (nu.name ? nu.name : "In onda")
-                      : `Esce il ${nu.airDate ?? "—"}`;
-                  const isFuture = !nu.aired && !!nu.airDate;
-                  return (
-                    <>
-                      <p className="text-xs text-muted-foreground">{label} · <span className="text-accent">{badge}</span></p>
-                      {nu.overview && <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground/80">{nu.overview}</p>}
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            navigate({
-                              to: "/media/$type/$id",
-                              params: { type: "tv", id: String(nextTmdbId) },
-                              hash: `ep-S${nu.season}E${nu.episode}`,
-                              state: { from },
-                            });
-                          }}
-                          className="rounded-full bg-hero px-3 py-1 text-[11px] font-bold text-primary-foreground shadow-glow-pink"
-                        >
-                          Apri episodio →
-                        </button>
-                        {isFuture && (
-                          <PremiereReminderButton
-                            id={`${nextTmdbId}:S${nu.season}E${nu.episode}`}
-                            tmdbId={nextTmdbId}
-                            title={next.title}
-                            label={`${label}${nu.kind === "premiere" ? " — Premiere" : ""}`}
-                            airDate={nu.airDate!}
-                            href={`/media/tv/${nextTmdbId}#ep-S${nu.season}E${nu.episode}`}
-                          />
-                        )}
-                      </div>
-                    </>
-                  );
-                }
-                if (nextTmdbId > 0 && nextUnwatched.isLoading) {
-                  return <p className="text-xs text-muted-foreground">Calcolo prossimo episodio…</p>;
-                }
-                if (nextTmdbId > 0 && !nu && !nextUnwatched.isLoading) {
-                  return <p className="text-xs text-muted-foreground">Sei aggiornato — nessun episodio in programma</p>;
-                }
-                if (frontier) {
-                  const ns = nu ? nu.season : frontier.season;
-                  const ne = nu ? nu.episode : frontier.episode + 1;
-                  return <p className="text-xs text-muted-foreground">Prossimo: S{ns} · E{ne}</p>;
-                }
-                return <p className="text-xs text-muted-foreground">S1 · E1</p>;
-              })()}
-            </div>
-
-          </Link>
-        </section>
-      )}
+      {/* Prossimi episodi — tutte le serie in corso */}
+      <HomeNextEpisodesSection media={state.media} from={from} />
 
       {/* Suggerimento del giorno — TMDB reale */}
       {suggestion && (

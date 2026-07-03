@@ -44,3 +44,27 @@ export function pickFeaturedWatchingShow(
   const entry = scored[0]!.entry;
   return { card: entry, entry };
 }
+
+/** Serie in corso/in pausa con TMDB id, ordinate per ultima visione. */
+export function listTvShowsForNextEpisode(media: Record<string, UserMediaEntry>): UserMediaEntry[] {
+  return Object.values(media)
+    .filter(m => {
+      if (m.status !== "watching" && m.status !== "paused") return false;
+      if (m.type !== "tv" && !m.id.startsWith("tv-")) return false;
+      return /^tv-\d+$/.test(m.id);
+    })
+    .sort((a, b) => {
+      const score = (e: UserMediaEntry) => {
+        const t = e.lastWatchedAt ? Date.parse(e.lastWatchedAt) : 0;
+        const f = maxWatchedFrontier(e);
+        const p = f ? f.season * 10_000 + f.episode : 0;
+        return t * 1_000_000 + p;
+      };
+      return score(b) - score(a);
+    });
+}
+
+export function tmdbIdFromMediaKey(id: string): number | null {
+  const m = /^tv-(\d+)$/.exec(id);
+  return m ? Number(m[1]) : null;
+}

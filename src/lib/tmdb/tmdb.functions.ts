@@ -725,6 +725,30 @@ export const tmdbNextUnwatched = createServerFn({ method: "POST" })
     );
   });
 
+export const tmdbNextUnwatchedBatch = createServerFn({ method: "POST" })
+  .inputValidator((data) => z.object({
+    items: z.array(z.object({
+      tmdbId: z.number().int().positive(),
+      watched: z.array(z.string()).default([]),
+      lastSeason: z.number().int().positive().optional(),
+      lastEpisode: z.number().int().positive().optional(),
+    })).max(12),
+  }).parse(data))
+  .handler(async ({ data }): Promise<{ tmdbId: number; next: NextUnwatchedInfo }[]> => {
+    const results = await Promise.all(
+      data.items.map(async (item) => ({
+        tmdbId: item.tmdbId,
+        next: await findNextUnwatchedEpisode(
+          item.tmdbId,
+          item.watched,
+          item.lastSeason,
+          item.lastEpisode,
+        ),
+      })),
+    );
+    return results.filter((r): r is { tmdbId: number; next: NextUnwatchedInfo } => !!r.next);
+  });
+
 
 // ============================================================
 // Main Quest — pool candidati TMDB + watchlist
