@@ -20,7 +20,7 @@ export function AppShell({ children, title, subtitle, right }: {
   return (
     <div className="min-h-screen pb-32">
       <div className="mx-auto max-w-md px-safe pt-safe">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-4 flex min-h-12 items-center justify-between py-1">
           <Link
             to="/app"
             aria-label={lang === "en" ? "Nerdoubt home" : "Nerdubbio home"}
@@ -29,7 +29,7 @@ export function AppShell({ children, title, subtitle, right }: {
             <Wordmark
               lang={lang}
               withIcon
-              className="h-8 sm:h-9 drop-shadow-[0_0_14px_rgba(168,85,247,0.4)]"
+              className="h-10 sm:h-11 drop-shadow-[0_0_14px_rgba(168,85,247,0.4)]"
             />
           </Link>
           <AccountMenu />
@@ -81,7 +81,7 @@ function AccountMenu() {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="grid h-9 w-9 place-items-center overflow-hidden rounded-full border border-border bg-surface/60 text-sm font-bold"
+        className="grid h-10 w-10 place-items-center overflow-hidden rounded-full border border-border bg-surface/60 text-sm font-bold"
         aria-label="Account"
       >
         {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : initial}
