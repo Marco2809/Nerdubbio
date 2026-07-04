@@ -375,13 +375,23 @@ function MediaDetail() {
               if (opts?.unwatch) {
                 unwatchEpisode(item.id, s, e, epsInSeason, item.seasons!, meta);
                 if (!opts.silent) {
-                  toast(`S${s}E${e} segnato come non visto`, {
-                    action: {
-                      label: "Annulla",
-                      onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, meta),
-                    },
-                    duration: 4000,
-                  });
+                  if (prevCount > 1) {
+                    toast(`S${s}E${e} ×${prevCount} → ×${prevCount - 1}`, {
+                      action: {
+                        label: "Annulla",
+                        onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, meta),
+                      },
+                      duration: 4000,
+                    });
+                  } else {
+                    toast(`S${s}E${e} segnato come non visto`, {
+                      action: {
+                        label: "Annulla",
+                        onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, meta),
+                      },
+                      duration: 4000,
+                    });
+                  }
                 }
                 return;
               }
@@ -662,7 +672,7 @@ function EpisodeRow({
             E{ep.episodeNumber}
           </span>
           {watchCount > 1 && (
-            <span className="absolute bottom-1 right-1 rounded-md bg-hero/90 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">
+            <span className="absolute bottom-1 right-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white/90">
               ×{watchCount}
             </span>
           )}
@@ -687,20 +697,34 @@ function EpisodeRow({
             <button
               onClick={onLogWatch}
               disabled={!!isFuture && !watched}
-              className={`ml-auto grid h-8 w-8 place-items-center rounded-lg text-xs font-bold transition ${
-                watched ? "bg-hero text-primary-foreground shadow-glow-pink" :
-                isFuture ? "border border-border/50 bg-surface/40 text-muted-foreground/40" :
-                "border border-border bg-surface/60 text-muted-foreground hover:border-accent"
+              className={`ml-auto grid min-w-8 place-items-center rounded-lg px-1.5 text-xs font-bold transition ${
+                watched ? "h-8 bg-hero text-primary-foreground shadow-glow-pink" :
+                isFuture ? "h-8 border border-border/50 bg-surface/40 text-muted-foreground/40" :
+                "h-8 border border-border bg-surface/60 text-muted-foreground hover:border-accent"
               }`}
-              aria-label={watched ? `Segna S${seasonNumber}E${ep.episodeNumber} come rivisto` : `Segna S${seasonNumber}E${ep.episodeNumber} come visto`}
+              aria-label={
+                watched && watchCount > 1
+                  ? `S${seasonNumber}E${ep.episodeNumber} rivisto ${watchCount} volte — aggiungi visione`
+                  : watched
+                    ? `Segna S${seasonNumber}E${ep.episodeNumber} come rivisto`
+                    : `Segna S${seasonNumber}E${ep.episodeNumber} come visto`
+              }
             >
-              {watched ? <Check className="h-4 w-4" /> : "+"}
+              {watched
+                ? watchCount > 1
+                  ? `×${watchCount}`
+                  : <Check className="h-4 w-4" />
+                : "+"}
             </button>
             {watched && (
               <button
                 onClick={onUnwatch}
                 className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-surface/60 text-muted-foreground hover:border-destructive hover:text-destructive"
-                aria-label={`Segna S${seasonNumber}E${ep.episodeNumber} come non visto`}
+                aria-label={
+                  watchCount > 1
+                    ? `Rimuovi una visione da S${seasonNumber}E${ep.episodeNumber} (×${watchCount} → ×${watchCount - 1})`
+                    : `Segna S${seasonNumber}E${ep.episodeNumber} come non visto`
+                }
               >
                 <X className="h-3.5 w-3.5" />
               </button>

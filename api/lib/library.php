@@ -483,9 +483,16 @@ function library_toggle_episode(
 
     if ($unwatch) {
         if (!$wasWatched) return library_fetch_state($pdo, $userId);
-        unset($watched[$key], $counts[$key]);
-        $xpDelta = -15;
-        $bumpStreak = false;
+        $currentCount = max(1, (int) ($counts[$key] ?? 1));
+        if ($currentCount > 1) {
+            $counts[$key] = $currentCount - 1;
+            $xpDelta = -15;
+            $bumpStreak = false;
+        } else {
+            unset($watched[$key], $counts[$key]);
+            $xpDelta = -15;
+            $bumpStreak = false;
+        }
     } else {
         if ($wasWatched) {
             $counts[$key] = max(1, (int) ($counts[$key] ?? 1)) + 1;
