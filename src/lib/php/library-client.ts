@@ -50,6 +50,7 @@ export const libraryApi = {
     episode: number,
     episodesPerSeason: number,
     totalSeasons: number,
+    meta?: MediaMeta,
   ): Promise<LibraryState> {
     return api<LibraryState>('/api/library.php?action=toggle_episode', 'POST', {
       id,
@@ -57,6 +58,7 @@ export const libraryApi = {
       episode,
       episodesPerSeason,
       totalSeasons,
+      meta,
     });
   },
 

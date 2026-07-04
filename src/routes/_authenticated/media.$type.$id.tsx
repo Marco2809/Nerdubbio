@@ -316,12 +316,19 @@ function MediaDetail() {
             entry={entry}
             onToggle={(s, e, epsInSeason, opts) => {
               const wasWatched = isEpisodeWatched(entry, s, e);
-              toggleEpisode(item.id, s, e, epsInSeason, item.seasons!);
+              // Meta sempre nel toggle: se la serie non è in libreria la entry
+              // nasce qui e senza titolo/poster resterebbe anonima in home.
+              const meta = {
+                title: item.title, type: item.type, year: item.year,
+                posterUrl: tmdbQuery.data?.item.posterUrl ?? null,
+                backdropUrl: tmdbQuery.data?.item.backdropUrl ?? null,
+              };
+              toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, meta);
               if (opts?.silent) return;
               const undo = {
                 action: {
                   label: "Annulla",
-                  onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!),
+                  onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, meta),
                 },
                 duration: 4000,
               };

@@ -107,9 +107,10 @@ export function useUserStore() {
       episode: number,
       episodesPerSeason: number,
       totalSeasons: number,
+      meta?: MediaMeta,
     ) => {
       void apply(() =>
-        libraryApi.toggleEpisode(id, season, episode, episodesPerSeason, totalSeasons),
+        libraryApi.toggleEpisode(id, season, episode, episodesPerSeason, totalSeasons, meta),
       ).then(() => {
         queryClient.invalidateQueries({ queryKey: NEXT_UNWATCHED_BATCH_KEY });
       });

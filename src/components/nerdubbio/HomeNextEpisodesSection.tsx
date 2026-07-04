@@ -36,12 +36,13 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
           if (!payload) return null;
           try {
             const next = await tmdbNextUnwatched({ data: payload });
-            if (next) return { entry, next, fromLocal: false };
+            // null = sei in pari con la serie: niente riga, NON inventare episodi.
+            return next ? { entry, next, fromLocal: false } : null;
           } catch {
-            /* TMDB down — fallback sotto */
+            // Solo se TMDB è giù: stima locale frontier+1.
+            const local = localNextAfterFrontier(entry);
+            return local ? { entry, next: local, fromLocal: true } : null;
           }
-          const local = localNextAfterFrontier(entry);
-          return local ? { entry, next: local, fromLocal: true } : null;
         },
         enabled: !!payload,
         staleTime: 0,

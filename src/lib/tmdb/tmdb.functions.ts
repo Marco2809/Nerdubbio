@@ -672,27 +672,16 @@ async function findNextUnwatchedEpisode(
     .filter((s: any) => s && s.season_number > 0 && (s.episode_count ?? 0) > 0)
     .sort((a: any, b: any) => a.season_number - b.season_number);
 
-  const primary = await scanSeasonsForNext(tmdbId, seasons, today, {
+  // Solo episodi dopo il frontier: se non c'è nulla, l'utente è in pari (o il
+  // numbering dell'import supera i dati TMDB) — meglio null che ripescare
+  // "buchi" storici pre-frontier (es. S2E33 su una serie completata).
+  return scanSeasonsForNext(tmdbId, seasons, today, {
     watchedSet,
     lastS,
     lastE,
     hasFrontier,
     mode: "after_frontier",
   });
-  if (primary) return primary;
-
-  // Frontier oltre gli episodi TMDB (import errati) — primo buco nella watchlist
-  if (hasFrontier && watchedSet.size > 0) {
-    return scanSeasonsForNext(tmdbId, seasons, today, {
-      watchedSet,
-      lastS,
-      lastE,
-      hasFrontier: false,
-      mode: "any_unwatched",
-    });
-  }
-
-  return null;
 }
 
 type ResolvedShowStatus = "watching" | "completed" | "plan_to_watch";

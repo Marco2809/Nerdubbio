@@ -48,6 +48,7 @@ if ($action === 'toggle_episode') {
         (int) ($body['episode'] ?? 0),
         (int) ($body['episodesPerSeason'] ?? 1),
         (int) ($body['totalSeasons'] ?? 1),
+        is_array($body['meta'] ?? null) ? $body['meta'] : null,
     ));
 }
 

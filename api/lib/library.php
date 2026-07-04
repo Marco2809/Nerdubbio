@@ -336,8 +336,17 @@ function library_toggle_episode(
     int $episode,
     int $episodesPerSeason,
     int $totalSeasons,
+    ?array $meta = null,
 ): array {
     $entry = library_get_entry($pdo, $userId, $id);
+    // Backfill: se la entry nasce dal toggle (serie mai aggiunta) salva titolo/poster.
+    if ($meta) {
+        foreach (['title', 'posterUrl', 'backdropUrl', 'type', 'year'] as $k) {
+            if (array_key_exists($k, $meta) && $meta[$k] !== null && ($entry[$k] ?? null) === null) {
+                $entry[$k] = $meta[$k];
+            }
+        }
+    }
     $key = library_episode_key($season, $episode);
     $watched = array_fill_keys($entry['watchedEpisodes'] ?? [], true);
     $wasWatched = isset($watched[$key]);
