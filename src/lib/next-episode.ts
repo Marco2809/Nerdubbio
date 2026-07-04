@@ -3,6 +3,9 @@ import type { NextUnwatchedInfo } from "@/lib/tmdb/tmdb.functions";
 
 /** Quante serie interroghiamo per la home (evita limiti batch TMDB). */
 export const HOME_NEXT_EPISODES_LIMIT = 6;
+/** Quante righe mostriamo davvero: le 3 più recenti per ultima visione.
+    Ne interroghiamo di più perché le serie "in pari" spariscono (next = null). */
+export const HOME_NEXT_EPISODES_DISPLAY = 3;
 
 /** Ultimo episodio segnato visto (max S/E da lista o da currentSeason/Episode). */
 export function maxWatchedFrontier(

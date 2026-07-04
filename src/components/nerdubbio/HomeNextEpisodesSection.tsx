@@ -1,9 +1,10 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
-import type { UserMediaEntry } from "@/lib/user-store";
+import { useUserStore, type MediaMeta, type UserMediaEntry } from "@/lib/user-store";
 import {
   buildNextUnwatchedPayload,
+  HOME_NEXT_EPISODES_DISPLAY,
   HOME_NEXT_EPISODES_LIMIT,
   listTvShowsForNextEpisode,
   localNextAfterFrontier,
@@ -13,7 +14,8 @@ import {
 } from "@/lib/next-episode";
 import { tmdbNextUnwatched, type NextUnwatchedInfo } from "@/lib/tmdb/tmdb.functions";
 import { PremiereReminderButton } from "@/components/nerdubbio/PremiereReminderButton";
-import { CalendarDays, ChevronRight } from "lucide-react";
+import { toast } from "@/lib/toast";
+import { CalendarDays, Check, ChevronRight } from "lucide-react";
 
 type Props = {
   media: Record<string, UserMediaEntry>;
@@ -21,11 +23,34 @@ type Props = {
 };
 
 export function HomeNextEpisodesSection({ media, from }: Props) {
-  const navigate = useNavigate();
+  const { toggleEpisode } = useUserStore();
+  // Ordinate per ultima visione: in cima le serie toccate di recente,
+  // mai ripescaggi casuali di anni fa.
   const inProgress = useMemo(
     () => listTvShowsForNextEpisode(media).slice(0, HOME_NEXT_EPISODES_LIMIT),
     [media],
   );
+
+  const markWatched = (entry: UserMediaEntry, next: NextUnwatchedInfo) => {
+    const meta: MediaMeta = {
+      title: entry.title,
+      type: "tv",
+      year: entry.year,
+      posterUrl: entry.posterUrl ?? null,
+      backdropUrl: entry.backdropUrl ?? null,
+    };
+    // episodesPerSeason 999: da qui non conosciamo il totale stagione — nessun
+    // falso bonus "+50 stagione completa" (si prende dalla scheda serie).
+    toggleEpisode(entry.id, next.season, next.episode, 999, 1, meta);
+    toast.reward(`S${next.season}E${next.episode} vista!`, 15, {
+      description: entry.title ?? undefined,
+      action: {
+        label: "Annulla",
+        onClick: () => toggleEpisode(entry.id, next.season, next.episode, 999, 1, meta),
+      },
+      duration: 4000,
+    });
+  };
 
   const nextQueries = useQueries({
     queries: inProgress.map(entry => {
@@ -104,7 +129,7 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
       )}
 
       <div className="space-y-3">
-        {rows.map(({ tmdbId, entry, next, fromLocal }) => (
+        {rows.slice(0, HOME_NEXT_EPISODES_DISPLAY).map(({ tmdbId, entry, next, fromLocal }) => (
           <NextEpisodeRow
             key={entry.id}
             entry={entry}
@@ -112,12 +137,7 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
             next={next}
             fromLocal={fromLocal}
             from={from}
-            onOpen={() => navigate({
-              to: "/media/$type/$id",
-              params: { type: "tv", id: String(tmdbId) },
-              hash: `ep-S${next.season}E${next.episode}`,
-              state: { from },
-            })}
+            onMark={() => markWatched(entry, next)}
           />
         ))}
       </div>
@@ -140,14 +160,14 @@ function NextEpisodeRow({
   next,
   fromLocal,
   from,
-  onOpen,
+  onMark,
 }: {
   entry: UserMediaEntry;
   tmdbId: number;
   next: NextUnwatchedInfo;
   fromLocal?: boolean;
   from: string;
-  onOpen: () => void;
+  onMark: () => void;
 }) {
   const label = `S${next.season} · E${next.episode}`;
   const badge = next.kind === "premiere"
@@ -196,13 +216,15 @@ function NextEpisodeRow({
           )}
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={onOpen}
-            className="rounded-full bg-hero px-3 py-1 text-[11px] font-bold text-primary-foreground shadow-glow-pink"
-          >
-            Apri episodio →
-          </button>
+          {next.aired && (
+            <button
+              type="button"
+              onClick={onMark}
+              className="flex items-center gap-1 rounded-full bg-hero px-3 py-1 text-[11px] font-bold text-primary-foreground shadow-glow-pink"
+            >
+              <Check className="h-3 w-3" /> Segna S{next.season}E{next.episode} vista
+            </button>
+          )}
           {isFuture && next.airDate && (
             <PremiereReminderButton
               id={`${tmdbId}:S${next.season}E${next.episode}`}
