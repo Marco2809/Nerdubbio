@@ -7,9 +7,16 @@ import type { SeasonChartData, SeasonChartEpisode } from "@/components/nerdubbio
 const chartConfig = {
   score: {
     label: "Community",
-    color: "hsl(var(--foreground) / 0.55)",
+    color: "var(--accent)",
   },
 };
+
+/** Colori SVG: var() oklch del tema — mai hsl(var(...)) */
+const DOT = {
+  accent: "var(--accent)",
+  foreground: "var(--foreground)",
+  line: "var(--accent)",
+} as const;
 
 type ChartRow = SeasonChartEpisode & {
   label: string;
@@ -86,8 +93,8 @@ export function TvRatingChart({ seasons }: { seasons: SeasonChartData[] }) {
       </div>
 
       <ChartContainer config={chartConfig} className="h-[200px] w-full">
-        <LineChart data={chartData} margin={{ top: 12, right: 12, left: -8, bottom: 0 }}>
-          <CartesianGrid vertical={false} stroke="hsl(var(--foreground) / 0.12)" />
+        <LineChart data={chartData} margin={{ top: 14, right: 14, left: -4, bottom: 0 }}>
+          <CartesianGrid vertical={false} stroke="var(--foreground)" strokeOpacity={0.1} />
           <XAxis dataKey="episode" hide />
           <YAxis
             domain={[0, 5]}
@@ -95,7 +102,7 @@ export function TvRatingChart({ seasons }: { seasons: SeasonChartData[] }) {
             tickLine={false}
             axisLine={false}
             width={20}
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
           />
           <ChartTooltip
             content={
@@ -120,8 +127,9 @@ export function TvRatingChart({ seasons }: { seasons: SeasonChartData[] }) {
           <Line
             type="monotone"
             dataKey="score"
-            stroke="hsl(var(--accent) / 0.55)"
-            strokeWidth={2}
+            stroke={DOT.line}
+            strokeOpacity={0.65}
+            strokeWidth={2.5}
             connectNulls
             dot={(props) => (
               <EpisodeDot
@@ -131,12 +139,9 @@ export function TvRatingChart({ seasons }: { seasons: SeasonChartData[] }) {
                 multi={chartData.length > 1}
               />
             )}
-            activeDot={{
-              r: 7,
-              fill: "hsl(var(--accent))",
-              stroke: "hsl(var(--background))",
-              strokeWidth: 2.5,
-            }}
+            activeDot={(props) => (
+              <NormalEpisodeDot cx={props.cx} cy={props.cy} large />
+            )}
           />
         </LineChart>
       </ChartContainer>
@@ -183,8 +188,8 @@ function EpisodeDot({
   if (isBest) {
     return (
       <g>
-        <circle cx={cx} cy={cy} r={12} fill="#10b981" opacity={0.95} />
-        <circle cx={cx} cy={cy} r={12} fill="none" stroke="#6ee7b7" strokeWidth={1.5} opacity={0.8} />
+        <circle cx={cx} cy={cy} r={13} fill="#10b981" />
+        <circle cx={cx} cy={cy} r={13} fill="none" stroke="#6ee7b7" strokeWidth={2} />
         <SvgIcon cx={cx} cy={cy} type="star" />
       </g>
     );
@@ -193,24 +198,41 @@ function EpisodeDot({
   if (isWorst) {
     return (
       <g>
-        <circle cx={cx} cy={cy} r={12} fill="#f97316" opacity={0.95} />
-        <circle cx={cx} cy={cy} r={12} fill="none" stroke="#fdba74" strokeWidth={1.5} opacity={0.8} />
+        <circle cx={cx} cy={cy} r={13} fill="#f97316" />
+        <circle cx={cx} cy={cy} r={13} fill="none" stroke="#fdba74" strokeWidth={2} />
         <SvgIcon cx={cx} cy={cy} type="trend-down" />
       </g>
     );
   }
 
+  return <NormalEpisodeDot cx={cx} cy={cy} />;
+}
+
+/** Opzione B mockup: alone bianco + nucleo accent */
+function NormalEpisodeDot({
+  cx,
+  cy,
+  large,
+}: {
+  cx?: number;
+  cy?: number;
+  large?: boolean;
+}) {
+  if (cx == null || cy == null) return null;
+
+  const outer = large ? 11 : 9;
+  const inner = large ? 7.5 : 6.5;
+
   return (
     <g>
-      <circle cx={cx} cy={cy} r={7} fill="hsl(var(--accent))" />
-      <circle cx={cx} cy={cy} r={7} fill="none" stroke="hsl(var(--background))" strokeWidth={2.5} />
+      <circle cx={cx} cy={cy} r={outer} fill={DOT.foreground} fillOpacity={0.96} />
+      <circle cx={cx} cy={cy} r={inner} fill={DOT.accent} />
     </g>
   );
 }
 
-/** Piccole icone SVG centrate nel punto del grafico */
 function SvgIcon({ cx, cy, type }: { cx: number; cy: number; type: "star" | "trend-down" }) {
-  const size = 11;
+  const size = 12;
   const x = cx - size / 2;
   const y = cy - size / 2;
 
