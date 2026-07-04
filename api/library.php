@@ -25,6 +25,13 @@ if ($action === 'add_to_list') {
     json_out(library_add_to_list($pdo, $userId, $id, $status, $body['meta'] ?? null));
 }
 
+if ($action === 'set_status') {
+    $id = (string) ($body['id'] ?? '');
+    $status = (string) ($body['status'] ?? 'plan_to_watch');
+    if ($id === '') json_out(['error' => 'ID mancante'], 400);
+    json_out(library_set_status($pdo, $userId, $id, $status, is_array($body['meta'] ?? null) ? $body['meta'] : null));
+}
+
 if ($action === 'remove_from_list') {
     $id = (string) ($body['id'] ?? '');
     if ($id === '') json_out(['error' => 'ID mancante'], 400);

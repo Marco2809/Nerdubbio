@@ -36,6 +36,10 @@ export const libraryApi = {
     return api<LibraryState>('/api/library.php?action=add_to_list', 'POST', { id, status, meta });
   },
 
+  setStatus(id: string, status: UserStatus, meta?: MediaMeta): Promise<LibraryState> {
+    return api<LibraryState>('/api/library.php?action=set_status', 'POST', { id, status, meta });
+  },
+
   removeFromList(id: string): Promise<LibraryState> {
     return api<LibraryState>('/api/library.php?action=remove_from_list', 'POST', { id });
   },

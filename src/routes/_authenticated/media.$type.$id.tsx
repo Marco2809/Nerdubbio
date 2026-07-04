@@ -73,7 +73,7 @@ function MediaDetail() {
     staleTime: 1000 * 60 * 60 * 24,
   });
 
-  const { state, addToList, removeFromList, toggleEpisode, unwatchEpisode, logMovieWatch, setRating, markAllSeriesWatched, clearWatchedEpisodes } = useUserStore();
+  const { state, addToList, setStatus, removeFromList, toggleEpisode, unwatchEpisode, logMovieWatch, setRating, markAllSeriesWatched, clearWatchedEpisodes } = useUserStore();
   const [syncOpen, setSyncOpen] = useState(false);
   const goBack = useSmartBack("/app");
   const returnPath = useReturnPath();
@@ -177,27 +177,37 @@ function MediaDetail() {
                     };
                     const wasInLibrary = !!entry;
                     const prevLabel = entry ? actions.find(x => x.s === entry.status)?.label : null;
-                    addToList(item.id, a.s, meta);
-                    toast.success(
-                      wasInLibrary
-                        ? `"${item.title}" spostato in ${a.label}`
-                        : `"${item.title}" aggiunto a ${a.label}`,
-                      {
-                        description: wasInLibrary && prevLabel
-                          ? `Stato precedente: ${prevLabel}`
-                          : "Ora è nella tua libreria",
-                      },
-                    );
-                    const seasonsInfo = tmdbQuery.data?.item.seasonsInfo;
-                    if (
-                      a.s === "completed" &&
-                      item.type === "tv" &&
-                      seasonsInfo && seasonsInfo.length > 0
-                    ) {
-                      const totalEps = seasonsInfo.reduce((n, se) => n + se.episodeCount, 0);
-                      const watchedCount = entry?.watchedEpisodes?.length ?? 0;
-                      if (watchedCount < totalEps) setSyncOpen(true);
-                    }
+                    const save = wasInLibrary
+                      ? setStatus(item.id, a.s, meta)
+                      : addToList(item.id, a.s, meta);
+                    void save
+                      .then(() => {
+                        toast.success(
+                          wasInLibrary
+                            ? `"${item.title}" spostato in ${a.label}`
+                            : `"${item.title}" aggiunto a ${a.label}`,
+                          {
+                            description: wasInLibrary && prevLabel
+                              ? `Stato precedente: ${prevLabel}`
+                              : "Ora è nella tua libreria",
+                          },
+                        );
+                        const seasonsInfo = tmdbQuery.data?.item.seasonsInfo;
+                        if (
+                          a.s === "completed" &&
+                          item.type === "tv" &&
+                          seasonsInfo && seasonsInfo.length > 0
+                        ) {
+                          const totalEps = seasonsInfo.reduce((n, se) => n + se.episodeCount, 0);
+                          const watchedCount = entry?.watchedEpisodes?.length ?? 0;
+                          if (watchedCount < totalEps) setSyncOpen(true);
+                        }
+                      })
+                      .catch((e: unknown) => {
+                        toast.error("Impossibile salvare lo stato", {
+                          description: e instanceof Error ? e.message : undefined,
+                        });
+                      });
                   }}
                   aria-pressed={active}
                   className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${

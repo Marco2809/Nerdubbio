@@ -187,8 +187,8 @@ function library_upsert_media(PDO $pdo, string $userId, string $mediaKey, array 
          ON DUPLICATE KEY UPDATE
            status = VALUES(status),
            rating = COALESCE(VALUES(rating), rating),
-           current_season = VALUES(current_season),
-           current_episode = VALUES(current_episode),
+           current_season = COALESCE(VALUES(current_season), current_season),
+           current_episode = COALESCE(VALUES(current_episode), current_episode),
            reactions = COALESCE(VALUES(reactions), reactions),
            notes = COALESCE(VALUES(notes), notes),
            title = COALESCE(VALUES(title), title),
@@ -196,7 +196,7 @@ function library_upsert_media(PDO $pdo, string $userId, string $mediaKey, array 
            backdrop_url = COALESCE(VALUES(backdrop_url), backdrop_url),
            year = COALESCE(VALUES(year), year),
            source = COALESCE(VALUES(source), source),
-           last_watched_at = VALUES(last_watched_at),
+           last_watched_at = COALESCE(VALUES(last_watched_at), last_watched_at),
            watch_count = COALESCE(VALUES(watch_count), watch_count),
            updated_at = NOW()'
     )->execute([
@@ -343,7 +343,7 @@ function library_get_entry(PDO $pdo, string $userId, string $mediaKey): array {
     $row = $stmt->fetch();
 
     $epStmt = $pdo->prepare(
-        'SELECT season, episode, watch_count FROM user_episodes WHERE user_id = ? AND media_key = ?'
+        'SELECT season, episode, watched_at, watch_count FROM user_episodes WHERE user_id = ? AND media_key = ?'
     );
     $epStmt->execute([$userId, $mediaKey]);
     $eps = $epStmt->fetchAll();
@@ -388,8 +388,52 @@ function library_add_to_list(PDO $pdo, string $userId, string $id, string $statu
         $entry['lastWatchedAt'] = date('c');
     }
     library_upsert_media($pdo, $userId, $id, $entry);
-    library_sync_entry_episodes($pdo, $userId, $id, $entry);
+    if (!empty($entry['watchedEpisodes'])) {
+        library_sync_entry_episodes($pdo, $userId, $id, $entry);
+    }
     library_apply_xp($pdo, $userId, 10, false);
+    return library_fetch_state($pdo, $userId);
+}
+
+function library_set_status(PDO $pdo, string $userId, string $id, string $status, ?array $meta): array {
+    $exists = $pdo->prepare('SELECT 1 FROM user_media WHERE user_id = ? AND media_key = ? LIMIT 1');
+    $exists->execute([$userId, $id]);
+    if (!$exists->fetchColumn()) {
+        return library_add_to_list($pdo, $userId, $id, $status, $meta);
+    }
+
+    $parsed = library_parse_media_key($id);
+    $sets = ['status = ?', 'updated_at = NOW()'];
+    $vals = [$status];
+
+    if ($meta) {
+        $map = [
+            'title'       => 'title',
+            'posterUrl'   => 'poster_url',
+            'backdropUrl' => 'backdrop_url',
+            'type'        => 'media_type',
+            'year'        => 'year',
+        ];
+        foreach ($map as $client => $db) {
+            if (!array_key_exists($client, $meta) || $meta[$client] === null) continue;
+            $sets[] = "$db = COALESCE($db, ?)";
+            $vals[] = $meta[$client];
+        }
+    }
+
+    $type = is_array($meta) ? ($meta['type'] ?? null) : null;
+    $isMovie = $type === 'movie' || ($parsed['type'] ?? '') === 'movie' || str_starts_with($id, 'movie-');
+    if ($isMovie && $status === 'completed') {
+        $sets[] = 'watch_count = GREATEST(watch_count, 1)';
+        $sets[] = 'last_watched_at = COALESCE(last_watched_at, NOW())';
+    }
+
+    $vals[] = $userId;
+    $vals[] = $id;
+    $pdo->prepare(
+        'UPDATE user_media SET ' . implode(', ', $sets) . ' WHERE user_id = ? AND media_key = ?'
+    )->execute($vals);
+
     return library_fetch_state($pdo, $userId);
 }
 

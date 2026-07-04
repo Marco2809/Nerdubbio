@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getToken } from '@/lib/php/client';
 import type { TvTimePendingItem } from '@/lib/tvtime-import';
@@ -66,11 +66,19 @@ export function useUserStore() {
     staleTime: 15_000,
   });
 
+  const mutationQueue = useRef(Promise.resolve());
+
   const apply = useCallback(
     async (fn: () => Promise<LibraryState>) => {
-      const next = await fn();
-      queryClient.setQueryData(LIBRARY_QUERY_KEY, next);
-      return next;
+      const run = mutationQueue.current
+        .catch(() => undefined)
+        .then(fn)
+        .then(next => {
+          queryClient.setQueryData(LIBRARY_QUERY_KEY, next);
+          return next;
+        });
+      mutationQueue.current = run.catch(() => undefined);
+      return run;
     },
     [queryClient],
   );
@@ -84,9 +92,14 @@ export function useUserStore() {
   );
 
   const addToList = useCallback(
-    (id: string, status: UserStatus, meta?: MediaMeta) => {
-      void apply(() => libraryApi.addToList(id, status, meta));
-    },
+    (id: string, status: UserStatus, meta?: MediaMeta) =>
+      apply(() => libraryApi.addToList(id, status, meta)),
+    [apply],
+  );
+
+  const setStatus = useCallback(
+    (id: string, status: UserStatus, meta?: MediaMeta) =>
+      apply(() => libraryApi.setStatus(id, status, meta)),
     [apply],
   );
 
@@ -196,6 +209,7 @@ export function useUserStore() {
     loading: isLoading || isFetching,
     update,
     addToList,
+    setStatus,
     removeFromList,
     dismiss,
     toggleEpisode,
