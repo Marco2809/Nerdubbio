@@ -126,13 +126,13 @@ export function useUserStore() {
       totalSeasons: number,
       meta?: MediaMeta,
       opts?: { unwatch?: boolean },
-    ) => {
-      void apply(() =>
+    ) =>
+      apply(() =>
         libraryApi.toggleEpisode(id, season, episode, episodesPerSeason, totalSeasons, meta, opts),
-      ).then(() => {
+      ).then(next => {
         queryClient.invalidateQueries({ queryKey: NEXT_UNWATCHED_BATCH_KEY });
-      });
-    },
+        return next;
+      }),
     [apply, queryClient],
   );
 
@@ -144,13 +144,13 @@ export function useUserStore() {
       episodesPerSeason: number,
       totalSeasons: number,
       meta?: MediaMeta,
-    ) => {
-      void apply(() =>
+    ) =>
+      apply(() =>
         libraryApi.toggleEpisode(id, season, episode, episodesPerSeason, totalSeasons, meta, { unwatch: true }),
-      ).then(() => {
+      ).then(next => {
         queryClient.invalidateQueries({ queryKey: NEXT_UNWATCHED_BATCH_KEY });
-      });
-    },
+        return next;
+      }),
     [apply, queryClient],
   );
 

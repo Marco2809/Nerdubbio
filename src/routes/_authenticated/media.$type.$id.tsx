@@ -372,23 +372,31 @@ function MediaDetail() {
                 }
                 return;
               }
-              toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, meta);
-              if (opts?.silent) return;
-              const undoFirstWatch = {
-                action: {
-                  label: "Annulla",
-                  onClick: () => unwatchEpisode(item.id, s, e, epsInSeason, item.seasons!, meta),
-                },
-                duration: 4000,
-              };
-              if (prevCount > 0) {
-                toast.reward(`S${s}E${e} rivisto!`, 15, {
-                  description: `Visione ×${prevCount + 1}`,
-                  ...undoFirstWatch,
+              toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, meta)
+                .then(() => {
+                  if (opts?.silent) return;
+                  const undoFirstWatch = {
+                    action: {
+                      label: "Annulla",
+                      onClick: () => unwatchEpisode(item.id, s, e, epsInSeason, item.seasons!, meta),
+                    },
+                    duration: 4000,
+                  };
+                  if (prevCount > 0) {
+                    toast.reward(`S${s}E${e} rivisto!`, 15, {
+                      description: `Visione ×${prevCount + 1}`,
+                      ...undoFirstWatch,
+                    });
+                  } else {
+                    toast.reward(`S${s}E${e} visto!`, 15, undoFirstWatch);
+                  }
+                })
+                .catch((err: unknown) => {
+                  toast.error("Impossibile salvare l'episodio", {
+                    description: err instanceof Error ? err.message : undefined,
+                  });
                 });
-              } else {
-                toast.reward(`S${s}E${e} visto!`, 15, undoFirstWatch);
-              }
+              return;
             }}
           />
 

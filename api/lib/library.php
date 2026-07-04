@@ -197,7 +197,7 @@ function library_upsert_media(PDO $pdo, string $userId, string $mediaKey, array 
            year = COALESCE(VALUES(year), year),
            source = COALESCE(VALUES(source), source),
            last_watched_at = COALESCE(VALUES(last_watched_at), last_watched_at),
-           watch_count = COALESCE(VALUES(watch_count), watch_count),
+           watch_count = GREATEST(watch_count, VALUES(watch_count)),
            updated_at = NOW()'
     )->execute([
         $userId,
@@ -217,7 +217,7 @@ function library_upsert_media(PDO $pdo, string $userId, string $mediaKey, array 
         $entry['source'] ?? 'manual',
         normalize_datetime($entry['addedAt'] ?? null),
         isset($entry['lastWatchedAt']) ? normalize_datetime($entry['lastWatchedAt']) : null,
-        isset($entry['watchCount']) ? max(0, (int) $entry['watchCount']) : null,
+        isset($entry['watchCount']) ? max(0, (int) $entry['watchCount']) : 0,
     ]);
 }
 
