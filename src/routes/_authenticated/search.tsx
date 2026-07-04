@@ -97,7 +97,7 @@ function SearchPage() {
     () => raw
       .filter(it => type === "all" || it.type === type)
       // Trending: nascondi solo ciò che hai già visto/abbandonato (non da vedere/in corso)
-      .filter(it => debouncedQ ? true : !isMediaAlreadyWatched(userState.media[it.id]),
+      .filter(it => debouncedQ ? true : !isMediaAlreadyWatched(userState.media[it.id])),
     [raw, type, debouncedQ, userState.media]
   );
 
