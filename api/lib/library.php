@@ -85,10 +85,13 @@ function library_row_to_entry(array $row, array $episodes): array {
     $watched = [];
     $reactions = parse_json($row['reactions'] ?? null, []);
     $episodeDates = [];
+    $episodeWatchCounts = [];
     $lastFromEps = null;
     foreach ($episodes as $ep) {
         $key = library_episode_key((int) $ep['season'], (int) $ep['episode']);
         $watched[] = $key;
+        $count = max(1, (int) ($ep['watch_count'] ?? 1));
+        $episodeWatchCounts[$key] = $count;
         if (!empty($ep['watched_at'])) {
             $t = date('c', strtotime($ep['watched_at']));
             $episodeDates[$key] = $t;
@@ -101,6 +104,8 @@ function library_row_to_entry(array $row, array $episodes): array {
         $lastWatched = $lastFromEps;
     }
 
+    $movieWatchCount = (int) ($row['watch_count'] ?? 0);
+
     return [
         'id'              => $row['media_key'],
         'status'          => $row['status'],
@@ -109,6 +114,8 @@ function library_row_to_entry(array $row, array $episodes): array {
         'currentEpisode'  => $row['current_episode'] !== null ? (int) $row['current_episode'] : null,
         'watchedEpisodes' => $watched,
         'episodeDates'    => $episodeDates ?: null,
+        'episodeWatchCounts' => $episodeWatchCounts ?: null,
+        'watchCount'      => $movieWatchCount > 0 ? $movieWatchCount : null,
         'reactions'       => is_array($reactions) ? $reactions : [],
         'notes'           => $row['notes'] ?? null,
         'addedAt'         => date('c', strtotime($row['added_at'])),
@@ -131,7 +138,7 @@ function library_fetch_state(PDO $pdo, string $userId): array {
     $mediaRows = $mediaStmt->fetchAll();
 
     $epStmt = $pdo->prepare(
-        'SELECT media_key, season, episode, watched_at FROM user_episodes WHERE user_id = ? ORDER BY season, episode'
+        'SELECT media_key, season, episode, watched_at, watch_count FROM user_episodes WHERE user_id = ? ORDER BY season, episode'
     );
     $epStmt->execute([$userId]);
     $epRows = $epStmt->fetchAll();
@@ -175,8 +182,8 @@ function library_upsert_media(PDO $pdo, string $userId, string $mediaKey, array 
     $pdo->prepare(
         'INSERT INTO user_media
          (user_id, media_key, tmdb_id, media_type, status, rating, current_season, current_episode,
-          reactions, notes, title, poster_url, backdrop_url, year, source, added_at, last_watched_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW()), ?)
+          reactions, notes, title, poster_url, backdrop_url, year, source, added_at, last_watched_at, watch_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW()), ?, ?)
          ON DUPLICATE KEY UPDATE
            status = VALUES(status),
            rating = COALESCE(VALUES(rating), rating),
@@ -190,6 +197,7 @@ function library_upsert_media(PDO $pdo, string $userId, string $mediaKey, array 
            year = COALESCE(VALUES(year), year),
            source = COALESCE(VALUES(source), source),
            last_watched_at = VALUES(last_watched_at),
+           watch_count = COALESCE(VALUES(watch_count), watch_count),
            updated_at = NOW()'
     )->execute([
         $userId,
@@ -209,6 +217,7 @@ function library_upsert_media(PDO $pdo, string $userId, string $mediaKey, array 
         $entry['source'] ?? 'manual',
         normalize_datetime($entry['addedAt'] ?? null),
         isset($entry['lastWatchedAt']) ? normalize_datetime($entry['lastWatchedAt']) : null,
+        isset($entry['watchCount']) ? max(0, (int) $entry['watchCount']) : null,
     ]);
 }
 
@@ -238,12 +247,63 @@ function library_merge_status(array $existing, array $incoming): ?string {
     return $inR >= $exR ? $inc : null;
 }
 
-function library_sync_episodes(PDO $pdo, string $userId, string $mediaKey, array $watchedKeys, ?array $episodeDates = null): void {
+function library_entry_episode_watch_counts(array $entry): ?array {
+    $counts = $entry['episodeWatchCounts'] ?? null;
+    if (!is_array($counts) || !$counts) return null;
+    return $counts;
+}
+
+/** Unisce episodi, conteggi rivisioni e date senza duplicare. */
+function library_merge_episode_fields(array $existing, array $incoming): array {
+    $wExisting = is_array($existing['watchedEpisodes'] ?? null) ? $existing['watchedEpisodes'] : [];
+    $wNew = is_array($incoming['watchedEpisodes'] ?? null) ? $incoming['watchedEpisodes'] : [];
+    $watched = array_values(array_unique(array_merge($wExisting, $wNew)));
+
+    $countsExisting = is_array($existing['episodeWatchCounts'] ?? null) ? $existing['episodeWatchCounts'] : [];
+    $countsNew = is_array($incoming['episodeWatchCounts'] ?? null) ? $incoming['episodeWatchCounts'] : [];
+    $counts = [];
+    foreach ($watched as $key) {
+        $a = (int) ($countsExisting[$key] ?? 0);
+        $b = (int) ($countsNew[$key] ?? 0);
+        $counts[$key] = max($a, $b, 1);
+    }
+
+    $datesExisting = is_array($existing['episodeDates'] ?? null) ? $existing['episodeDates'] : [];
+    $datesNew = is_array($incoming['episodeDates'] ?? null) ? $incoming['episodeDates'] : [];
+    $dates = $datesExisting;
+    foreach ($datesNew as $k => $d) {
+        if (!isset($dates[$k]) || normalize_datetime($d) > normalize_datetime($dates[$k])) {
+            $dates[$k] = $d;
+        }
+    }
+
+    $maxS = 0;
+    $maxE = 0;
+    foreach ($watched as $k) {
+        if (!preg_match('/^S(\d+)E(\d+)$/', $k, $m)) continue;
+        $sN = (int) $m[1];
+        $eN = (int) $m[2];
+        if ($sN > $maxS || ($sN === $maxS && $eN > $maxE)) {
+            $maxS = $sN;
+            $maxE = $eN;
+        }
+    }
+
+    return [
+        'watchedEpisodes'      => $watched,
+        'episodeWatchCounts'   => $counts ?: null,
+        'episodeDates'         => $dates ?: null,
+        'currentSeason'        => $maxS ?: ($existing['currentSeason'] ?? ($incoming['currentSeason'] ?? null)),
+        'currentEpisode'       => $maxE ?: ($existing['currentEpisode'] ?? ($incoming['currentEpisode'] ?? null)),
+    ];
+}
+
+function library_sync_episodes(PDO $pdo, string $userId, string $mediaKey, array $watchedKeys, ?array $episodeDates = null, ?array $watchCounts = null): void {
     $pdo->prepare('DELETE FROM user_episodes WHERE user_id = ? AND media_key = ?')->execute([$userId, $mediaKey]);
     if (!$watchedKeys) return;
 
     $ins = $pdo->prepare(
-        'INSERT INTO user_episodes (user_id, media_key, season, episode, watched_at) VALUES (?, ?, ?, ?, ?)'
+        'INSERT INTO user_episodes (user_id, media_key, season, episode, watched_at, watch_count) VALUES (?, ?, ?, ?, ?, ?)'
     );
     foreach ($watchedKeys as $key) {
         if (!preg_match('/^S(\d+)E(\d+)$/', $key, $m)) continue;
@@ -251,14 +311,30 @@ function library_sync_episodes(PDO $pdo, string $userId, string $mediaKey, array
         if (is_array($episodeDates) && isset($episodeDates[$key])) {
             $watchedAt = normalize_datetime($episodeDates[$key]);
         }
+        $count = 1;
+        if (is_array($watchCounts) && isset($watchCounts[$key])) {
+            $count = max(1, (int) $watchCounts[$key]);
+        }
         $ins->execute([
             $userId,
             $mediaKey,
             (int) $m[1],
             (int) $m[2],
             $watchedAt ?? date('Y-m-d H:i:s'),
+            $count,
         ]);
     }
+}
+
+function library_sync_entry_episodes(PDO $pdo, string $userId, string $mediaKey, array $entry): void {
+    library_sync_episodes(
+        $pdo,
+        $userId,
+        $mediaKey,
+        $entry['watchedEpisodes'] ?? [],
+        library_entry_episode_dates($entry),
+        library_entry_episode_watch_counts($entry)
+    );
 }
 
 function library_get_entry(PDO $pdo, string $userId, string $mediaKey): array {
@@ -267,7 +343,7 @@ function library_get_entry(PDO $pdo, string $userId, string $mediaKey): array {
     $row = $stmt->fetch();
 
     $epStmt = $pdo->prepare(
-        'SELECT season, episode FROM user_episodes WHERE user_id = ? AND media_key = ?'
+        'SELECT season, episode, watch_count FROM user_episodes WHERE user_id = ? AND media_key = ?'
     );
     $epStmt->execute([$userId, $mediaKey]);
     $eps = $epStmt->fetchAll();
@@ -306,8 +382,13 @@ function library_add_to_list(PDO $pdo, string $userId, string $id, string $statu
             if (array_key_exists($k, $meta) && $meta[$k] !== null) $entry[$k] = $meta[$k];
         }
     }
+    $isMovie = ($entry['type'] ?? '') === 'movie' || str_starts_with($id, 'movie-');
+    if ($isMovie && $status === 'completed' && max(0, (int) ($entry['watchCount'] ?? 0)) < 1) {
+        $entry['watchCount'] = 1;
+        $entry['lastWatchedAt'] = date('c');
+    }
     library_upsert_media($pdo, $userId, $id, $entry);
-    library_sync_episodes($pdo, $userId, $id, $entry['watchedEpisodes'] ?? []);
+    library_sync_entry_episodes($pdo, $userId, $id, $entry);
     library_apply_xp($pdo, $userId, 10, false);
     return library_fetch_state($pdo, $userId);
 }
@@ -337,6 +418,7 @@ function library_toggle_episode(
     int $episodesPerSeason,
     int $totalSeasons,
     ?array $meta = null,
+    bool $unwatch = false,
 ): array {
     $entry = library_get_entry($pdo, $userId, $id);
     // Backfill: se la entry nasce dal toggle (serie mai aggiunta) salva titolo/poster.
@@ -349,8 +431,35 @@ function library_toggle_episode(
     }
     $key = library_episode_key($season, $episode);
     $watched = array_fill_keys($entry['watchedEpisodes'] ?? [], true);
+    $counts = is_array($entry['episodeWatchCounts'] ?? null) ? $entry['episodeWatchCounts'] : [];
+    foreach (array_keys($watched) as $k) {
+        if (!isset($counts[$k])) $counts[$k] = 1;
+    }
     $wasWatched = isset($watched[$key]);
-    if ($wasWatched) unset($watched[$key]); else $watched[$key] = true;
+
+    if ($unwatch) {
+        if (!$wasWatched) return library_fetch_state($pdo, $userId);
+        unset($watched[$key], $counts[$key]);
+        $xpDelta = -15;
+        $bumpStreak = false;
+    } else {
+        if ($wasWatched) {
+            $counts[$key] = max(1, (int) ($counts[$key] ?? 1)) + 1;
+            $xpDelta = 15;
+            $bumpStreak = true;
+        } else {
+            $watched[$key] = true;
+            $counts[$key] = 1;
+            $xpDelta = 15;
+            $bumpStreak = true;
+            $seasonComplete = true;
+            for ($i = 1; $i <= $episodesPerSeason; $i++) {
+                if (!isset($watched[library_episode_key($season, $i)])) { $seasonComplete = false; break; }
+            }
+            if ($seasonComplete) $xpDelta += 50;
+        }
+        $entry['lastWatchedAt'] = date('c');
+    }
 
     $maxS = 0; $maxE = 0;
     foreach (array_keys($watched) as $k) {
@@ -362,6 +471,7 @@ function library_toggle_episode(
     $watchedList = array_keys($watched);
 
     $entry['watchedEpisodes'] = $watchedList;
+    $entry['episodeWatchCounts'] = $counts ?: null;
     $entry['currentSeason'] = $maxS ?: null;
     $entry['currentEpisode'] = $maxE ?: null;
     // Non segnare "completed" col toggle: il calcolo totalSeasons×epsPerSeason è inaffidabile.
@@ -369,20 +479,10 @@ function library_toggle_episode(
     if ($entry['status'] !== 'completed' && $entry['status'] !== 'favorite' && $entry['status'] !== 'dropped') {
         $entry['status'] = count($watched) > 0 ? 'watching' : ($entry['status'] ?? 'plan_to_watch');
     }
-    $entry['lastWatchedAt'] = $wasWatched ? ($entry['lastWatchedAt'] ?? null) : date('c');
-
-    $xpDelta = $wasWatched ? -15 : 15;
-    if (!$wasWatched) {
-        $seasonComplete = true;
-        for ($i = 1; $i <= $episodesPerSeason; $i++) {
-            if (!isset($watched[library_episode_key($season, $i)])) { $seasonComplete = false; break; }
-        }
-        if ($seasonComplete) $xpDelta += 50;
-    }
 
     library_upsert_media($pdo, $userId, $id, $entry);
-    library_sync_episodes($pdo, $userId, $id, $watchedList);
-    library_apply_xp($pdo, $userId, $xpDelta, !$wasWatched);
+    library_sync_entry_episodes($pdo, $userId, $id, $entry);
+    library_apply_xp($pdo, $userId, $xpDelta, $bumpStreak);
     return library_fetch_state($pdo, $userId);
 }
 
@@ -406,7 +506,12 @@ function library_mark_all_watched(PDO $pdo, string $userId, string $id, array $s
     }
 
     $watchedList = array_keys($watched);
+    $counts = is_array($entry['episodeWatchCounts'] ?? null) ? $entry['episodeWatchCounts'] : [];
+    foreach ($watchedList as $k) {
+        if (!isset($counts[$k])) $counts[$k] = 1;
+    }
     $entry['watchedEpisodes'] = $watchedList;
+    $entry['episodeWatchCounts'] = $counts ?: null;
     $entry['currentSeason'] = $maxS ?: ($entry['currentSeason'] ?? null);
     $entry['currentEpisode'] = $maxE ?: ($entry['currentEpisode'] ?? null);
     $entry['status'] = 'completed';
@@ -418,7 +523,7 @@ function library_mark_all_watched(PDO $pdo, string $userId, string $id, array $s
     if ($added > 0) $entry['lastWatchedAt'] = date('c');
 
     library_upsert_media($pdo, $userId, $id, $entry);
-    library_sync_episodes($pdo, $userId, $id, $watchedList);
+    library_sync_entry_episodes($pdo, $userId, $id, $entry);
     if ($added > 0) {
         library_apply_xp($pdo, $userId, $added * 15 + 100, true);
     }
@@ -428,11 +533,12 @@ function library_mark_all_watched(PDO $pdo, string $userId, string $id, array $s
 function library_clear_watched(PDO $pdo, string $userId, string $id, ?string $restoreStatus): array {
     $entry = library_get_entry($pdo, $userId, $id);
     $entry['watchedEpisodes'] = [];
+    $entry['episodeWatchCounts'] = null;
     $entry['currentSeason'] = null;
     $entry['currentEpisode'] = null;
     $entry['status'] = $restoreStatus ?? ($entry['status'] ?? 'watching');
     library_upsert_media($pdo, $userId, $id, $entry);
-    library_sync_episodes($pdo, $userId, $id, []);
+    library_sync_entry_episodes($pdo, $userId, $id, $entry);
     return library_fetch_state($pdo, $userId);
 }
 
@@ -441,7 +547,32 @@ function library_set_rating(PDO $pdo, string $userId, string $id, ?int $rating):
     $entry['rating'] = $rating;
     if (empty($entry['status'])) $entry['status'] = 'plan_to_watch';
     library_upsert_media($pdo, $userId, $id, $entry);
-    library_sync_episodes($pdo, $userId, $id, $entry['watchedEpisodes'] ?? []);
+    library_sync_entry_episodes($pdo, $userId, $id, $entry);
+    return library_fetch_state($pdo, $userId);
+}
+
+function library_log_movie_watch(PDO $pdo, string $userId, string $id, ?array $meta = null): array {
+    $entry = library_get_entry($pdo, $userId, $id);
+    if ($meta) {
+        foreach (['title', 'posterUrl', 'backdropUrl', 'type', 'year'] as $k) {
+            if (array_key_exists($k, $meta) && $meta[$k] !== null && ($entry[$k] ?? null) === null) {
+                $entry[$k] = $meta[$k];
+            }
+        }
+    }
+    $count = max(0, (int) ($entry['watchCount'] ?? 0));
+    if ($count === 0) {
+        $count = 1;
+        if (($entry['status'] ?? '') !== 'completed' && ($entry['status'] ?? '') !== 'favorite') {
+            $entry['status'] = 'completed';
+        }
+    } else {
+        $count++;
+    }
+    $entry['watchCount'] = $count;
+    $entry['lastWatchedAt'] = date('c');
+    library_upsert_media($pdo, $userId, $id, $entry);
+    library_apply_xp($pdo, $userId, 15, true);
     return library_fetch_state($pdo, $userId);
 }
 
@@ -452,11 +583,11 @@ function library_set_reaction(PDO $pdo, string $userId, string $id, int $season,
     if ($emoji) $reactions[$key] = $emoji; else unset($reactions[$key]);
     $entry['reactions'] = $reactions;
     library_upsert_media($pdo, $userId, $id, $entry);
-    library_sync_episodes($pdo, $userId, $id, $entry['watchedEpisodes'] ?? []);
+    library_sync_entry_episodes($pdo, $userId, $id, $entry);
     return library_fetch_state($pdo, $userId);
 }
 
-function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $withXp, ?array $importPending = null, bool $replaceEpisodes = false): array {
+function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $withXp, ?array $importPending = null, bool $replaceEpisodes = false, bool $mergeImport = false): array {
     $added = 0;
     foreach ($entries as $e) {
         if (!is_array($e) || empty($e['id'])) continue;
@@ -465,6 +596,61 @@ function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $wit
         if (!empty($existing['addedAt'])) $merged['addedAt'] = $existing['addedAt'];
         $statusMerged = library_merge_status($existing, $e);
         if ($statusMerged !== null) $merged['status'] = $statusMerged;
+
+        if ($mergeImport) {
+            foreach (['title', 'posterUrl', 'backdropUrl', 'year'] as $k) {
+                if (!empty($existing[$k])) $merged[$k] = $existing[$k];
+            }
+            $merged = array_merge($merged, library_merge_episode_fields($existing, $e));
+            if (isset($e['rating']) && $e['rating'] !== null) {
+                $merged['rating'] = max((int) ($existing['rating'] ?? 0), (int) $e['rating']) ?: null;
+            }
+            if (isset($e['watchCount']) && (int) $e['watchCount'] > 0) {
+                $merged['watchCount'] = max((int) ($existing['watchCount'] ?? 0), (int) $e['watchCount']);
+            }
+        } else {
+            $epDates = library_entry_episode_dates($merged);
+            if ($epDates) {
+                $maxWatch = null;
+                foreach ($epDates as $d) {
+                    $n = normalize_datetime($d);
+                    if (!$maxWatch || $n > $maxWatch) $maxWatch = $n;
+                }
+                if ($maxWatch) {
+                    $cur = isset($merged['lastWatchedAt']) ? normalize_datetime($merged['lastWatchedAt']) : null;
+                    if (!$cur || $maxWatch > $cur) $merged['lastWatchedAt'] = date('c', strtotime($maxWatch));
+                }
+            }
+            $wExisting = is_array($existing['watchedEpisodes'] ?? null) ? $existing['watchedEpisodes'] : [];
+            $wNew = is_array($e['watchedEpisodes'] ?? null) ? $e['watchedEpisodes'] : [];
+            if ($replaceEpisodes && ($e['source'] ?? '') === 'tvtime') {
+                $isTv = ($e['type'] ?? '') === 'tv' || str_starts_with((string) $e['id'], 'tv-');
+                if ($isTv) {
+                    $merged['watchedEpisodes'] = array_values(array_unique($wNew));
+                    $countsNew = is_array($e['episodeWatchCounts'] ?? null) ? $e['episodeWatchCounts'] : [];
+                    $merged['episodeWatchCounts'] = $countsNew ?: null;
+                }
+            } elseif (count($wNew) > 0) {
+                $merged['watchedEpisodes'] = array_values(array_unique($wNew));
+                $countsNew = is_array($e['episodeWatchCounts'] ?? null) ? $e['episodeWatchCounts'] : [];
+                if ($countsNew) $merged['episodeWatchCounts'] = $countsNew;
+            } elseif ($wExisting || $wNew) {
+                $merged['watchedEpisodes'] = array_values(array_unique(array_merge($wExisting, $wNew)));
+            }
+            $countsExisting = is_array($existing['episodeWatchCounts'] ?? null) ? $existing['episodeWatchCounts'] : [];
+            $countsIncoming = is_array($e['episodeWatchCounts'] ?? null) ? $e['episodeWatchCounts'] : [];
+            if ($countsIncoming && !($replaceEpisodes && ($e['source'] ?? '') === 'tvtime')) {
+                $mergedCounts = $countsExisting;
+                foreach ($countsIncoming as $k => $v) {
+                    $mergedCounts[$k] = max((int) ($mergedCounts[$k] ?? 0), max(1, (int) $v));
+                }
+                $merged['episodeWatchCounts'] = $mergedCounts ?: null;
+            }
+            if (isset($e['watchCount']) && (int) $e['watchCount'] > 0) {
+                $merged['watchCount'] = max((int) ($existing['watchCount'] ?? 0), (int) $e['watchCount']);
+            }
+        }
+
         $epDates = library_entry_episode_dates($merged);
         if ($epDates) {
             $maxWatch = null;
@@ -477,22 +663,10 @@ function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $wit
                 if (!$cur || $maxWatch > $cur) $merged['lastWatchedAt'] = date('c', strtotime($maxWatch));
             }
         }
-        $wExisting = is_array($existing['watchedEpisodes'] ?? null) ? $existing['watchedEpisodes'] : [];
-        $wNew = is_array($e['watchedEpisodes'] ?? null) ? $e['watchedEpisodes'] : [];
-        if ($replaceEpisodes && ($e['source'] ?? '') === 'tvtime') {
-            $isTv = ($e['type'] ?? '') === 'tv' || str_starts_with((string) $e['id'], 'tv-');
-            if ($isTv) {
-                $merged['watchedEpisodes'] = array_values(array_unique($wNew));
-            }
-        } elseif (count($wNew) > 0) {
-            // Lista episodi esplicita dall'import: sostituisce, non accumula (evita doppioni col vecchio import).
-            $merged['watchedEpisodes'] = array_values(array_unique($wNew));
-        } elseif ($wExisting || $wNew) {
-            $merged['watchedEpisodes'] = array_values(array_unique(array_merge($wExisting, $wNew)));
-        }
+
         library_upsert_media($pdo, $userId, $e['id'], $merged);
-        library_sync_episodes($pdo, $userId, $e['id'], $merged['watchedEpisodes'] ?? [], library_entry_episode_dates($merged));
-        if (empty($existing['status']) || $existing['status'] === 'watching' && count($existing['watchedEpisodes'] ?? []) === 0) {
+        library_sync_entry_episodes($pdo, $userId, $e['id'], $merged);
+        if (!$mergeImport && (empty($existing['status']) || $existing['status'] === 'watching' && count($existing['watchedEpisodes'] ?? []) === 0)) {
             $added++;
         }
     }
@@ -570,7 +744,7 @@ function library_skip_local_migration(PDO $pdo, string $userId): array {
 /** Statistiche di visione aggregate (episodi/mese, top binge). */
 function library_fetch_watch_stats(PDO $pdo, string $userId): array {
     $monthStmt = $pdo->prepare(
-        'SELECT DATE_FORMAT(watched_at, "%Y-%m") AS ym, COUNT(*) AS cnt
+        'SELECT DATE_FORMAT(watched_at, "%Y-%m") AS ym, SUM(watch_count) AS cnt
          FROM user_episodes WHERE user_id = ? GROUP BY ym ORDER BY ym ASC'
     );
     $monthStmt->execute([$userId]);
@@ -580,7 +754,7 @@ function library_fetch_watch_stats(PDO $pdo, string $userId): array {
     }
 
     $topStmt = $pdo->prepare(
-        'SELECT um.title, um.media_key, COUNT(*) AS ep_count
+        'SELECT um.title, um.media_key, SUM(ue.watch_count) AS ep_count
          FROM user_episodes ue
          JOIN user_media um ON um.user_id = ue.user_id AND um.media_key = ue.media_key
          WHERE ue.user_id = ?
@@ -598,7 +772,7 @@ function library_fetch_watch_stats(PDO $pdo, string $userId): array {
         ];
     }
 
-    $totStmt = $pdo->prepare('SELECT COUNT(*) FROM user_episodes WHERE user_id = ?');
+    $totStmt = $pdo->prepare('SELECT COALESCE(SUM(watch_count), 0) FROM user_episodes WHERE user_id = ?');
     $totStmt->execute([$userId]);
     $totalEpisodes = (int) $totStmt->fetchColumn();
 

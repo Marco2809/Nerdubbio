@@ -18,8 +18,12 @@ export interface UserMediaEntry {
   currentSeason?: number;
   currentEpisode?: number;
   watchedEpisodes?: string[];
-  /** Date visione per episodio (import TV Time), chiave S1E3. */
+  /** Data visione per episodio (ISO), chiave S1E3. */
   episodeDates?: Record<string, string>;
+  /** Numero visioni per episodio, chiave S1E3. */
+  episodeWatchCounts?: Record<string, number>;
+  /** Visioni totali per film. */
+  watchCount?: number;
   reactions?: Record<string, string>;
   notes?: string;
   addedAt: string;
@@ -108,14 +112,40 @@ export function useUserStore() {
       episodesPerSeason: number,
       totalSeasons: number,
       meta?: MediaMeta,
+      opts?: { unwatch?: boolean },
     ) => {
       void apply(() =>
-        libraryApi.toggleEpisode(id, season, episode, episodesPerSeason, totalSeasons, meta),
+        libraryApi.toggleEpisode(id, season, episode, episodesPerSeason, totalSeasons, meta, opts),
       ).then(() => {
         queryClient.invalidateQueries({ queryKey: NEXT_UNWATCHED_BATCH_KEY });
       });
     },
     [apply, queryClient],
+  );
+
+  const unwatchEpisode = useCallback(
+    (
+      id: string,
+      season: number,
+      episode: number,
+      episodesPerSeason: number,
+      totalSeasons: number,
+      meta?: MediaMeta,
+    ) => {
+      void apply(() =>
+        libraryApi.toggleEpisode(id, season, episode, episodesPerSeason, totalSeasons, meta, { unwatch: true }),
+      ).then(() => {
+        queryClient.invalidateQueries({ queryKey: NEXT_UNWATCHED_BATCH_KEY });
+      });
+    },
+    [apply, queryClient],
+  );
+
+  const logMovieWatch = useCallback(
+    (id: string, meta?: MediaMeta) => {
+      void apply(() => libraryApi.logMovieWatch(id, meta));
+    },
+    [apply],
   );
 
   const markAllSeriesWatched = useCallback(
@@ -169,6 +199,8 @@ export function useUserStore() {
     removeFromList,
     dismiss,
     toggleEpisode,
+    unwatchEpisode,
+    logMovieWatch,
     setRating,
     setReaction,
     bulkImport,
@@ -184,6 +216,17 @@ export function isEpisodeWatched(entry: UserMediaEntry | undefined, season: numb
   return !!entry?.watchedEpisodes?.includes(`S${season}E${episode}`);
 }
 
+export function getEpisodeWatchCount(entry: UserMediaEntry | undefined, season: number, episode: number): number {
+  const key = `S${season}E${episode}`;
+  if (entry?.episodeWatchCounts?.[key]) return entry.episodeWatchCounts[key];
+  return isEpisodeWatched(entry, season, episode) ? 1 : 0;
+}
+
+export function totalEpisodeWatches(entry: UserMediaEntry | undefined): number {
+  if (!entry?.watchedEpisodes?.length) return 0;
+  return entry.watchedEpisodes.reduce((n, k) => n + (entry.episodeWatchCounts?.[k] ?? 1), 0);
+}
+
 export function computeStats(state: LibraryState) {
   const list = Object.values(state.media);
   const active = list.filter(m => m.status !== 'dropped');
@@ -195,7 +238,13 @@ export function computeStats(state: LibraryState) {
   const favorites = list.filter(m => m.status === 'favorite').length;
   const series = active.filter(m => inferType(m) === 'tv').length;
   const movies = active.filter(m => inferType(m) === 'movie').length;
-  const episodes = list.reduce((n, m) => n + (m.watchedEpisodes?.length ?? 0), 0);
+  const episodes = list.reduce((n, m) => {
+    if (inferType(m) === 'movie') {
+      const wc = m.watchCount ?? (m.status === 'completed' ? 1 : 0);
+      return n + wc;
+    }
+    return n + (m.watchedEpisodes?.reduce((s, k) => s + (m.episodeWatchCounts?.[k] ?? 1), 0) ?? 0);
+  }, 0);
   const completedMovies = active.filter(m => inferType(m) === 'movie' && m.status === 'completed').length;
   const hours = Math.round((episodes * 45 + completedMovies * 110) / 60);
   return { watching, completed, planned, favorites, series, movies, episodes, hours, total: list.length };

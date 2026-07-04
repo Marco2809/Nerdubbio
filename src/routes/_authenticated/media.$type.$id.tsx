@@ -2,7 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { OverlayBackButton } from "@/components/nerdubbio/OverlayBackButton";
 import { findById, type CatalogItem } from "@/lib/mock-catalog";
-import { useUserStore, isEpisodeWatched, type UserStatus } from "@/lib/user-store";
+import { useUserStore, isEpisodeWatched, getEpisodeWatchCount, totalEpisodeWatches, type UserStatus } from "@/lib/user-store";
 import { Plus, Heart, CheckCircle2, Pause, X, Star, Check, Loader2, PlayCircle, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -73,7 +73,7 @@ function MediaDetail() {
     staleTime: 1000 * 60 * 60 * 24,
   });
 
-  const { state, addToList, removeFromList, toggleEpisode, setRating, markAllSeriesWatched, clearWatchedEpisodes } = useUserStore();
+  const { state, addToList, removeFromList, toggleEpisode, unwatchEpisode, logMovieWatch, setRating, markAllSeriesWatched, clearWatchedEpisodes } = useUserStore();
   const [syncOpen, setSyncOpen] = useState(false);
   const goBack = useSmartBack("/app");
   const returnPath = useReturnPath();
@@ -213,6 +213,34 @@ function MediaDetail() {
             })}
           </div>
 
+          {entry && item.type === "movie" && entry.status === "completed" && (
+            <div className="mt-3 flex items-center justify-between rounded-2xl border border-border bg-surface/40 px-3 py-2">
+              <div>
+                <p className="text-xs font-semibold">Visioni</p>
+                <p className="text-lg font-bold tabular-nums">
+                  ×{Math.max(entry.watchCount ?? 1, 1)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const meta = {
+                    title: item.title, type: item.type, year: item.year,
+                    posterUrl: tmdbQuery.data?.item.posterUrl ?? null,
+                    backdropUrl: tmdbQuery.data?.item.backdropUrl ?? null,
+                  };
+                  const prev = entry.watchCount ?? 1;
+                  logMovieWatch(item.id, meta);
+                  toast.reward(`Rivisto "${item.title}"!`, 15, {
+                    description: `Visione ×${prev + 1}`,
+                  });
+                }}
+                className="rounded-xl bg-hero px-3 py-2 text-xs font-semibold text-primary-foreground shadow-glow-pink"
+              >
+                Ho rivisto +1
+              </button>
+            </div>
+          )}
 
           {entry && (
             <AlertDialog>
@@ -315,27 +343,41 @@ function MediaDetail() {
             watched={entry?.watchedEpisodes ?? []}
             entry={entry}
             onToggle={(s, e, epsInSeason, opts) => {
-              const wasWatched = isEpisodeWatched(entry, s, e);
-              // Meta sempre nel toggle: se la serie non è in libreria la entry
-              // nasce qui e senza titolo/poster resterebbe anonima in home.
+              const prevCount = getEpisodeWatchCount(entry, s, e);
               const meta = {
                 title: item.title, type: item.type, year: item.year,
                 posterUrl: tmdbQuery.data?.item.posterUrl ?? null,
                 backdropUrl: tmdbQuery.data?.item.backdropUrl ?? null,
               };
+              if (opts?.unwatch) {
+                unwatchEpisode(item.id, s, e, epsInSeason, item.seasons!, meta);
+                if (!opts.silent) {
+                  toast(`S${s}E${e} segnato come non visto`, {
+                    action: {
+                      label: "Annulla",
+                      onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, meta),
+                    },
+                    duration: 4000,
+                  });
+                }
+                return;
+              }
               toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, meta);
               if (opts?.silent) return;
-              const undo = {
+              const undoFirstWatch = {
                 action: {
                   label: "Annulla",
-                  onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, meta),
+                  onClick: () => unwatchEpisode(item.id, s, e, epsInSeason, item.seasons!, meta),
                 },
                 duration: 4000,
               };
-              if (wasWatched) {
-                toast(`S${s}E${e} segnato come non visto`, undo);
+              if (prevCount > 0) {
+                toast.reward(`S${s}E${e} rivisto!`, 15, {
+                  description: `Visione ×${prevCount + 1}`,
+                  ...undoFirstWatch,
+                });
               } else {
-                toast.reward(`S${s}E${e} visto!`, 15, undo);
+                toast.reward(`S${s}E${e} visto!`, 15, undoFirstWatch);
               }
             }}
           />
@@ -396,7 +438,7 @@ function SeasonsTracker({
   totalSeasons: number;
   watched: string[];
   entry: ReturnType<typeof useUserStore>["state"]["media"][string] | undefined;
-  onToggle: (season: number, episode: number, episodesInSeason: number, opts?: { silent?: boolean }) => void;
+  onToggle: (season: number, episode: number, episodesInSeason: number, opts?: { silent?: boolean; unwatch?: boolean }) => void;
 }) {
   const [openSeason, setOpenSeason] = useState<number>(entry?.currentSeason ?? 1);
   useEffect(() => {
@@ -410,7 +452,10 @@ function SeasonsTracker({
     <section className="mt-6">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-bold uppercase tracking-wider">Stagioni & episodi</h2>
-        <span className="text-xs text-muted-foreground">{watched.length} visti</span>
+        <span className="text-xs text-muted-foreground">
+          {totalEpisodeWatches(entry) || watched.length} visioni
+          {totalEpisodeWatches(entry) > watched.length ? ` · ${watched.length} episodi` : ""}
+        </span>
       </div>
 
       <div className="space-y-2">
@@ -448,7 +493,7 @@ function SeasonCard({
   onToggleOpen: () => void;
   watchedSet: Set<string>;
   entry: ReturnType<typeof useUserStore>["state"]["media"][string] | undefined;
-  onToggle: (season: number, episode: number, episodesInSeason: number, opts?: { silent?: boolean }) => void;
+  onToggle: (season: number, episode: number, episodesInSeason: number, opts?: { silent?: boolean; unwatch?: boolean }) => void;
 }) {
   const q = useQuery({
     queryKey: ["tmdb", "season", tmdbId, seasonNumber],
@@ -475,7 +520,7 @@ function SeasonCard({
   };
   const unmarkAll = () => {
     const marked = episodes.filter(ep => watchedSet.has(`S${seasonNumber}E${ep.episodeNumber}`));
-    marked.forEach(ep => onToggle(seasonNumber, ep.episodeNumber, epsCount, { silent: true }));
+    marked.forEach(ep => onToggle(seasonNumber, ep.episodeNumber, epsCount, { silent: true, unwatch: true }));
     if (marked.length) toast(`Stagione ${seasonNumber} segnata come non vista`);
   };
 
@@ -510,7 +555,9 @@ function SeasonCard({
                     seasonNumber={seasonNumber}
                     ep={ep}
                     watched={watchedSet.has(`S${seasonNumber}E${ep.episodeNumber}`)}
-                    onToggle={() => onToggle(seasonNumber, ep.episodeNumber, epsCount)}
+                    watchCount={getEpisodeWatchCount(entry, seasonNumber, ep.episodeNumber)}
+                    onLogWatch={() => onToggle(seasonNumber, ep.episodeNumber, epsCount)}
+                    onUnwatch={() => onToggle(seasonNumber, ep.episodeNumber, epsCount, { unwatch: true })}
                   />
                 ))}
               </div>
@@ -534,12 +581,14 @@ function SeasonCard({
 }
 
 function EpisodeRow({
-  seasonNumber, ep, watched, onToggle,
+  seasonNumber, ep, watched, watchCount, onLogWatch, onUnwatch,
 }: {
   seasonNumber: number;
   ep: import("@/lib/tmdb/tmdb.functions").EpisodeInfo;
   watched: boolean;
-  onToggle: () => void;
+  watchCount: number;
+  onLogWatch: () => void;
+  onUnwatch: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const airDate = ep.airDate ? new Date(ep.airDate) : null;
@@ -574,6 +623,11 @@ function EpisodeRow({
           <span className="absolute left-1 top-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold">
             E{ep.episodeNumber}
           </span>
+          {watchCount > 1 && (
+            <span className="absolute bottom-1 right-1 rounded-md bg-hero/90 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">
+              ×{watchCount}
+            </span>
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{ep.name}</p>
@@ -593,17 +647,26 @@ function EpisodeRow({
               </button>
             ) : null}
             <button
-              onClick={onToggle}
+              onClick={onLogWatch}
               disabled={!!isFuture && !watched}
               className={`ml-auto grid h-8 w-8 place-items-center rounded-lg text-xs font-bold transition ${
                 watched ? "bg-hero text-primary-foreground shadow-glow-pink" :
                 isFuture ? "border border-border/50 bg-surface/40 text-muted-foreground/40" :
                 "border border-border bg-surface/60 text-muted-foreground hover:border-accent"
               }`}
-              aria-label={`Segna S${seasonNumber}E${ep.episodeNumber} ${watched ? "non visto" : "visto"}`}
+              aria-label={watched ? `Segna S${seasonNumber}E${ep.episodeNumber} come rivisto` : `Segna S${seasonNumber}E${ep.episodeNumber} come visto`}
             >
               {watched ? <Check className="h-4 w-4" /> : "+"}
             </button>
+            {watched && (
+              <button
+                onClick={onUnwatch}
+                className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-surface/60 text-muted-foreground hover:border-destructive hover:text-destructive"
+                aria-label={`Segna S${seasonNumber}E${ep.episodeNumber} come non visto`}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>

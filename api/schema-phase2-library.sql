@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS user_media (
   source            VARCHAR(20)   DEFAULT 'manual',
   added_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_watched_at   DATETIME      DEFAULT NULL,
+  watch_count       INT           NOT NULL DEFAULT 0,
   updated_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (user_id, media_key),
   KEY idx_media_user_status (user_id, status),
@@ -54,7 +55,8 @@ CREATE TABLE IF NOT EXISTS user_episodes (
   media_key   VARCHAR(64) NOT NULL,
   season      INT       NOT NULL,
   episode     INT       NOT NULL,
-  watched_at  DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  watched_at   DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  watch_count  INT       NOT NULL DEFAULT 1,
   PRIMARY KEY (user_id, media_key, season, episode),
   KEY idx_episodes_media (user_id, media_key),
   CONSTRAINT fk_episodes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

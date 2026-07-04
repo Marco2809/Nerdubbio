@@ -158,6 +158,7 @@ function DaTvTimePage() {
           status: m.row.status ?? "plan_to_watch",
           rating: m.row.rating,
           episodeDates: m.row.episodeDates,
+          episodeWatchCounts: m.row.episodeWatchCounts,
           addedAt: new Date().toISOString(),
           source: "tvtime",
           title: m.match!.title,

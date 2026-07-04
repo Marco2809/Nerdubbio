@@ -51,6 +51,7 @@ export const libraryApi = {
     episodesPerSeason: number,
     totalSeasons: number,
     meta?: MediaMeta,
+    opts?: { unwatch?: boolean },
   ): Promise<LibraryState> {
     return api<LibraryState>('/api/library.php?action=toggle_episode', 'POST', {
       id,
@@ -59,7 +60,12 @@ export const libraryApi = {
       episodesPerSeason,
       totalSeasons,
       meta,
+      unwatch: opts?.unwatch ?? false,
     });
+  },
+
+  logMovieWatch(id: string, meta?: MediaMeta): Promise<LibraryState> {
+    return api<LibraryState>('/api/library.php?action=log_movie_watch', 'POST', { id, meta });
   },
 
   markAllSeriesWatched(
@@ -98,13 +104,14 @@ export const libraryApi = {
   bulkImport(
     entries: UserMediaEntry[],
     importPending?: TvTimePendingItem[],
-    opts?: { withXp?: boolean; replaceEpisodes?: boolean },
+    opts?: { withXp?: boolean; replaceEpisodes?: boolean; mergeImport?: boolean },
   ): Promise<LibraryState> {
     return api<LibraryState>('/api/library.php?action=bulk_import', 'POST', {
       entries,
       importPending,
       withXp: opts?.withXp,
       replaceEpisodes: opts?.replaceEpisodes,
+      mergeImport: opts?.mergeImport,
     });
   },
 

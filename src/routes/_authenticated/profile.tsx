@@ -5,6 +5,7 @@ import { useAuthUser } from "@/hooks/use-auth-user";
 import { useFriendRequestCount } from "@/hooks/use-friend-requests-count";
 import { Trophy, Flame, Star, Settings2, Crown, Users, Download, ExternalLink, BarChart3, Tv, Clapperboard } from "lucide-react";
 import { countAllMovies, countAllSeries } from "@/lib/library-display";
+import { TvTimeReimportCard } from "@/components/nerdubbio/TvTimeReimportCard";
 
 export const Route = createFileRoute("/_authenticated/profile")({
   head: () => ({ meta: [{ title: "Profilo — Nerdubbio" }] }),
@@ -151,10 +152,11 @@ function Profile() {
           <Users className="h-5 w-5 text-accent" />
           <div className="flex-1"><p className="text-sm font-semibold">Quest di gruppo</p><p className="text-xs text-muted-foreground">Decidete insieme cosa guardare</p></div>
         </Link>
-        <Link to="/import" className="glass flex items-center gap-3 rounded-2xl p-4">
+        <Link to="/da-tvtime" className="glass flex items-center gap-3 rounded-2xl p-4">
           <Download className="h-5 w-5 text-accent" />
           <div className="flex-1"><p className="text-sm font-semibold">Arrivi da TV Time?</p><p className="text-xs text-muted-foreground">Importa la tua cronologia</p></div>
         </Link>
+        <TvTimeReimportCard />
       </section>
     </AppShell>
   );

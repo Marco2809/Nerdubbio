@@ -49,6 +49,18 @@ if ($action === 'toggle_episode') {
         (int) ($body['episodesPerSeason'] ?? 1),
         (int) ($body['totalSeasons'] ?? 1),
         is_array($body['meta'] ?? null) ? $body['meta'] : null,
+        !empty($body['unwatch']),
+    ));
+}
+
+if ($action === 'log_movie_watch') {
+    $id = (string) ($body['id'] ?? '');
+    if ($id === '') json_out(['error' => 'ID mancante'], 400);
+    json_out(library_log_movie_watch(
+        $pdo,
+        $userId,
+        $id,
+        is_array($body['meta'] ?? null) ? $body['meta'] : null,
     ));
 }
 
@@ -98,7 +110,8 @@ if ($action === 'bulk_import') {
         : null;
     $withXp = !array_key_exists('withXp', $body) || $body['withXp'] !== false;
     $replaceEpisodes = !empty($body['replaceEpisodes']);
-    json_out(library_bulk_import($pdo, $userId, $entries, $withXp, $importPending, $replaceEpisodes));
+    $mergeImport = !empty($body['mergeImport']);
+    json_out(library_bulk_import($pdo, $userId, $entries, $withXp, $importPending, $replaceEpisodes, $mergeImport));
 }
 
 if ($action === 'import_local') {

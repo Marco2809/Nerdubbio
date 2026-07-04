@@ -13,6 +13,8 @@ export interface ParsedRow {
   rating?: number;
   /** Data visione per episodio (ISO), chiave S1E3. */
   episodeDates?: Record<string, string>;
+  /** Numero visioni per episodio, chiave S1E3. */
+  episodeWatchCounts?: Record<string, number>;
   tvShowId?: string;
 }
 
@@ -172,7 +174,13 @@ function collectEpisodeRows(map: Record<string, Record<string, string>[]>): Reco
   return out;
 }
 
-type EpisodeAgg = { title: string; id?: string; eps: Set<string>; epDates: Map<string, string> };
+type EpisodeAgg = {
+  title: string;
+  id?: string;
+  eps: Set<string>;
+  epDates: Map<string, string>;
+  epCounts: Map<string, number>;
+};
 
 function pickWatchedAt(r: Record<string, string>): string | undefined {
   const raw = r.created_at || r.updated_at || r.watched_at || r.date || "";
@@ -193,13 +201,45 @@ function addEpisodeToShow(
   const ep = parseEpisodeRef(seasonStr, episodeStr);
   if (!ep) return;
   const k = showKey(showId, showTitle);
-  const cur = episodesByShow.get(k) ?? { title: showTitle.trim(), id: showId, eps: new Set<string>(), epDates: new Map() };
+  const cur = episodesByShow.get(k) ?? {
+    title: showTitle.trim(),
+    id: showId,
+    eps: new Set<string>(),
+    epDates: new Map(),
+    epCounts: new Map(),
+  };
   cur.eps.add(ep);
+  cur.epCounts.set(ep, Math.max(cur.epCounts.get(ep) ?? 0, 1));
   if (watchedAt) {
     const prev = cur.epDates.get(ep);
     if (!prev || watchedAt > prev) cur.epDates.set(ep, watchedAt);
   }
   episodesByShow.set(k, cur);
+}
+
+function ingestRewatchedRows(
+  episodesByShow: Map<string, EpisodeAgg>,
+  rows: Record<string, string>[],
+) {
+  for (const r of rows) {
+    const title = pick(r, SHOW_KEYS);
+    const showId = pickShowId(r);
+    const epNum = pick(r, EPISODE_KEYS);
+    if (!epNum) continue;
+    const ep = parseEpisodeRef(pick(r, SEASON_KEYS), epNum);
+    if (!ep || !title?.trim()) continue;
+    const k = showKey(showId, title);
+    const cur = episodesByShow.get(k) ?? {
+      title: title.trim(),
+      id: showId,
+      eps: new Set<string>(),
+      epDates: new Map(),
+      epCounts: new Map(),
+    };
+    cur.eps.add(ep);
+    cur.epCounts.set(ep, (cur.epCounts.get(ep) ?? 1) + 1);
+    episodesByShow.set(k, cur);
+  }
 }
 
 function ingestEpisodeRows(
@@ -421,6 +461,12 @@ function mergeParsedRows(prev: ParsedRow, next: ParsedRow): ParsedRow {
   const watched = new Set([...(prev.watchedEpisodes ?? []), ...(next.watchedEpisodes ?? [])]);
   const watchedList = [...watched].sort();
   const dates: Record<string, string> = { ...(prev.episodeDates ?? {}), ...(next.episodeDates ?? {}) };
+  const counts: Record<string, number> = { ...(prev.episodeWatchCounts ?? {}), ...(next.episodeWatchCounts ?? {}) };
+  for (const ep of watchedList) {
+    const a = prev.episodeWatchCounts?.[ep] ?? 0;
+    const b = next.episodeWatchCounts?.[ep] ?? 0;
+    counts[ep] = Math.max(a, b, watched.has(ep) ? 1 : 0);
+  }
   const episodesSeen = Math.max(prev.episodesSeen ?? 0, next.episodesSeen ?? 0, watchedList.length);
   const rating = Math.max(prev.rating ?? 0, next.rating ?? 0) || undefined;
   return {
@@ -430,6 +476,7 @@ function mergeParsedRows(prev: ParsedRow, next: ParsedRow): ParsedRow {
     year: prev.year ?? next.year,
     watchedEpisodes: watchedList.length ? watchedList : undefined,
     episodeDates: Object.keys(dates).length ? dates : undefined,
+    episodeWatchCounts: Object.keys(counts).length ? counts : undefined,
     episodesSeen: episodesSeen > 0 ? episodesSeen : undefined,
     rating: rating && rating > 0 ? rating : undefined,
     status: mergeShowStatus(prev.status, next.status),
@@ -603,6 +650,7 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
     rating?: number;
     watchedEpisodes: Set<string>;
     episodeDates: Map<string, string>;
+    episodeWatchCounts: Map<string, number>;
   };
   const shows = new Map<string, ShowAgg>();
   const episodesByShow = new Map<string, EpisodeAgg>();
@@ -619,6 +667,7 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
       episodesSeen: 0,
       watchedEpisodes: new Set<string>(),
       episodeDates: new Map<string, string>(),
+      episodeWatchCounts: new Map<string, number>(),
     };
     shows.set(k, {
       ...cur,
@@ -663,6 +712,7 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
 
   // 4) episodi singoli (fonte principale per S1E3)
   ingestEpisodeRows(episodesByShow, collectEpisodeRows(csvMap));
+  ingestRewatchedRows(episodesByShow, csvByPattern(csvMap, "rewatched_episode.csv"));
   for (const [k, agg] of episodesByShow) {
     const watched = [...agg.eps];
     const cur = shows.get(k);
@@ -671,6 +721,9 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
       for (const [ep, dt] of agg.epDates) {
         const prev = cur.episodeDates.get(ep);
         if (!prev || dt > prev) cur.episodeDates.set(ep, dt);
+      }
+      for (const [ep, cnt] of agg.epCounts) {
+        cur.episodeWatchCounts.set(ep, Math.max(cur.episodeWatchCounts.get(ep) ?? 0, cnt));
       }
       cur.episodesSeen = Math.max(cur.episodesSeen, watched.length);
     } else {
@@ -683,6 +736,7 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
         episodesSeen: watched.length,
         watchedEpisodes: new Set(watched),
         episodeDates: new Map(agg.epDates),
+        episodeWatchCounts: new Map(agg.epCounts),
       });
     }
   }
@@ -726,6 +780,9 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
         const prev = cur.episodeDates.get(ep);
         if (!prev || dt > prev) cur.episodeDates.set(ep, dt);
       }
+      for (const [ep, cnt] of agg.epCounts) {
+        cur.episodeWatchCounts.set(ep, Math.max(cur.episodeWatchCounts.get(ep) ?? 0, cnt));
+      }
       cur.episodesSeen = Math.max(cur.episodesSeen, cur.watchedEpisodes.size);
     }
   }
@@ -752,6 +809,7 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
       rating: s.rating,
       watchedEpisodes: watched.length ? watched : undefined,
       episodeDates: s.episodeDates.size ? Object.fromEntries(s.episodeDates) : undefined,
+      episodeWatchCounts: s.episodeWatchCounts.size ? Object.fromEntries(s.episodeWatchCounts) : undefined,
       episodesSeen: s.episodesSeen > 0 ? s.episodesSeen : undefined,
     });
   }
@@ -766,7 +824,12 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
   }
   const unique = [...byKey.values()];
 
-  const episodeRows = unique.reduce((n, r) => n + (r.watchedEpisodes?.length ?? r.episodesSeen ?? 0), 0);
+  const episodeRows = unique.reduce((n, r) => {
+    if (r.episodeWatchCounts) {
+      return n + Object.values(r.episodeWatchCounts).reduce((s, c) => s + c, 0);
+    }
+    return n + (r.watchedEpisodes?.length ?? r.episodesSeen ?? 0);
+  }, 0);
   return {
     rows: unique,
     counts: {
@@ -799,6 +862,7 @@ function maxWatchedEpisode(watched: string[]): { season: number; episode: number
 /** Deriva currentSeason/Episode da watchedEpisodes o episodesSeen aggregato. */
 export function deriveEpisodeProgress(row: ParsedRow): {
   watchedEpisodes?: string[];
+  episodeWatchCounts?: Record<string, number>;
   currentSeason?: number;
   currentEpisode?: number;
 } {
@@ -806,6 +870,7 @@ export function deriveEpisodeProgress(row: ParsedRow): {
     const { season, episode } = maxWatchedEpisode(row.watchedEpisodes);
     return {
       watchedEpisodes: row.watchedEpisodes,
+      episodeWatchCounts: row.episodeWatchCounts,
       currentSeason: season || undefined,
       currentEpisode: episode || undefined,
     };
