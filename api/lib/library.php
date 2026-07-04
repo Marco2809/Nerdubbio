@@ -84,11 +84,14 @@ function library_save_stats(PDO $pdo, string $userId, array $patch): void {
 function library_row_to_entry(array $row, array $episodes): array {
     $watched = [];
     $reactions = parse_json($row['reactions'] ?? null, []);
+    $episodeDates = [];
     $lastFromEps = null;
     foreach ($episodes as $ep) {
-        $watched[] = library_episode_key((int) $ep['season'], (int) $ep['episode']);
+        $key = library_episode_key((int) $ep['season'], (int) $ep['episode']);
+        $watched[] = $key;
         if (!empty($ep['watched_at'])) {
             $t = date('c', strtotime($ep['watched_at']));
+            $episodeDates[$key] = $t;
             if (!$lastFromEps || $t > $lastFromEps) $lastFromEps = $t;
         }
     }
@@ -105,6 +108,7 @@ function library_row_to_entry(array $row, array $episodes): array {
         'currentSeason'   => $row['current_season'] !== null ? (int) $row['current_season'] : null,
         'currentEpisode'  => $row['current_episode'] !== null ? (int) $row['current_episode'] : null,
         'watchedEpisodes' => $watched,
+        'episodeDates'    => $episodeDates ?: null,
         'reactions'       => is_array($reactions) ? $reactions : [],
         'notes'           => $row['notes'] ?? null,
         'addedAt'         => date('c', strtotime($row['added_at'])),

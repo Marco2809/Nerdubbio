@@ -1,4 +1,8 @@
 import type { UserMediaEntry } from "@/lib/user-store";
+import type { NextUnwatchedInfo } from "@/lib/tmdb/tmdb.functions";
+
+/** Quante serie interroghiamo per la home (evita limiti batch TMDB). */
+export const HOME_NEXT_EPISODES_LIMIT = 6;
 
 /** Ultimo episodio segnato visto (max S/E da lista o da currentSeason/Episode). */
 export function maxWatchedFrontier(
@@ -54,7 +58,7 @@ export function listTvShowsForNextEpisode(media: Record<string, UserMediaEntry>)
       const hasProgress = (m.watchedEpisodes?.length ?? 0) > 0
         || (m.currentSeason ?? 0) > 0
         || (m.currentEpisode ?? 0) > 0;
-      if (m.status === "watching" || m.status === "paused") return true;
+      if (m.status === "watching" || m.status === "paused" || m.status === "plan_to_watch") return true;
       // Preferiti o in corso implicito se hai episodi segnati
       if ((m.status === "favorite" || m.status === "completed") && hasProgress) return true;
       return false;
@@ -77,3 +81,55 @@ export function tmdbIdFromMediaKey(id: string): number | null {
 
 /** Chiave React Query per il batch prossimi episodi — invalidata dopo toggle. */
 export const NEXT_UNWATCHED_BATCH_KEY = ["tmdb", "next-unwatched-batch"] as const;
+
+export function nextEpisodeQueryKey(entry: UserMediaEntry) {
+  const f = maxWatchedFrontier(entry);
+  const watched = entry.watchedEpisodes ?? [];
+  return [
+    ...NEXT_UNWATCHED_BATCH_KEY,
+    entry.id,
+    f?.season ?? 0,
+    f?.episode ?? 0,
+    watched.length,
+    watched.slice(-5).join(","),
+  ] as const;
+}
+
+export function buildNextUnwatchedPayload(entry: UserMediaEntry) {
+  const tmdbId = tmdbIdFromMediaKey(entry.id);
+  if (!tmdbId) return null;
+  const frontier = maxWatchedFrontier(entry);
+  return {
+    tmdbId,
+    watched: entry.watchedEpisodes ?? [],
+    lastSeason: frontier?.season,
+    lastEpisode: frontier?.episode,
+  };
+}
+
+/** Fallback client se TMDB non risponde — episodio immediatamente dopo il frontier. */
+export function localNextAfterFrontier(entry: UserMediaEntry): NextUnwatchedInfo | null {
+  const frontier = maxWatchedFrontier(entry);
+  if (!frontier) {
+    return {
+      kind: "episode",
+      season: 1,
+      episode: 1,
+      name: "Primo episodio",
+      airDate: null,
+      overview: "",
+      stillUrl: null,
+      aired: true,
+    };
+  }
+  return {
+    kind: "episode",
+    season: frontier.season,
+    episode: frontier.episode + 1,
+    name: "Prossimo episodio",
+    airDate: null,
+    overview: "",
+    stillUrl: null,
+    aired: true,
+  };
+}

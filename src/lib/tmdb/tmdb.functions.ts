@@ -594,8 +594,6 @@ function computeWatchFrontier(
   return { watched: watchedSet, lastS, lastE, hasFrontier: lastS > 0 && lastE > 0 };
 }
 
-export const NEXT_UNWATCHED_BATCH_KEY = ["tmdb", "next-unwatched-batch"] as const;
-
 async function scanSeasonsForNext(
   tmdbId: number,
   seasons: any[],
@@ -780,7 +778,7 @@ export const tmdbNextUnwatchedBatch = createServerFn({ method: "POST" })
       watched: z.array(z.string()).default([]),
       lastSeason: z.number().int().positive().optional(),
       lastEpisode: z.number().int().positive().optional(),
-    })).max(12),
+    })).max(24),
   }).parse(data))
   .handler(async ({ data }): Promise<{ tmdbId: number; next: NextUnwatchedInfo }[]> => {
     const results = await Promise.all(

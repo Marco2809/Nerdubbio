@@ -1,9 +1,17 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import type { UserMediaEntry } from "@/lib/user-store";
-import { maxWatchedFrontier, listTvShowsForNextEpisode, tmdbIdFromMediaKey, NEXT_UNWATCHED_BATCH_KEY } from "@/lib/next-episode";
-import { tmdbNextUnwatchedBatch, type NextUnwatchedInfo } from "@/lib/tmdb/tmdb.functions";
+import {
+  buildNextUnwatchedPayload,
+  HOME_NEXT_EPISODES_LIMIT,
+  listTvShowsForNextEpisode,
+  localNextAfterFrontier,
+  nextEpisodeQueryKey,
+  NEXT_UNWATCHED_BATCH_KEY,
+  tmdbIdFromMediaKey,
+} from "@/lib/next-episode";
+import { tmdbNextUnwatched, type NextUnwatchedInfo } from "@/lib/tmdb/tmdb.functions";
 import { PremiereReminderButton } from "@/components/nerdubbio/PremiereReminderButton";
 import { CalendarDays, ChevronRight } from "lucide-react";
 
@@ -12,77 +20,51 @@ type Props = {
   from: string;
 };
 
-function batchQueryFingerprint(items: {
-  tmdbId: number;
-  watched: string[];
-  lastSeason?: number;
-  lastEpisode?: number;
-}[]): string {
-  return items
-    .map(i => `${i.tmdbId}:${i.lastSeason ?? 0}E${i.lastEpisode ?? 0}:${i.watched.length}:${i.watched.slice(-3).join(",")}`)
-    .join("|");
-}
-
 export function HomeNextEpisodesSection({ media, from }: Props) {
   const navigate = useNavigate();
-  const inProgress = useMemo(() => listTvShowsForNextEpisode(media), [media]);
+  const inProgress = useMemo(
+    () => listTvShowsForNextEpisode(media).slice(0, HOME_NEXT_EPISODES_LIMIT),
+    [media],
+  );
 
-  const batchItems = useMemo(
-    () => inProgress.map(entry => {
-      const tmdbId = tmdbIdFromMediaKey(entry.id)!;
-      const frontier = maxWatchedFrontier(entry);
+  const nextQueries = useQueries({
+    queries: inProgress.map(entry => {
+      const payload = buildNextUnwatchedPayload(entry);
       return {
-        tmdbId,
-        watched: entry.watchedEpisodes ?? [],
-        lastSeason: frontier?.season,
-        lastEpisode: frontier?.episode,
+        queryKey: nextEpisodeQueryKey(entry),
+        queryFn: async (): Promise<{ entry: UserMediaEntry; next: NextUnwatchedInfo; fromLocal: boolean } | null> => {
+          if (!payload) return null;
+          try {
+            const next = await tmdbNextUnwatched({ data: payload });
+            if (next) return { entry, next, fromLocal: false };
+          } catch {
+            /* TMDB down — fallback sotto */
+          }
+          const local = localNextAfterFrontier(entry);
+          return local ? { entry, next: local, fromLocal: true } : null;
+        },
+        enabled: !!payload,
+        staleTime: 0,
+        refetchOnMount: "always" as const,
       };
     }),
-    [inProgress],
-  );
-
-  const fingerprint = useMemo(() => batchQueryFingerprint(batchItems), [batchItems]);
-
-  const nextQuery = useQuery({
-    queryKey: [...NEXT_UNWATCHED_BATCH_KEY, fingerprint],
-    queryFn: () => tmdbNextUnwatchedBatch({ data: { items: batchItems } }),
-    enabled: batchItems.length > 0,
-    staleTime: 0,
-    refetchOnMount: "always",
   });
 
-  const entryByTmdb = useMemo(() => {
-    const map = new Map<number, UserMediaEntry>();
-    for (const e of inProgress) {
-      const id = tmdbIdFromMediaKey(e.id);
-      if (id) map.set(id, e);
+  const isLoading = nextQueries.some(q => q.isLoading);
+
+  const rows = useMemo(() => {
+    const out: { entry: UserMediaEntry; tmdbId: number; next: NextUnwatchedInfo; fromLocal: boolean }[] = [];
+    for (const q of nextQueries) {
+      const row = q.data;
+      if (!row) continue;
+      const tmdbId = tmdbIdFromMediaKey(row.entry.id);
+      if (!tmdbId) continue;
+      out.push({ ...row, tmdbId });
     }
-    return map;
-  }, [inProgress]);
+    return out;
+  }, [nextQueries]);
 
-  const nextByTmdb = useMemo(() => {
-    const map = new Map<number, NextUnwatchedInfo>();
-    for (const row of nextQuery.data ?? []) {
-      if (row.next) map.set(row.tmdbId, row.next);
-    }
-    return map;
-  }, [nextQuery.data]);
-
-  const rows = useMemo(
-    () => inProgress
-      .slice(0, 6)
-      .map(entry => {
-        const tmdbId = tmdbIdFromMediaKey(entry.id);
-        if (!tmdbId) return null;
-        const next = nextByTmdb.get(tmdbId);
-        if (!next) return null;
-        return { tmdbId, entry, next };
-      })
-      .filter((r): r is { tmdbId: number; entry: UserMediaEntry; next: NextUnwatchedInfo } => !!r),
-    [inProgress, nextByTmdb],
-  );
-
-  const caughtUpCount = inProgress.length - rows.length;
+  const hasErrors = nextQueries.some(q => q.isError);
 
   if (inProgress.length === 0) return null;
 
@@ -99,36 +81,35 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
         </Link>
       </div>
 
-      {nextQuery.isLoading && (
+      {isLoading && (
         <div className="glass rounded-2xl p-4 text-xs text-muted-foreground">
           Calcolo prossimi episodi…
         </div>
       )}
 
-      {!nextQuery.isLoading && rows.length === 0 && (
+      {!isLoading && rows.length === 0 && (
         <div className="glass rounded-2xl p-4 text-xs text-muted-foreground">
-          {inProgress.length === 1
-            ? "Nessun episodio successivo trovato su TMDB per la tua serie in corso — potresti essere in sync col catalogo, o il progresso importato supera gli episodi reali."
-            : `Nessun prossimo episodio da TMDB per ${inProgress.length} serie in libreria.`}
-          {" "}Apri la scheda serie e verifica il progresso episodi.
+          {inProgress.length === 1 ? (
+            <>
+              Nessun prossimo episodio per <strong>{inProgress[0]!.title ?? "questa serie"}</strong>.
+              {maxProgressLabel(inProgress[0]!)}
+            </>
+          ) : (
+            <>Nessun prossimo episodio calcolabile per le serie in corso.</>
+          )}
+          {hasErrors ? " Errore TMDB — riprova tra poco." : null}
+          {" "}Apri la scheda serie per verificare il progresso.
         </div>
       )}
 
-      {!nextQuery.isLoading && rows.length > 0 && caughtUpCount > 0 && (
-        <p className="mb-2 text-[11px] text-muted-foreground">
-          {caughtUpCount === 1
-            ? "1 serie risulta aggiornata su TMDB."
-            : `${caughtUpCount} serie risultano aggiornate su TMDB.`}
-        </p>
-      )}
-
       <div className="space-y-3">
-        {rows.map(({ tmdbId, entry, next }) => (
+        {rows.map(({ tmdbId, entry, next, fromLocal }) => (
           <NextEpisodeRow
-            key={tmdbId}
+            key={entry.id}
             entry={entry}
             tmdbId={tmdbId}
             next={next}
+            fromLocal={fromLocal}
             from={from}
             onOpen={() => navigate({
               to: "/media/$type/$id",
@@ -143,16 +124,27 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
   );
 }
 
+function maxProgressLabel(entry: UserMediaEntry): string {
+  const n = entry.watchedEpisodes?.length ?? 0;
+  const cs = entry.currentSeason;
+  const ce = entry.currentEpisode;
+  if (cs && ce) return ` Ultimo segnato: S${cs}E${ce}${n ? ` (${n} episodi in libreria)` : ""}.`;
+  if (n) return ` ${n} episodi segnati in libreria.`;
+  return " Nessun episodio segnato ancora.";
+}
+
 function NextEpisodeRow({
   entry,
   tmdbId,
   next,
+  fromLocal,
   from,
   onOpen,
 }: {
   entry: UserMediaEntry;
   tmdbId: number;
   next: NextUnwatchedInfo;
+  fromLocal?: boolean;
   from: string;
   onOpen: () => void;
 }) {
@@ -189,11 +181,18 @@ function NextEpisodeRow({
         </Link>
         <p className="text-xs text-muted-foreground">
           {label}
-          {next.name && next.aired ? <span className="text-foreground/80"> — {next.name}</span> : null}
+          {next.name && next.aired && next.name !== "Prossimo episodio"
+            ? <span className="text-foreground/80"> — {next.name}</span>
+            : null}
         </p>
-        <p className="mt-0.5 flex items-center gap-1 text-[11px] text-accent">
+        <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-accent">
           {isFuture && <CalendarDays className="h-3 w-3" />}
           {badge}
+          {fromLocal && (
+            <span className="rounded-full border border-border px-1.5 text-[9px] text-muted-foreground">
+              stima locale
+            </span>
+          )}
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <button
@@ -203,13 +202,13 @@ function NextEpisodeRow({
           >
             Apri episodio →
           </button>
-          {isFuture && (
+          {isFuture && next.airDate && (
             <PremiereReminderButton
               id={`${tmdbId}:S${next.season}E${next.episode}`}
               tmdbId={tmdbId}
               title={entry.title ?? "Serie"}
               label={`${label}${next.kind === "premiere" ? " — Premiere" : ""}`}
-              airDate={next.airDate!}
+              airDate={next.airDate}
               href={`/media/tv/${tmdbId}#ep-S${next.season}E${next.episode}`}
             />
           )}
