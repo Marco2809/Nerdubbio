@@ -1,138 +1,201 @@
-import { useMemo } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ReferenceArea,
-  ReferenceLine,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import type { EpisodeRatingPoint, SeasonRatingMarker } from "@/components/nerdubbio/MediaRatingsSection";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import type { SeasonChartData, SeasonChartEpisode } from "@/components/nerdubbio/MediaRatingsSection";
 
 const chartConfig = {
-  rating: {
-    label: "Voto TMDB",
-    color: "hsl(var(--accent))",
+  score: {
+    label: "Community",
+    color: "hsl(var(--foreground) / 0.55)",
   },
 };
 
-const SEASON_COLORS = [
-  "hsl(var(--accent) / 0.06)",
-  "hsl(var(--hero) / 0.06)",
-];
+type ChartRow = SeasonChartEpisode & {
+  label: string;
+};
 
-export function TvRatingChart({
-  points,
-  seasonMarkers,
-  seriesAvg,
-  userRating,
-}: {
-  points: EpisodeRatingPoint[];
-  seasonMarkers: SeasonRatingMarker[];
-  seriesAvg: number | null;
-  userRating?: number;
-}) {
-  const seasonTicks = useMemo(() => {
-    const ticks = new Map<number, string>();
-    for (const m of seasonMarkers) {
-      ticks.set(m.startIndex, `S${m.season}`);
+export function TvRatingChart({ seasons }: { seasons: SeasonChartData[] }) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const safeIdx = Math.min(activeIdx, Math.max(0, seasons.length - 1));
+  const current = seasons[safeIdx];
+
+  const { chartData, bestEp, worstEp } = useMemo(() => {
+    if (!current) return { chartData: [] as ChartRow[], bestEp: 0, worstEp: 0 };
+
+    const data: ChartRow[] = current.episodes.map(ep => ({
+      ...ep,
+      label: `E${ep.episode}`,
+    }));
+
+    let best = data[0]?.episode ?? 0;
+    let worst = data[0]?.episode ?? 0;
+    let bestScore = data[0]?.score ?? 0;
+    let worstScore = data[0]?.score ?? 0;
+
+    for (const ep of data) {
+      if (ep.score > bestScore) {
+        bestScore = ep.score;
+        best = ep.episode;
+      }
+      if (ep.score < worstScore) {
+        worstScore = ep.score;
+        worst = ep.episode;
+      }
     }
-    return ticks;
-  }, [seasonMarkers]);
 
-  const chartWidth = Math.max(320, points.length * 12);
+    return { chartData: data, bestEp: best, worstEp: worst };
+  }, [current]);
+
+  if (!current || chartData.length === 0) return null;
+
+  const canPrev = safeIdx > 0;
+  const canNext = safeIdx < seasons.length - 1;
 
   return (
-    <div className="glass overflow-hidden rounded-2xl p-3">
-      {userRating != null && (
-        <p className="mb-2 text-[11px] text-muted-foreground">
-          Il tuo voto serie: <span className="font-bold text-accent">{userRating}/10</span>
-        </p>
-      )}
-      <div className="overflow-x-auto -mx-1 px-1 pb-1">
-        <div style={{ minWidth: chartWidth }}>
-          <ChartContainer config={chartConfig} className="h-[220px] w-full">
-            <AreaChart data={points} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" />
-              {seasonMarkers.map((m, i) => (
-                <ReferenceArea
-                  key={m.season}
-                  x1={m.startIndex}
-                  x2={m.endIndex + 0.99}
-                  fill={SEASON_COLORS[i % SEASON_COLORS.length]}
-                  strokeOpacity={0}
-                />
-              ))}
-              {seriesAvg != null && (
-                <ReferenceLine
-                  y={seriesAvg}
-                  stroke="hsl(var(--muted-foreground))"
-                  strokeDasharray="4 4"
-                  strokeOpacity={0.6}
-                />
-              )}
-              <XAxis
-                dataKey="index"
-                tickLine={false}
-                axisLine={false}
-                interval={0}
-                tick={({ x, y, payload }) => {
-                  const label = seasonTicks.get(Number(payload.value));
-                  if (!label) return null;
-                  return (
-                    <text x={x} y={y + 12} textAnchor="middle" fill="hsl(var(--muted-foreground))" fontSize={10}>
-                      {label}
-                    </text>
-                  );
-                }}
-              />
-              <YAxis
-                domain={[0, 10]}
-                ticks={[0, 2, 4, 6, 8, 10]}
-                tickLine={false}
-                axisLine={false}
-                width={28}
-                tick={{ fontSize: 10 }}
-              />
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(_, payload) => {
-                      const p = payload?.[0]?.payload as EpisodeRatingPoint | undefined;
-                      if (!p) return "";
-                      return `${p.label} · ${p.name}`;
-                    }}
-                    formatter={(value) => [
-                      typeof value === "number" ? `${value.toFixed(1)}/10` : "—",
-                      "TMDB",
-                    ]}
-                  />
-                }
-              />
-              <Area
-                type="monotone"
-                dataKey="rating"
-                stroke="hsl(var(--accent))"
-                fill="hsl(var(--accent))"
-                fillOpacity={0.2}
-                strokeWidth={2}
-                dot={{ r: 2, fill: "hsl(var(--accent))", strokeWidth: 0 }}
-                activeDot={{ r: 4 }}
-                connectNulls={false}
-              />
-            </AreaChart>
-          </ChartContainer>
+    <div className="glass rounded-2xl px-4 py-3">
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-bold">Voti della community</h3>
+        <div className="flex items-center gap-1">
+          {seasons.length > 1 && (
+            <button
+              type="button"
+              disabled={!canPrev}
+              onClick={() => setActiveIdx(i => i - 1)}
+              className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground transition hover:bg-surface-2 disabled:opacity-30"
+              aria-label="Stagione precedente"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          )}
+          <span className="min-w-[5.5rem] text-center text-sm font-semibold text-muted-foreground">
+            Stagione {current.season}
+          </span>
+          {seasons.length > 1 && (
+            <button
+              type="button"
+              disabled={!canNext}
+              onClick={() => setActiveIdx(i => i + 1)}
+              className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground transition hover:bg-surface-2 disabled:opacity-30"
+              aria-label="Stagione successiva"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
-      <p className="mt-1 text-center text-[10px] text-muted-foreground">
-        Scorri → · linea tratteggiata = media episodi
-      </p>
+
+      <ChartContainer config={chartConfig} className="h-[200px] w-full">
+        <LineChart data={chartData} margin={{ top: 12, right: 12, left: -8, bottom: 0 }}>
+          <CartesianGrid vertical={false} stroke="hsl(var(--foreground) / 0.12)" />
+          <XAxis dataKey="episode" hide />
+          <YAxis
+            domain={[0, 5]}
+            ticks={[0, 1, 2, 3, 4, 5]}
+            tickLine={false}
+            axisLine={false}
+            width={20}
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                labelFormatter={(_, payload) => {
+                  const p = payload?.[0]?.payload as ChartRow | undefined;
+                  if (!p) return "";
+                  return `E${p.episode} · ${p.name}`;
+                }}
+                formatter={(value, _name, item) => {
+                  const raw = (item.payload as ChartRow).rawScore;
+                  return [
+                    typeof value === "number"
+                      ? `${value.toFixed(1)}/5 (${raw.toFixed(1)}/10 TMDB)`
+                      : "—",
+                    "Community",
+                  ];
+                }}
+              />
+            }
+          />
+          <Line
+            type="monotone"
+            dataKey="score"
+            stroke="hsl(var(--foreground) / 0.45)"
+            strokeWidth={2}
+            connectNulls
+            dot={(props) => (
+              <EpisodeDot
+                {...props}
+                bestEp={bestEp}
+                worstEp={worstEp}
+                multi={chartData.length > 1}
+              />
+            )}
+            activeDot={false}
+          />
+        </LineChart>
+      </ChartContainer>
+
+      {seasons.length > 1 && (
+        <div className="mt-3 flex justify-center gap-1.5">
+          {seasons.map((s, i) => (
+            <button
+              key={s.season}
+              type="button"
+              onClick={() => setActiveIdx(i)}
+              aria-label={`Stagione ${s.season}`}
+              className={`h-1.5 rounded-full transition-all ${
+                i === safeIdx ? "w-4 bg-accent" : "w-1.5 bg-muted-foreground/35"
+              }`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
+}
+
+function EpisodeDot({
+  cx,
+  cy,
+  payload,
+  bestEp,
+  worstEp,
+  multi,
+}: {
+  cx?: number;
+  cy?: number;
+  payload?: ChartRow;
+  bestEp: number;
+  worstEp: number;
+  multi: boolean;
+}) {
+  if (cx == null || cy == null || !payload) return null;
+
+  const isBest = multi && payload.episode === bestEp;
+  const isWorst = multi && payload.episode === worstEp && bestEp !== worstEp;
+
+  if (isBest) {
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={11} fill="#22c55e" />
+        <text x={cx} y={cy + 4} textAnchor="middle" fill="white" fontSize={14} fontWeight="700">
+          +
+        </text>
+      </g>
+    );
+  }
+
+  if (isWorst) {
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={11} fill="#ef4444" />
+        <text x={cx} y={cy + 3} textAnchor="middle" fill="white" fontSize={16} fontWeight="700">
+          −
+        </text>
+      </g>
+    );
+  }
+
+  return <circle cx={cx} cy={cy} r={5} fill="hsl(var(--muted-foreground))" />;
 }
