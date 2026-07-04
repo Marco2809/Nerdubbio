@@ -14,7 +14,7 @@ import {
   type UpcomingMovie,
   type NextEpisodeInfo,
 } from "@/lib/tmdb/tmdb.functions";
-import { CalendarDays, Film, Tv, Popcorn, MapPin, Sparkles, X } from "lucide-react";
+import { CalendarDays, Film, Popcorn, MapPin, Sparkles, X } from "lucide-react";
 
 const searchSchema = z.object({
   provider: fallback(z.number().int().positive().optional(), undefined),
@@ -25,7 +25,7 @@ export const Route = createFileRoute("/_authenticated/prossimi")({
   head: () => ({
     meta: [
       { title: "Prossime uscite — Nerdubbio" },
-      { name: "description", content: "Film in arrivo al cinema in Italia e prossimi episodi delle tue serie con i provider streaming." },
+      { name: "description", content: "Nuove serie in arrivo su streaming in Italia, premiere delle serie che segui e film al cinema." },
     ],
   }),
   component: ProssimiPage,
@@ -76,15 +76,27 @@ function ProssimiPage() {
   // Filtri "In arrivo su streaming" configurabili dalle Impostazioni.
   const filters = state.upcomingFilters ?? { newSeries: true, seasonPremieres: true, includeMovies: true };
   const followedSet = new Set(uniqueTvIds);
-  const rawUpcomingTv = (upcomingTvQuery.data?.items ?? []).filter(i => {
-    if (followedSet.has(i.tmdb_id)) return false;
+
+  // Solo "prime": serie nuove (stagione 1) per tutti; nuove stagioni SOLO di
+  // serie che segui, e solo con l'episodio 1. Gli episodi correnti delle serie
+  // seguite vivono in home, non qui.
+  const isPremiereEvent = (i: NextEpisodeInfo) => {
     const ev = i.nextEpisode;
-    if (!ev) return false;
-    if (ev.kind === "premiere" && filters.newSeries) return true;
-    if (ev.kind === "episode" && ev.episode === 1 && filters.seasonPremieres) return true;
-    return false;
-  });
-  const rawNextEps = nextEpQuery.data?.items ?? [];
+    return !!ev && (ev.kind === "premiere" || ev.episode === 1);
+  };
+  const passesSeasonRule = (i: NextEpisodeInfo, followed: boolean) => {
+    const season = i.nextEpisode!.season;
+    if (season <= 1) return filters.newSeries;
+    return followed && filters.seasonPremieres;
+  };
+
+  const followedPremieres = (nextEpQuery.data?.items ?? [])
+    .filter(i => isPremiereEvent(i) && passesSeasonRule(i, true));
+  const discoverPremieres = (upcomingTvQuery.data?.items ?? [])
+    .filter(i => !followedSet.has(i.tmdb_id) && isPremiereEvent(i) && passesSeasonRule(i, false));
+
+  const rawUpcomingTv = [...followedPremieres, ...discoverPremieres]
+    .sort((a, b) => (a.nextEpisode?.airDate ?? "").localeCompare(b.nextEpisode?.airDate ?? ""));
   const rawMovies = filters.includeMovies ? (upcomingQuery.data?.items ?? []) : [];
 
   // Provider disponibili: unione da tutte le sezioni, ordinati per frequenza (più comuni prima).
@@ -95,17 +107,15 @@ function ProssimiPage() {
       if (cur) cur.count += 1;
       else freq.set(p.id, { info: p, count: 1 });
     };
-    rawNextEps.forEach(i => i.providers.forEach(bump));
     rawUpcomingTv.forEach(i => i.providers.forEach(bump));
     return Array.from(freq.values())
       .sort((a, b) => b.count - a.count || a.info.name.localeCompare(b.info.name))
       .map(x => x.info);
-  }, [rawNextEps, rawUpcomingTv]);
+  }, [rawUpcomingTv]);
 
   const matchesProvider = <T extends { providers: ProviderInfo[] }>(x: T) =>
     !providerId || x.providers.some(p => p.id === providerId);
 
-  const nextEps = rawNextEps.filter(matchesProvider);
   const upcomingTvItems = rawUpcomingTv.filter(matchesProvider);
   const movies = rawMovies; // il filtro provider non si applica ai film al cinema
 
@@ -166,55 +176,31 @@ function ProssimiPage() {
         </div>
       )}
 
-      {/* Serie che segui */}
-      <section className="mb-6">
-        <div className="mb-3 flex items-center gap-2">
-          <Tv className="h-4 w-4 text-accent" />
-          <h2 className="text-sm font-bold uppercase tracking-wider">Prossimi episodi · Serie che segui</h2>
-        </div>
-        {uniqueTvIds.length === 0 && (
-          <div className="glass rounded-2xl p-4 text-sm text-muted-foreground">
-            Aggiungi qualche serie alla tua watchlist per vedere qui i prossimi episodi in onda.
-          </div>
-        )}
-        {nextEpQuery.isLoading && <SkeletonList />}
-        {uniqueTvIds.length > 0 && nextEpQuery.data && nextEps.length === 0 && (
-          <div className="glass rounded-2xl p-4 text-sm text-muted-foreground">
-            {activeProvider
-              ? <>Nessuna serie seguita ha episodi in arrivo su <strong>{activeProvider.name}</strong>.</>
-              : <>Nessun episodio in arrivo per le serie che stai seguendo. Guarda sotto: ci sono nuove uscite reali su streaming in Italia.</>}
-          </div>
-        )}
-        {nextEps.length > 0 && (
-          <div className="space-y-3">
-            {nextEps.map(it => <NextEpisodeCard key={it.tmdb_id} it={it} />)}
-          </div>
-        )}
-      </section>
-
-      {/* Nuove uscite streaming IT (tutte, non solo le tue) */}
+      {/* Serie in arrivo: nuove serie (S1) + nuove stagioni delle serie che segui */}
       <section className="mb-6">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-accent" />
-            <h2 className="text-sm font-bold uppercase tracking-wider">In arrivo su streaming</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wider">Serie in arrivo su streaming</h2>
           </div>
           <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Prossimi 45 giorni · IT</span>
         </div>
-        {upcomingTvQuery.isLoading && <SkeletonList />}
+        {(upcomingTvQuery.isLoading || nextEpQuery.isLoading) && <SkeletonList />}
         {upcomingTvQuery.error && (
           <div className="glass rounded-2xl p-4 text-sm text-destructive">Impossibile caricare le uscite streaming.</div>
         )}
-        {upcomingTvQuery.data && upcomingTvItems.length === 0 && (
+        {upcomingTvQuery.data && !nextEpQuery.isLoading && upcomingTvItems.length === 0 && (
           <div className="glass rounded-2xl p-4 text-sm text-muted-foreground">
             {activeProvider
-              ? <>Nessuna nuova uscita su <strong>{activeProvider.name}</strong> nei prossimi 45 giorni.</>
-              : "Nessuna nuova uscita rilevata al momento."}
+              ? <>Nessuna nuova serie o premiere su <strong>{activeProvider.name}</strong> nei prossimi 45 giorni.</>
+              : "Nessuna nuova serie o premiere delle tue serie in arrivo al momento."}
           </div>
         )}
         {upcomingTvItems.length > 0 && (
           <div className="space-y-3">
-            {upcomingTvItems.map(it => <NextEpisodeCard key={it.tmdb_id} it={it} />)}
+            {upcomingTvItems.map(it => (
+              <NextEpisodeCard key={it.tmdb_id} it={it} followed={followedSet.has(it.tmdb_id)} />
+            ))}
           </div>
         )}
       </section>
@@ -275,7 +261,7 @@ function ProviderStrip({ providers, label = "Su" }: { providers: ProviderInfo[];
   );
 }
 
-function NextEpisodeCard({ it }: { it: NextEpisodeInfo }) {
+function NextEpisodeCard({ it, followed = false }: { it: NextEpisodeInfo; followed?: boolean }) {
   const ev = it.nextEpisode;
   return (
     <Link to="/media/$type/$id" params={{ type: "tv", id: `tv-${it.tmdb_id}` }}
@@ -287,11 +273,18 @@ function NextEpisodeCard({ it }: { it: NextEpisodeInfo }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <p className="min-w-0 truncate text-sm font-bold">{it.title}</p>
-            {ev?.kind === "premiere" && (
-              <span className="shrink-0 rounded-full bg-neon px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
-                <Sparkles className="mr-1 inline h-3 w-3" />Premiere
-              </span>
-            )}
+            <span className="flex shrink-0 items-center gap-1">
+              {followed && (
+                <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent">
+                  La segui
+                </span>
+              )}
+              {ev?.kind === "premiere" && (
+                <span className="rounded-full bg-neon px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                  <Sparkles className="mr-1 inline h-3 w-3" />Premiere
+                </span>
+              )}
+            </span>
           </div>
           {ev ? (
             <>
