@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { useUserStore, computeStats } from "@/lib/user-store";
 import { useAuthUser } from "@/hooks/use-auth-user";
+import { useFriendRequestCount } from "@/hooks/use-friend-requests-count";
 import { Trophy, Flame, Star, Settings2, Crown, Users, Download, ExternalLink, BarChart3, Tv, Clapperboard } from "lucide-react";
 import { countAllMovies, countAllSeries } from "@/lib/library-display";
 
@@ -22,6 +23,7 @@ const BADGES = [
 function Profile() {
   const { state } = useUserStore();
   const { user, profile } = useAuthUser();
+  const friendRequests = useFriendRequestCount();
   const stats = computeStats(state);
   const seriesCount = countAllSeries(state.media);
   const moviesCount = countAllMovies(state.media);
@@ -125,7 +127,21 @@ function Profile() {
       <section className="mt-6 space-y-2">
         <Link to="/amici" className="glass flex items-center gap-3 rounded-2xl p-4">
           <Users className="h-5 w-5 text-accent" />
-          <div className="flex-1"><p className="text-sm font-semibold">Amici</p><p className="text-xs text-muted-foreground">Cerca nerd, richieste e lista amici</p></div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold">
+              Amici
+              {friendRequests > 0 && (
+                <span className="ml-2 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-white">
+                  {friendRequests > 9 ? "9+" : friendRequests}
+                </span>
+              )}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {friendRequests > 0
+                ? `${friendRequests} richiest${friendRequests === 1 ? "a" : "e"} in attesa`
+                : "Cerca nerd, richieste e lista amici"}
+            </p>
+          </div>
         </Link>
         <Link to="/premium" className="glass flex items-center gap-3 rounded-2xl p-4">
           <Crown className="h-5 w-5 text-accent" />
