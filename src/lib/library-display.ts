@@ -131,3 +131,8 @@ export function countAllSeries(media: Record<string, UserMediaEntry>): number {
 export function countAllMovies(media: Record<string, UserMediaEntry>): number {
   return Object.values(media).filter(m => inferMediaType(m) === "movie" && m.status !== "dropped").length;
 }
+
+/** Già visto/abbandonato — da escludere da trending e suggerimenti discover. */
+export function isMediaAlreadyWatched(entry: UserMediaEntry | undefined): boolean {
+  return entry?.status === "completed" || entry?.status === "dropped";
+}

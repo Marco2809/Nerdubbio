@@ -8,6 +8,7 @@ import { tmdbSearch, tmdbTrending, type TmdbItem } from "@/lib/tmdb/tmdb.functio
 import { Link } from "@tanstack/react-router";
 import { Star } from "lucide-react";
 import { useUserStore } from "@/lib/user-store";
+import { isMediaAlreadyWatched } from "@/lib/library-display";
 import { useReturnPath } from "@/lib/media-nav";
 
 export const Route = createFileRoute("/_authenticated/search")({
@@ -29,7 +30,8 @@ function useDebounced<T>(value: T, delay = 350) {
 function TmdbCard({ item }: { item: TmdbItem }) {
   const { state } = useUserStore();
   const from = useReturnPath();
-  const inLibrary = !!state.media[`${item.type}-${item.tmdb_id}`];
+  const inLibrary = !!state.media[item.id];
+  const isWatched = isMediaAlreadyWatched(state.media[item.id]);
   return (
     <Link
       to="/media/$type/$id"
@@ -49,9 +51,14 @@ function TmdbCard({ item }: { item: TmdbItem }) {
         <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold">
           <Star className="h-3 w-3 fill-accent text-accent" /> {item.rating.toFixed(1)}
         </div>
-        {inLibrary && (
+        {inLibrary && !isWatched && (
           <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-hero px-2 py-1 text-[10px] font-bold text-primary-foreground shadow-glow-pink">
             <BookmarkCheck className="h-3 w-3" /> In lista
+          </div>
+        )}
+        {isWatched && (
+          <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-bold text-white/90">
+            <BookmarkCheck className="h-3 w-3" /> Visto
           </div>
         )}
         <div className="absolute bottom-0 inset-x-0 p-3">
@@ -89,8 +96,8 @@ function SearchPage() {
   const results = useMemo(
     () => raw
       .filter(it => type === "all" || it.type === type)
-      // Su trending nascondi ciò che è già in libreria; nei risultati di ricerca mostra tutto (con badge)
-      .filter(it => debouncedQ ? true : !userState.media[it.id]),
+      // Trending: nascondi solo ciò che hai già visto/abbandonato (non da vedere/in corso)
+      .filter(it => debouncedQ ? true : !isMediaAlreadyWatched(userState.media[it.id]),
     [raw, type, debouncedQ, userState.media]
   );
 

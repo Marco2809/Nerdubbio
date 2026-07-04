@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { AppShell } from "@/components/nerdubbio/AppShell";
@@ -204,11 +204,13 @@ function ProssimiPage() {
           </div>
         )}
         {upcomingTvItems.length > 0 && (
-          <div className="space-y-3">
-            {upcomingTvItems.map(it => (
+          <ShowMoreList
+            items={upcomingTvItems}
+            initial={3}
+            render={it => (
               <NextEpisodeCard key={it.tmdb_id} it={it} followed={followedSet.has(it.tmdb_id)} />
-            ))}
-          </div>
+            )}
+          />
         )}
       </section>
 
@@ -233,13 +235,47 @@ function ProssimiPage() {
             </div>
           )}
           {movies.length > 0 && (
-            <div className="grid grid-cols-1 gap-3">
-              {movies.map(m => <UpcomingMovieCard key={m.tmdb_id} m={m} />)}
-            </div>
+            <ShowMoreList
+              items={movies}
+              initial={3}
+              className="grid grid-cols-1 gap-3"
+              render={m => <UpcomingMovieCard key={m.tmdb_id} m={m} />}
+            />
           )}
         </section>
       )}
     </AppShell>
+  );
+}
+
+function ShowMoreList<T>({
+  items,
+  initial = 3,
+  render,
+  className = "space-y-3",
+}: {
+  items: T[];
+  initial?: number;
+  render: (item: T) => ReactNode;
+  className?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? items : items.slice(0, initial);
+  const hidden = items.length - initial;
+
+  return (
+    <>
+      <div className={className}>{visible.map(render)}</div>
+      {items.length > initial && (
+        <button
+          type="button"
+          onClick={() => setExpanded(v => !v)}
+          className="mt-3 w-full rounded-xl border border-border bg-surface/60 py-2.5 text-xs font-semibold text-muted-foreground transition hover:border-accent hover:text-foreground"
+        >
+          {expanded ? "Mostra meno" : `Mostra altro (${hidden})`}
+        </button>
+      )}
+    </>
   );
 }
 

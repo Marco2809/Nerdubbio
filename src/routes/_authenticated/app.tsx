@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { findById } from "@/lib/mock-catalog";
 import { useUserStore, computeStats, type UserMediaEntry } from "@/lib/user-store";
+import { isMediaAlreadyWatched } from "@/lib/library-display";
 import { Sparkles, Flame, Trophy, TrendingUp } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { tmdbTrending } from "@/lib/tmdb/tmdb.functions";
@@ -79,7 +80,9 @@ function HomeDashboard() {
     staleTime: 1000 * 60 * 30,
   });
 
-  const trendingItems = (trending.data?.items ?? []).filter((it: { id: string }) => !state.media[it.id]);
+  const trendingItems = (trending.data?.items ?? []).filter(
+    (it: { id: string }) => !isMediaAlreadyWatched(state.media[it.id]),
+  );
   const suggestion = trendingItems[0];
 
   const greetName = profile?.display_name || user?.email?.split("@")[0] || "nerd";

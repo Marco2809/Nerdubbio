@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useUserStore, type MediaMeta, type UserMediaEntry } from "@/lib/user-store";
 import {
@@ -24,6 +24,7 @@ type Props = {
 
 export function HomeNextEpisodesSection({ media, from }: Props) {
   const { toggleEpisode } = useUserStore();
+  const [expanded, setExpanded] = useState(false);
   // Ordinate per ultima visione: in cima le serie toccate di recente,
   // mai ripescaggi casuali di anni fa.
   const inProgress = useMemo(
@@ -94,6 +95,9 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
 
   if (inProgress.length === 0) return null;
 
+  const visibleRows = expanded ? rows : rows.slice(0, HOME_NEXT_EPISODES_DISPLAY);
+  const hiddenCount = rows.length - HOME_NEXT_EPISODES_DISPLAY;
+
   return (
     <section className="mt-6">
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -129,7 +133,7 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
       )}
 
       <div className="space-y-3">
-        {rows.slice(0, HOME_NEXT_EPISODES_DISPLAY).map(({ tmdbId, entry, next, fromLocal }) => (
+        {visibleRows.map(({ tmdbId, entry, next, fromLocal }) => (
           <NextEpisodeRow
             key={entry.id}
             entry={entry}
@@ -141,6 +145,16 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
           />
         ))}
       </div>
+
+      {hiddenCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(v => !v)}
+          className="mt-3 w-full rounded-xl border border-border bg-surface/60 py-2.5 text-xs font-semibold text-muted-foreground transition hover:border-accent hover:text-foreground"
+        >
+          {expanded ? "Mostra meno" : `Mostra altro (${hiddenCount})`}
+        </button>
+      )}
     </section>
   );
 }
