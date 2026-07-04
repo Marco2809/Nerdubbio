@@ -302,19 +302,27 @@ function applyEffectsToCandidate(
     if (c.traits.commitment === "long") score -= 6;
   }
 
-  score = Math.max(0, Math.min(100, Math.round(score)));
+  // Nessun tetto superiore: il cap a 100 schiacciava main e alternative sullo
+  // stesso valore ("Match 100%" ovunque). Il % mostrato è calcolato a parte.
+  score = Math.max(0, Math.round(score));
   const eliminated = score < ELIMINATION_THRESHOLD;
   return { score, reasons, penalties, eliminated };
 }
+
+/** Quota di pool che sopravvive a ogni risposta (taglio relativo). */
+const SURVIVOR_RATIO = 0.72;
+const PRUNE_FLOOR = MIN_CANDIDATES + 3;
 
 function applyAnswerToCandidates(
   candidates: NerdacoloCandidate[],
   answer: NerdacoloAnswer,
   mode: NerdacoloMode,
   prevEliminated: number,
+  opts: { prune?: boolean } = {},
 ): { candidates: NerdacoloCandidate[]; eliminatedCount: number } {
+  const prune = opts.prune ?? true;
   let eliminatedCount = prevEliminated;
-  const updated = candidates
+  let updated = candidates
     .map(c => {
       const r = applyEffectsToCandidate(c, answer.effects, mode);
       if (r.eliminated) eliminatedCount++;
@@ -327,6 +335,18 @@ function applyAnswerToCandidates(
     })
     .filter(c => c.score >= ELIMINATION_THRESHOLD)
     .sort((a, b) => b.score - a.score);
+
+  // Taglio relativo: anche con risposte "morbide" ogni domanda elimina la coda
+  // della classifica (~28%), così il restringimento si percepisce sempre.
+  // Disattivato nelle simulazioni di calculateQuestionValue, che devono
+  // misurare quanto elimina la risposta in sé, non il taglio forzato.
+  if (prune) {
+    const keepCount = Math.max(PRUNE_FLOOR, Math.ceil(updated.length * SURVIVOR_RATIO));
+    if (updated.length > keepCount) {
+      eliminatedCount += updated.length - keepCount;
+      updated = updated.slice(0, keepCount);
+    }
+  }
 
   return { candidates: updated, eliminatedCount };
 }
@@ -371,7 +391,7 @@ export function calculateQuestionValue(
   const survivorFractions: number[] = [];
   const leaders = new Set<string>();
   for (const opt of question.options) {
-    const sim = applyAnswerToCandidates(sample, opt, session.mode, 0);
+    const sim = applyAnswerToCandidates(sample, opt, session.mode, 0, { prune: false });
     survivorFractions.push(sim.candidates.length / Math.max(sample.length, 1));
     leaders.add(sim.candidates[0]?.mediaKey ?? "none");
   }
@@ -448,7 +468,9 @@ function computeConfidence(candidates: NerdacoloCandidate[]): number {
   const second = sorted[1];
   const gap = second ? top.score - second.score : top.score;
   const poolFactor = Math.min(1, 1 / Math.max(candidates.length / 8, 1));
-  return Math.min(99, Math.round(top.score * 0.6 + gap * 1.2 + poolFactor * 15));
+  // Il termine sullo score è normalizzato a 100: gli score grezzi non hanno
+  // più tetto e non devono gonfiare la confidence.
+  return Math.min(99, Math.round(Math.min(top.score, 100) * 0.6 + gap * 1.2 + poolFactor * 15));
 }
 
 function shouldStopSession(session: NerdacoloSessionState): boolean {
@@ -680,7 +702,16 @@ export function generateFinalRecommendation(
   const confidence = computeConfidence(sorted);
   const isBoldPick = confidence < 70;
   // Scelta audace → alternative volutamente diverse tra loro, non 3 cloni del main.
-  const alternatives = isBoldPick ? diverseAlternatives(sorted, main) : sorted.slice(1, 4);
+  const rawAlternatives = isBoldPick ? diverseAlternatives(sorted, main) : sorted.slice(1, 4);
+
+  // % di match per la UI: derivata da confidence (main) e dal rapporto tra gli
+  // score grezzi (alternative) — mai un piatto "100% ovunque".
+  const mainPercent = Math.max(55, Math.min(97, Math.round(58 + confidence * 0.4)));
+  const mainForUi = { ...main, score: mainPercent };
+  const alternatives = rawAlternatives.map(alt => ({
+    ...alt,
+    score: Math.max(40, Math.min(mainPercent - 3, Math.round(mainPercent * (main.score > 0 ? alt.score / main.score : 0.8)))),
+  }));
 
   const answerLabels = traitLabelsFromAnswers(sessionState);
   const matchedTraits: string[] = [];
@@ -710,10 +741,10 @@ export function generateFinalRecommendation(
     : `Ti consiglio ${main.title} perché hai scelto ${likedTitles}. Ha ${matchedTraits.join(", ") || "un profilo coerente"} e voto TMDB ${main.tmdbRating.toFixed(1)}.${ratedHint} Ho scartato ${sessionState.eliminatedCount} titoli incompatibili con le tue risposte.`;
 
   return {
-    mainRecommendation: main,
+    mainRecommendation: mainForUi,
     alternativeRecommendations: alternatives,
     explanation,
-    compatibilityScore: main.score,
+    compatibilityScore: mainPercent,
     matchedTraits,
     rejectedButRecoveredTraits: recoveredTraits(sessionState, main),
     whyNotOthers,
