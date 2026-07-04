@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, tmdbWatchProviders, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
 import { useReturnPath, useSmartBack } from "@/lib/media-nav";
 import { toast } from "@/lib/toast";
+import { MediaCommentsSection } from "@/components/nerdubbio/MediaCommentsSection";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -405,6 +406,13 @@ function MediaDetail() {
 
 
         <CastSection cast={creditsQuery.data?.cast ?? []} loading={creditsQuery.isLoading} returnPath={returnPath} />
+
+        {shouldFetchTmdb && Number.isFinite(numericId) && numericId > 0 && (
+          <MediaCommentsSection
+            mediaType={type as "tv" | "movie"}
+            tmdbId={item.tmdb_id ?? numericId}
+          />
+        )}
 
         {(item.similar?.length ?? 0) > 0 ? (
           <section className="mt-6">
