@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatchRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { BrandIcon } from "@/components/nerdubbio/BrandIcon";
 import { NerdacoloTrigger } from "@/components/nerdubbio/NerdacoloTrigger";
@@ -31,6 +31,7 @@ export const Route = createFileRoute("/_authenticated/dubbio")({
 
 function DubbioPage() {
   const navigate = useNavigate();
+  const matchRoute = useMatchRoute();
   const { state } = useUserStore();
   const userContext = useMemo(() => buildNerdacoloUserContext(state), [state]);
 
@@ -122,6 +123,12 @@ function DubbioPage() {
     setSession(null);
     setCurrentQuestion(null);
   };
+
+  // /dubbio/risultato è una route figlia: senza questo Outlet la pagina
+  // risultato "matcha" ma non viene mai renderizzata (quiz bloccato a 11/10).
+  if (matchRoute({ to: "/dubbio/risultato" })) {
+    return <Outlet />;
+  }
 
   if (!mode) {
     return (
