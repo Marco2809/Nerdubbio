@@ -14,6 +14,7 @@ import { fetchDubbioPool, saveDubbioPool } from "@/lib/recommendation/dubbio-poo
 import {
   answerQuestion,
   buildNerdacoloUserContext,
+  generateFinalRecommendation,
   saveNerdacoloResult,
   saveNerdacoloSession,
   startNerdacoloSession,
@@ -94,8 +95,16 @@ function DubbioPage() {
       setOracleLine(result.oracleLine);
       saveNerdacoloSession(result.updatedSessionState);
 
-      if (result.shouldStop && result.finalRecommendation) {
-        saveNerdacoloResult(result.finalRecommendation);
+      const stuckOnSameQuestion =
+        result.nextQuestion != null && result.nextQuestion.id === currentQuestion.id;
+      const finalRec =
+        result.finalRecommendation
+        ?? ((result.shouldStop || !result.nextQuestion || stuckOnSameQuestion)
+          ? generateFinalRecommendation(result.updatedSessionState)
+          : null);
+
+      if (finalRec && (result.shouldStop || !result.nextQuestion || stuckOnSameQuestion)) {
+        saveNerdacoloResult(finalRec);
         saveNerdacoloSession(result.updatedSessionState);
         navigate({ to: "/dubbio/risultato" });
         return;
@@ -103,9 +112,6 @@ function DubbioPage() {
 
       if (result.nextQuestion) {
         setCurrentQuestion(result.nextQuestion);
-      } else if (result.finalRecommendation) {
-        saveNerdacoloResult(result.finalRecommendation);
-        navigate({ to: "/dubbio/risultato" });
       }
     }, 700);
   };

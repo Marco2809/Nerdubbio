@@ -440,12 +440,7 @@ export function chooseNextQuestion(
   if (sessionState.questionCount >= MAX_QUESTIONS) return null;
   if (sessionState.candidates.length <= MIN_CANDIDATES) return null;
 
-  const pool = questionsForMode(sessionState.mode).filter(q => {
-    if (sessionState.askedQuestionIds.includes(q.id)) return false;
-    if (q.appliesTo === "movie" && sessionState.mode === "tv") return false;
-    if (q.appliesTo === "tv" && sessionState.mode === "movie") return false;
-    return true;
-  });
+  const pool = questionsAvailable(sessionState);
 
   if (!pool.length) return null;
 
@@ -473,6 +468,15 @@ function computeConfidence(candidates: NerdacoloCandidate[]): number {
   return Math.min(99, Math.round(Math.min(top.score, 100) * 0.6 + gap * 1.2 + poolFactor * 15));
 }
 
+function questionsAvailable(session: NerdacoloSessionState): NerdacoloQuestion[] {
+  return questionsForMode(session.mode).filter(q => {
+    if (session.askedQuestionIds.includes(q.id)) return false;
+    if (q.appliesTo === "movie" && session.mode === "tv") return false;
+    if (q.appliesTo === "tv" && session.mode === "movie") return false;
+    return true;
+  });
+}
+
 function shouldStopSession(session: NerdacoloSessionState): boolean {
   const conf = computeConfidence(session.candidates);
   session.confidence = conf;
@@ -480,6 +484,7 @@ function shouldStopSession(session: NerdacoloSessionState): boolean {
   const gap = sorted.length >= 2 ? sorted[0]!.score - sorted[1]!.score : sorted[0]?.score ?? 0;
   if (session.questionCount >= MAX_QUESTIONS) return true;
   if (session.candidates.length <= MIN_CANDIDATES) return true;
+  if (questionsAvailable(session).length === 0) return true;
   // Confidence/gap chiudono solo dopo un minimo di domande: il distacco
   // iniziale arriva dallo scoring del pool, non dalle risposte dell'utente.
   if (session.questionCount < MIN_QUESTIONS) return false;
@@ -565,15 +570,25 @@ export function answerQuestion(
     sessionState.mode,
     sessionState.eliminatedCount,
   );
-  const candidates = applied.candidates;
-  // Clamp: se la risposta azzera la pool ripristiniamo i migliori 5, quindi
-  // il conteggio scartati non può superare (pool iniziale - rimasti).
-  const kept = candidates.length ? candidates.length : Math.min(MIN_CANDIDATES, sessionState.candidates.length);
+  let survivors = applied.candidates;
+  // Se la risposta elimina tutti sotto soglia, tieni i migliori 5 già scored
+  // (non ripristinare il pool pre-risposta, che annullava l'effetto e bloccava il quiz).
+  if (!survivors.length) {
+    survivors = [...sessionState.candidates]
+      .map(c => {
+        const r = applyEffectsToCandidate(c, answer.effects, sessionState.mode);
+        return { ...c, score: r.score, reasons: r.reasons, penalties: r.penalties };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, MIN_CANDIDATES);
+  }
+
+  const kept = survivors.length;
   const eliminatedCount = Math.min(applied.eliminatedCount, Math.max(0, sessionState.initialPoolSize - kept));
 
   const updated: NerdacoloSessionState = {
     ...sessionState,
-    candidates: candidates.length ? candidates : sessionState.candidates.slice(0, MIN_CANDIDATES),
+    candidates: survivors,
     eliminatedCount,
     askedQuestionIds: [...sessionState.askedQuestionIds, questionId],
     answers: [
@@ -586,7 +601,7 @@ export function answerQuestion(
       [question.category]: answerId,
     },
     lastOracleLine: answer.funnyReaction,
-    confidence: computeConfidence(candidates.length ? candidates : sessionState.candidates),
+    confidence: computeConfidence(survivors),
   };
 
   if (shouldStopSession(updated)) {
