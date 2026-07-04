@@ -27,6 +27,8 @@ export interface TmdbItem {
   runtimeMin?: number;
   seasons?: number;
   seasonsInfo?: SeasonSummary[];
+  /** TMDB status: Ended, Returning Series, In Production, … */
+  seriesStatus?: string;
 }
 
 async function tmdb<T = any>(path: string, params: Record<string, string | number | undefined> = {}): Promise<T> {
@@ -116,6 +118,7 @@ function mapDetail(r: any, type: "movie" | "tv"): TmdbItem {
             airDate: s.air_date ?? null,
           }))
       : undefined,
+    seriesStatus: type === "tv" ? (r.status ?? undefined) : undefined,
   };
 }
 
@@ -691,6 +694,96 @@ async function findNextUnwatchedEpisode(
 
 type ResolvedShowStatus = "watching" | "completed" | "plan_to_watch";
 
+export function formatSeriesStatusLabel(status: string): string {
+  const map: Record<string, string> = {
+    Ended: "Conclusa",
+    "Returning Series": "In onda",
+    "In Production": "In produzione",
+    Planned: "In programmazione",
+    Canceled: "Annullata",
+    Cancelled: "Annullata",
+  };
+  return map[status] ?? status;
+}
+
+export interface ShowProgressResult {
+  inferredStatus: ResolvedShowStatus;
+  seriesEnded: boolean;
+  seriesStatus: string;
+  seriesStatusLabel: string;
+  /** Nessun episodio già uscito da recuperare dopo l'ultimo visto. */
+  caughtUp: boolean;
+  next: NextUnwatchedInfo | null;
+  /** Sposta automaticamente in "Vista" se la serie è chiusa e in pari. */
+  shouldAutoComplete: boolean;
+}
+
+async function analyzeShowProgress(
+  tmdbId: number,
+  watched: string[],
+  lastSeason?: number,
+  lastEpisode?: number,
+  currentStatus?: string,
+): Promise<ShowProgressResult> {
+  const locked = currentStatus === "favorite" || currentStatus === "paused" || currentStatus === "dropped";
+  const hasProgress = watched.length > 0 || (lastSeason ?? 0) > 0;
+
+  let seriesStatus = "";
+  try {
+    const det = await tmdb<any>(`/tv/${tmdbId}`);
+    seriesStatus = det.status ?? "";
+  } catch {
+    const fallback: ResolvedShowStatus = locked
+      ? ((currentStatus as ResolvedShowStatus) ?? "watching")
+      : hasProgress
+        ? "watching"
+        : "plan_to_watch";
+    return {
+      inferredStatus: fallback,
+      seriesEnded: false,
+      seriesStatus: "",
+      seriesStatusLabel: "",
+      caughtUp: false,
+      next: null,
+      shouldAutoComplete: false,
+    };
+  }
+
+  const next = await findNextUnwatchedEpisode(tmdbId, watched, lastSeason, lastEpisode);
+  const seriesEnded = isDeadSeries(seriesStatus);
+  const caughtUp = !next?.aired;
+
+  let inferredStatus: ResolvedShowStatus = "watching";
+  if (locked) {
+    inferredStatus = (currentStatus as ResolvedShowStatus) ?? "watching";
+  } else if (!hasProgress) {
+    inferredStatus = "plan_to_watch";
+  } else if (next?.aired) {
+    inferredStatus = "watching";
+  } else if (next) {
+    inferredStatus = "watching";
+  } else if (seriesEnded) {
+    inferredStatus = "completed";
+  } else {
+    inferredStatus = "watching";
+  }
+
+  const shouldAutoComplete =
+    !locked
+    && inferredStatus === "completed"
+    && currentStatus !== "completed";
+
+  return {
+    inferredStatus,
+    seriesEnded,
+    seriesStatus,
+    seriesStatusLabel: formatSeriesStatusLabel(seriesStatus),
+    caughtUp,
+    next,
+    shouldAutoComplete,
+  };
+}
+
 async function inferTvShowStatus(
   tmdbId: number,
   watched: string[],
@@ -698,29 +791,27 @@ async function inferTvShowStatus(
   lastEpisode?: number,
   currentStatus?: string,
 ): Promise<ResolvedShowStatus> {
-  const locked = currentStatus === "favorite" || currentStatus === "paused" || currentStatus === "dropped";
-  if (locked) return (currentStatus as ResolvedShowStatus) ?? "watching";
-
-  const hasProgress = watched.length > 0 || (lastSeason ?? 0) > 0;
-  if (!hasProgress) {
-    return currentStatus === "plan_to_watch" ? "plan_to_watch" : "plan_to_watch";
-  }
-
-  let seriesStatus = "";
-  try {
-    const det = await tmdb<any>(`/tv/${tmdbId}`);
-    seriesStatus = det.status ?? "";
-  } catch {
-    return "watching";
-  }
-
-  const next = await findNextUnwatchedEpisode(tmdbId, watched, lastSeason, lastEpisode);
-  if (next?.aired) return "watching";
-  if (next) return "watching";
-
-  if (isDeadSeries(seriesStatus)) return "completed";
-  return "watching";
+  const r = await analyzeShowProgress(tmdbId, watched, lastSeason, lastEpisode, currentStatus);
+  return r.inferredStatus;
 }
+
+export const tmdbCheckShowProgress = createServerFn({ method: "POST" })
+  .inputValidator((data) => z.object({
+    tmdbId: z.number().int().positive(),
+    watched: z.array(z.string()).default([]),
+    lastSeason: z.number().int().positive().optional(),
+    lastEpisode: z.number().int().positive().optional(),
+    currentStatus: z.string().optional(),
+  }).parse(data))
+  .handler(async ({ data }): Promise<ShowProgressResult> => {
+    return analyzeShowProgress(
+      data.tmdbId,
+      data.watched,
+      data.lastSeason,
+      data.lastEpisode,
+      data.currentStatus,
+    );
+  });
 
 export const tmdbResolveShowStatuses = createServerFn({ method: "POST" })
   .inputValidator((data) => z.object({

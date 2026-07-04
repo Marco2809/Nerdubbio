@@ -14,6 +14,7 @@ import {
 } from "@/lib/next-episode";
 import { tmdbNextUnwatched, type NextUnwatchedInfo } from "@/lib/tmdb/tmdb.functions";
 import { PremiereReminderButton } from "@/components/nerdubbio/PremiereReminderButton";
+import { applyShowProgressAfterWatch } from "@/lib/check-show-after-watch";
 import { toast } from "@/lib/toast";
 import { CalendarDays, Check, ChevronRight } from "lucide-react";
 
@@ -23,7 +24,7 @@ type Props = {
 };
 
 export function HomeNextEpisodesSection({ media, from }: Props) {
-  const { toggleEpisode } = useUserStore();
+  const { toggleEpisode, setStatus } = useUserStore();
   const [expanded, setExpanded] = useState(false);
   // Ordinate per ultima visione: in cima le serie toccate di recente,
   // mai ripescaggi casuali di anni fa.
@@ -42,7 +43,17 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
     };
     // episodesPerSeason 999: da qui non conosciamo il totale stagione — nessun
     // falso bonus "+50 stagione completa" (si prende dalla scheda serie).
-    toggleEpisode(entry.id, next.season, next.episode, 999, 1, meta);
+    void toggleEpisode(entry.id, next.season, next.episode, 999, 1, meta).then(nextState => {
+      const updated = nextState.media[entry.id];
+      if (updated) {
+        void applyShowProgressAfterWatch({
+          entry: updated,
+          setStatus,
+          title: entry.title,
+          meta,
+        });
+      }
+    });
     toast.reward(`S${next.season}E${next.episode} vista!`, 15, {
       description: entry.title ?? undefined,
       action: {

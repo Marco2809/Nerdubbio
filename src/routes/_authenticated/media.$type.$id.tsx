@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, tmdbWatchProviders, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
 import { useReturnPath, useSmartBack } from "@/lib/media-nav";
+import { applyShowProgressAfterWatch, formatSeriesStatusLabel } from "@/lib/check-show-after-watch";
 import { toast } from "@/lib/toast";
 import { MediaCommentsSection } from "@/components/nerdubbio/MediaCommentsSection";
 import { MediaRatingsSection } from "@/components/nerdubbio/MediaRatingsSection";
@@ -111,6 +112,24 @@ function MediaDetail() {
 
   const item: CatalogItem = mockItem ?? tmdbToCatalogItem(tmdbQuery.data!.item);
   const entry = state.media[item.id];
+  const mediaMeta = {
+    title: item.title,
+    type: item.type,
+    year: item.year,
+    posterUrl: tmdbQuery.data?.item.posterUrl ?? null,
+    backdropUrl: tmdbQuery.data?.item.backdropUrl ?? null,
+  };
+  const seriesStatus = tmdbQuery.data?.item.seriesStatus;
+
+  const runProgressCheck = (updatedEntry: typeof entry) => {
+    if (!updatedEntry || item.type !== "tv") return;
+    void applyShowProgressAfterWatch({
+      entry: updatedEntry,
+      setStatus,
+      title: item.title,
+      meta: mediaMeta,
+    });
+  };
 
   const actions: { s: UserStatus; label: string; icon: React.ReactNode }[] = [
     { s: "plan_to_watch", label: "Da vedere", icon: <Plus className="h-4 w-4" /> },
@@ -139,6 +158,11 @@ function MediaDetail() {
         </div>
         <div className="mt-3 flex flex-wrap gap-1">
           {item.genres.map(g => <span key={g} className="rounded-full border border-border px-2 py-0.5 text-[10px]">{g}</span>)}
+          {item.type === "tv" && seriesStatus && (
+            <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent">
+              {formatSeriesStatusLabel(seriesStatus)}
+            </span>
+          )}
         </div>
 
         <p className="mt-4 text-sm leading-relaxed text-foreground/90">{item.overview || "Sinossi non disponibile."}</p>
@@ -365,21 +389,16 @@ function MediaDetail() {
             totalSeasons={item.seasons}
             watched={entry?.watchedEpisodes ?? []}
             entry={entry}
-            onToggle={(s, e, epsInSeason, opts) => {
+            onToggle={async (s, e, epsInSeason, opts) => {
               const prevCount = getEpisodeWatchCount(entry, s, e);
-              const meta = {
-                title: item.title, type: item.type, year: item.year,
-                posterUrl: tmdbQuery.data?.item.posterUrl ?? null,
-                backdropUrl: tmdbQuery.data?.item.backdropUrl ?? null,
-              };
               if (opts?.unwatch) {
-                unwatchEpisode(item.id, s, e, epsInSeason, item.seasons!, meta);
+                await unwatchEpisode(item.id, s, e, epsInSeason, item.seasons!, mediaMeta);
                 if (!opts.silent) {
                   if (prevCount > 1) {
                     toast(`S${s}E${e} ×${prevCount} → ×${prevCount - 1}`, {
                       action: {
                         label: "Annulla",
-                        onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, meta),
+                        onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, mediaMeta),
                       },
                       duration: 4000,
                     });
@@ -387,7 +406,7 @@ function MediaDetail() {
                     toast(`S${s}E${e} segnato come non visto`, {
                       action: {
                         label: "Annulla",
-                        onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, meta),
+                        onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, mediaMeta),
                       },
                       duration: 4000,
                     });
@@ -395,13 +414,13 @@ function MediaDetail() {
                 }
                 return;
               }
-              toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, meta)
-                .then(() => {
-                  if (opts?.silent) return;
+              try {
+                const nextState = await toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, mediaMeta);
+                if (!opts?.silent) {
                   const undoFirstWatch = {
                     action: {
                       label: "Annulla",
-                      onClick: () => unwatchEpisode(item.id, s, e, epsInSeason, item.seasons!, meta),
+                      onClick: () => unwatchEpisode(item.id, s, e, epsInSeason, item.seasons!, mediaMeta),
                     },
                     duration: 4000,
                   };
@@ -413,13 +432,23 @@ function MediaDetail() {
                   } else {
                     toast.reward(`S${s}E${e} visto!`, 15, undoFirstWatch);
                   }
-                })
-                .catch((err: unknown) => {
-                  toast.error("Impossibile salvare l'episodio", {
-                    description: err instanceof Error ? err.message : undefined,
-                  });
+                }
+                runProgressCheck(nextState.media[item.id]);
+              } catch (err: unknown) {
+                toast.error("Impossibile salvare l'episodio", {
+                  description: err instanceof Error ? err.message : undefined,
                 });
-              return;
+              }
+            }}
+            onMarkSeasonWatched={async (seasonNumber, episodeNumbers, epsCount) => {
+              let nextState = state;
+              for (const ep of episodeNumbers) {
+                nextState = await toggleEpisode(item.id, seasonNumber, ep, epsCount, item.seasons!, mediaMeta);
+              }
+              toast.reward(`Stagione ${seasonNumber} completata!`, episodeNumbers.length * 15 + 50, {
+                description: `${episodeNumbers.length} episodi segnati come visti`,
+              });
+              runProgressCheck(nextState.media[item.id]);
             }}
           />
 
@@ -479,14 +508,24 @@ function SeriesRating({ value, onChange }: { value: number | undefined; onChange
 }
 
 function SeasonsTracker({
-  item, tmdbId, totalSeasons, watched, entry, onToggle,
+  item, tmdbId, totalSeasons, watched, entry, onToggle, onMarkSeasonWatched,
 }: {
   item: NonNullable<ReturnType<typeof findById>>;
   tmdbId: number | undefined;
   totalSeasons: number;
   watched: string[];
   entry: ReturnType<typeof useUserStore>["state"]["media"][string] | undefined;
-  onToggle: (season: number, episode: number, episodesInSeason: number, opts?: { silent?: boolean; unwatch?: boolean }) => void;
+  onToggle: (
+    season: number,
+    episode: number,
+    episodesInSeason: number,
+    opts?: { silent?: boolean; unwatch?: boolean },
+  ) => void | Promise<void>;
+  onMarkSeasonWatched: (
+    seasonNumber: number,
+    episodeNumbers: number[],
+    epsCount: number,
+  ) => Promise<void>;
 }) {
   const [openSeason, setOpenSeason] = useState<number>(entry?.currentSeason ?? 1);
   useEffect(() => {
@@ -519,6 +558,7 @@ function SeasonsTracker({
               watchedSet={watchedSet}
               entry={entry}
               onToggle={onToggle}
+              onMarkSeasonWatched={onMarkSeasonWatched}
             />
           );
         })}
@@ -533,7 +573,7 @@ function SeasonsTracker({
 }
 
 function SeasonCard({
-  tmdbId, seasonNumber, open, onToggleOpen, watchedSet, entry, onToggle,
+  tmdbId, seasonNumber, open, onToggleOpen, watchedSet, entry, onToggle, onMarkSeasonWatched,
 }: {
   tmdbId: number | undefined;
   seasonNumber: number;
@@ -541,7 +581,17 @@ function SeasonCard({
   onToggleOpen: () => void;
   watchedSet: Set<string>;
   entry: ReturnType<typeof useUserStore>["state"]["media"][string] | undefined;
-  onToggle: (season: number, episode: number, episodesInSeason: number, opts?: { silent?: boolean; unwatch?: boolean }) => void;
+  onToggle: (
+    season: number,
+    episode: number,
+    episodesInSeason: number,
+    opts?: { silent?: boolean; unwatch?: boolean },
+  ) => void | Promise<void>;
+  onMarkSeasonWatched: (
+    seasonNumber: number,
+    episodeNumbers: number[],
+    epsCount: number,
+  ) => Promise<void>;
 }) {
   const q = useQuery({
     queryKey: ["tmdb", "season", tmdbId, seasonNumber],
@@ -557,14 +607,14 @@ function SeasonCard({
   const pct = epsCount ? (watchedInSeason / epsCount) * 100 : 0;
 
   // Toggle silenzioso per episodio + un unico toast riassuntivo (niente spam di notifiche).
-  const markAll = () => {
+  const markAll = async () => {
     const missing = episodes.filter(ep => !watchedSet.has(`S${seasonNumber}E${ep.episodeNumber}`));
-    missing.forEach(ep => onToggle(seasonNumber, ep.episodeNumber, epsCount, { silent: true }));
-    if (missing.length) {
-      toast.reward(`Stagione ${seasonNumber} completata!`, missing.length * 15 + 50, {
-        description: `${missing.length} episodi segnati come visti`,
-      });
-    }
+    if (!missing.length) return;
+    await onMarkSeasonWatched(
+      seasonNumber,
+      missing.map(ep => ep.episodeNumber),
+      epsCount,
+    );
   };
   const unmarkAll = () => {
     const marked = episodes.filter(ep => watchedSet.has(`S${seasonNumber}E${ep.episodeNumber}`));

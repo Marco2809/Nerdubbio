@@ -14,6 +14,14 @@ import {
   type UpcomingMovie,
   type NextEpisodeInfo,
 } from "@/lib/tmdb/tmdb.functions";
+import { ReleaseCalendar } from "@/components/nerdubbio/ReleaseCalendar";
+import {
+  eventsFromMovies,
+  eventsFromNextEpisodes,
+  filterCalendarByProvider,
+  groupCalendarEvents,
+} from "@/lib/release-calendar";
+import { listTvShowsForNextEpisode, tmdbIdFromMediaKey } from "@/lib/next-episode";
 import { CalendarDays, Film, Popcorn, MapPin, Sparkles, X } from "lucide-react";
 
 const searchSchema = z.object({
@@ -25,7 +33,7 @@ export const Route = createFileRoute("/_authenticated/prossimi")({
   head: () => ({
     meta: [
       { title: "Prossime uscite — Nerdubbio" },
-      { name: "description", content: "Nuove serie in arrivo su streaming in Italia, premiere delle serie che segui e film al cinema." },
+      { name: "description", content: "Calendario giorno per giorno dei prossimi episodi, premiere su streaming e film al cinema in Italia." },
     ],
   }),
   component: ProssimiPage,
@@ -45,6 +53,16 @@ function ProssimiPage() {
   const { state } = useUserStore();
   const { provider: providerId } = Route.useSearch();
   const navigate = useNavigate({ from: "/prossimi" });
+  const [calendarMovies, setCalendarMovies] = useState(true);
+
+  const calendarTvEntries = useMemo(
+    () => listTvShowsForNextEpisode(state.media).slice(0, 30),
+    [state.media],
+  );
+  const calendarTvIds = useMemo(
+    () => calendarTvEntries.map(e => tmdbIdFromMediaKey(e.id)).filter((id): id is number => id != null),
+    [calendarTvEntries],
+  );
 
   const followedTv = Object.values(state.media)
     .filter(m => m.status === "watching" || m.status === "plan_to_watch")
@@ -71,6 +89,13 @@ function ProssimiPage() {
     queryKey: ["tmdb", "next-eps", uniqueTvIds],
     queryFn: () => tmdbNextEpisodes({ data: { tvIds: uniqueTvIds, region: "IT" } }),
     enabled: uniqueTvIds.length > 0,
+    staleTime: 1000 * 60 * 30,
+  });
+
+  const calendarEpQuery = useQuery({
+    queryKey: ["tmdb", "calendar-eps", calendarTvIds],
+    queryFn: () => tmdbNextEpisodes({ data: { tvIds: calendarTvIds, region: "IT" } }),
+    enabled: calendarTvIds.length > 0,
     staleTime: 1000 * 60 * 30,
   });
 
@@ -131,9 +156,38 @@ function ProssimiPage() {
 
   const activeProvider = availableProviders.find(p => p.id === providerId);
 
+  const calendarEvents = useMemo(() => {
+    const tvItems = calendarEpQuery.data?.items ?? [];
+    let events = eventsFromNextEpisodes(tvItems, followedSet);
+    if (calendarMovies && filters.includeMovies) {
+      events = [...events, ...eventsFromMovies(upcomingQuery.data?.items ?? [])];
+    }
+    events = filterCalendarByProvider(events, providerId);
+    return groupCalendarEvents(events);
+  }, [
+    calendarEpQuery.data,
+    calendarMovies,
+    filters.includeMovies,
+    followedSet,
+    providerId,
+    upcomingQuery.data,
+  ]);
+
+  const calendarLoading =
+    (calendarTvIds.length > 0 && calendarEpQuery.isLoading)
+    || (calendarMovies && filters.includeMovies && upcomingQuery.isLoading);
+
   return (
-    <AppShell title="Prossimamente" subtitle="Cosa esce, e dove vederlo"
+    <AppShell title="Prossimamente" subtitle="Calendario, premiere e cinema"
       right={<span className="rounded-full bg-hero px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary-foreground">🇮🇹 IT</span>}>
+
+      <ReleaseCalendar
+        days={calendarEvents}
+        loading={calendarLoading}
+        showMovies={calendarMovies}
+        onToggleMovies={setCalendarMovies}
+        hasLibraryShows={calendarTvIds.length > 0}
+      />
 
       {/* Filtro provider */}
       {availableProviders.length > 0 && (
