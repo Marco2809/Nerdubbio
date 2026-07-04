@@ -10,6 +10,7 @@ import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, tmdbWatchProviders, ty
 import { useReturnPath, useSmartBack } from "@/lib/media-nav";
 import { toast } from "@/lib/toast";
 import { MediaCommentsSection } from "@/components/nerdubbio/MediaCommentsSection";
+import { MediaRatingsSection } from "@/components/nerdubbio/MediaRatingsSection";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -344,6 +345,14 @@ function MediaDetail() {
 
         {/* Rating a livello opera */}
         <SeriesRating value={entry?.rating} onChange={(r) => setRating(item.id, r)} />
+
+        {shouldFetchTmdb && Number.isFinite(numericId) && numericId > 0 && (
+          <MediaRatingsSection
+            mediaType={type as "tv" | "movie"}
+            tmdbId={item.tmdb_id ?? numericId}
+            userRating={entry?.rating}
+          />
+        )}
 
 
         {item.type === "tv" && (item.seasons ?? 0) > 0 && (
