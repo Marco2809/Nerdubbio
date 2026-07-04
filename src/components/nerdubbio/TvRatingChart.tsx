@@ -120,7 +120,7 @@ export function TvRatingChart({ seasons }: { seasons: SeasonChartData[] }) {
           <Line
             type="monotone"
             dataKey="score"
-            stroke="hsl(var(--foreground) / 0.45)"
+            stroke="hsl(var(--accent) / 0.55)"
             strokeWidth={2}
             connectNulls
             dot={(props) => (
@@ -131,7 +131,12 @@ export function TvRatingChart({ seasons }: { seasons: SeasonChartData[] }) {
                 multi={chartData.length > 1}
               />
             )}
-            activeDot={false}
+            activeDot={{
+              r: 7,
+              fill: "hsl(var(--accent))",
+              stroke: "hsl(var(--background))",
+              strokeWidth: 2.5,
+            }}
           />
         </LineChart>
       </ChartContainer>
@@ -178,10 +183,9 @@ function EpisodeDot({
   if (isBest) {
     return (
       <g>
-        <circle cx={cx} cy={cy} r={11} fill="#22c55e" />
-        <text x={cx} y={cy + 4} textAnchor="middle" fill="white" fontSize={14} fontWeight="700">
-          +
-        </text>
+        <circle cx={cx} cy={cy} r={12} fill="#10b981" opacity={0.95} />
+        <circle cx={cx} cy={cy} r={12} fill="none" stroke="#6ee7b7" strokeWidth={1.5} opacity={0.8} />
+        <SvgIcon cx={cx} cy={cy} type="star" />
       </g>
     );
   }
@@ -189,13 +193,51 @@ function EpisodeDot({
   if (isWorst) {
     return (
       <g>
-        <circle cx={cx} cy={cy} r={11} fill="#ef4444" />
-        <text x={cx} y={cy + 3} textAnchor="middle" fill="white" fontSize={16} fontWeight="700">
-          −
-        </text>
+        <circle cx={cx} cy={cy} r={12} fill="#f97316" opacity={0.95} />
+        <circle cx={cx} cy={cy} r={12} fill="none" stroke="#fdba74" strokeWidth={1.5} opacity={0.8} />
+        <SvgIcon cx={cx} cy={cy} type="trend-down" />
       </g>
     );
   }
 
-  return <circle cx={cx} cy={cy} r={5} fill="hsl(var(--muted-foreground))" />;
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={7} fill="hsl(var(--accent))" />
+      <circle cx={cx} cy={cy} r={7} fill="none" stroke="hsl(var(--background))" strokeWidth={2.5} />
+    </g>
+  );
+}
+
+/** Piccole icone SVG centrate nel punto del grafico */
+function SvgIcon({ cx, cy, type }: { cx: number; cy: number; type: "star" | "trend-down" }) {
+  const size = 11;
+  const x = cx - size / 2;
+  const y = cy - size / 2;
+
+  if (type === "star") {
+    return (
+      <svg x={x} y={y} width={size} height={size} viewBox="0 0 24 24" fill="white" aria-hidden>
+        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      x={x}
+      y={y}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="white"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <polyline points="22 17 13.5 8.5 8.5 13.5 2 7" />
+      <polyline points="16 17 22 17 22 11" />
+    </svg>
+  );
 }
