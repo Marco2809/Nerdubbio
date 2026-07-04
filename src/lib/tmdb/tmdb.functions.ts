@@ -18,6 +18,7 @@ export interface TmdbItem {
   title: string;
   year: number;
   rating: number;
+  voteCount?: number;
   popularity: number;
   overview: string;
   posterUrl: string | null;
@@ -98,6 +99,7 @@ function mapDetail(r: any, type: "movie" | "tv"): TmdbItem {
     title: title ?? "Senza titolo",
     year: dateStr ? Number(String(dateStr).slice(0, 4)) : 0,
     rating: Number(r.vote_average ?? 0),
+    voteCount: Number(r.vote_count ?? 0),
     popularity: Number(r.popularity ?? 0),
     overview: r.overview ?? "",
     posterUrl: posterUrl(r.poster_path, "w500"),
@@ -237,125 +239,6 @@ export const tmdbSeason = createServerFn({ method: "GET" })
       overview: res.overview ?? "",
       posterUrl: res.poster_path ? `${IMG_BASE}/w342${res.poster_path}` : null,
       episodes,
-    };
-  });
-
-export interface EpisodeRatingPoint {
-  index: number;
-  season: number;
-  episode: number;
-  label: string;
-  name: string;
-  rating: number | null;
-  voteCount: number;
-  airDate: string | null;
-}
-
-export interface SeasonRatingMarker {
-  season: number;
-  startIndex: number;
-  endIndex: number;
-  name: string;
-  avgRating: number;
-  episodeCount: number;
-}
-
-export interface MediaRatingTrend {
-  type: "movie" | "tv";
-  tmdbRating: number;
-  voteCount: number;
-  seriesAvg: number | null;
-  points: EpisodeRatingPoint[];
-  seasonMarkers: SeasonRatingMarker[];
-}
-
-export const tmdbRatingTrend = createServerFn({ method: "GET" })
-  .inputValidator((data) => z.object({
-    type: z.enum(["movie", "tv"]),
-    tmdbId: z.number().int().positive(),
-  }).parse(data))
-  .handler(async ({ data }): Promise<MediaRatingTrend> => {
-    if (data.type === "movie") {
-      const res = await tmdb<any>(`/movie/${data.tmdbId}`);
-      return {
-        type: "movie",
-        tmdbRating: Number(res.vote_average ?? 0),
-        voteCount: Number(res.vote_count ?? 0),
-        seriesAvg: null,
-        points: [],
-        seasonMarkers: [],
-      };
-    }
-
-    const detail = await tmdb<any>(`/tv/${data.tmdbId}`);
-    const seasonNums = (detail.seasons ?? [])
-      .filter((s: any) => s.season_number > 0 && (s.episode_count ?? 0) > 0)
-      .map((s: any) => Number(s.season_number))
-      .sort((a: number, b: number) => a - b);
-
-    const seasonResults = await Promise.all(
-      seasonNums.map((sn: number) => tmdb<any>(`/tv/${data.tmdbId}/season/${sn}`)),
-    );
-
-    const points: EpisodeRatingPoint[] = [];
-    const seasonMarkers: SeasonRatingMarker[] = [];
-    let index = 0;
-    const now = Date.now();
-
-    for (const res of seasonResults) {
-      const sn = Number(res.season_number);
-      const startIndex = index;
-      let sum = 0;
-      let rated = 0;
-
-      for (const e of res.episodes ?? []) {
-        const airDate = e.air_date ?? null;
-        const isFuture = airDate && new Date(airDate).getTime() > now;
-        if (isFuture) continue;
-
-        const voteCount = Number(e.vote_count ?? 0);
-        const rating = voteCount > 0 ? Number(e.vote_average ?? 0) : null;
-        points.push({
-          index,
-          season: sn,
-          episode: Number(e.episode_number),
-          label: `S${sn}E${e.episode_number}`,
-          name: e.name ?? `Episodio ${e.episode_number}`,
-          rating,
-          voteCount,
-          airDate,
-        });
-        if (rating != null) {
-          sum += rating;
-          rated++;
-        }
-        index++;
-      }
-
-      if (startIndex < index) {
-        seasonMarkers.push({
-          season: sn,
-          startIndex,
-          endIndex: index - 1,
-          name: res.name ?? `Stagione ${sn}`,
-          avgRating: rated > 0 ? sum / rated : 0,
-          episodeCount: index - startIndex,
-        });
-      }
-    }
-
-    const ratedPoints = points.filter(p => p.rating != null);
-    const seriesAvg = ratedPoints.length
-      ? ratedPoints.reduce((s, p) => s + (p.rating ?? 0), 0) / ratedPoints.length
-      : null;
-
-    return {
-      type: "tv",
-      tmdbRating: Number(detail.vote_average ?? 0),
-      voteCount: Number(detail.vote_count ?? 0),
-      seriesAvg,
-      points,
-      seasonMarkers,
     };
   });
 

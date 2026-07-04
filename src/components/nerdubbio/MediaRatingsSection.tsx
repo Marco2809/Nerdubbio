@@ -1,62 +1,68 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import { Loader2, Star, TrendingUp } from "lucide-react";
-import { useMemo } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ReferenceArea,
-  ReferenceLine,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import { tmdbRatingTrend } from "@/lib/tmdb/tmdb.functions";
+import { lazy, Suspense, useMemo } from "react";
+import type { SeasonSummary } from "@/lib/tmdb/tmdb.functions";
+import { tmdbSeason } from "@/lib/tmdb/tmdb.functions";
+
+const TvRatingChart = lazy(() =>
+  import("@/components/nerdubbio/TvRatingChart").then(m => ({ default: m.TvRatingChart })),
+);
+
+export type EpisodeRatingPoint = {
+  index: number;
+  season: number;
+  episode: number;
+  label: string;
+  name: string;
+  rating: number | null;
+  voteCount: number;
+  airDate: string | null;
+};
+
+export type SeasonRatingMarker = {
+  season: number;
+  startIndex: number;
+  endIndex: number;
+  name: string;
+  avgRating: number;
+  episodeCount: number;
+};
 
 type Props = {
   mediaType: "tv" | "movie";
   tmdbId: number;
+  tmdbRating: number;
+  voteCount?: number;
+  seasonsInfo?: SeasonSummary[];
   userRating?: number;
 };
 
-const chartConfig = {
-  rating: {
-    label: "Voto TMDB",
-    color: "hsl(var(--accent))",
-  },
-};
+export function MediaRatingsSection({
+  mediaType,
+  tmdbId,
+  tmdbRating,
+  voteCount = 0,
+  seasonsInfo,
+  userRating,
+}: Props) {
+  const seasons = seasonsInfo ?? [];
 
-const SEASON_COLORS = [
-  "hsl(var(--accent) / 0.06)",
-  "hsl(var(--hero) / 0.06)",
-];
-
-export function MediaRatingsSection({ mediaType, tmdbId, userRating }: Props) {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["tmdb", "rating-trend", mediaType, tmdbId],
-    queryFn: () => tmdbRatingTrend({ data: { type: mediaType, tmdbId } }),
-    enabled: tmdbId > 0,
-    staleTime: 1000 * 60 * 60 * 6,
+  const seasonQueries = useQueries({
+    queries: seasons.map(s => ({
+      queryKey: ["tmdb", "season", tmdbId, s.seasonNumber],
+      queryFn: () => tmdbSeason({ data: { tmdbId, seasonNumber: s.seasonNumber } }),
+      enabled: mediaType === "tv" && tmdbId > 0,
+      staleTime: 1000 * 60 * 60,
+    })),
   });
 
+  const seasonsLoading = seasonQueries.some(q => q.isLoading);
+  const trend = useMemo(
+    () => (mediaType === "tv" ? buildEpisodeTrend(seasonQueries.map(q => q.data)) : null),
+    [mediaType, seasonQueries],
+  );
+
   if (tmdbId <= 0) return null;
-
-  if (isLoading) {
-    return (
-      <section className="mt-6">
-        <SectionHeader />
-        <div className="glass flex h-32 items-center justify-center rounded-2xl">
-          <Loader2 className="h-5 w-5 animate-spin text-accent" />
-        </div>
-      </section>
-    );
-  }
-
-  if (error || !data) return null;
 
   if (mediaType === "movie") {
     return (
@@ -65,13 +71,13 @@ export function MediaRatingsSection({ mediaType, tmdbId, userRating }: Props) {
         <div className="grid grid-cols-2 gap-2">
           <ScoreCard
             label="TMDB"
-            value={data.tmdbRating}
-            detail={formatVoteCount(data.voteCount)}
+            value={tmdbRating}
+            detail={formatVoteCount(voteCount)}
             accent
           />
           <ScoreCard
             label="Il tuo voto"
-            value={userRating != null ? userRating : null}
+            value={userRating ?? null}
             detail={userRating != null ? "su 10" : "Non ancora votato"}
             muted={userRating == null}
           />
@@ -80,27 +86,56 @@ export function MediaRatingsSection({ mediaType, tmdbId, userRating }: Props) {
     );
   }
 
-  const chartPoints = data.points.filter(p => p.rating != null);
-  if (chartPoints.length === 0) return null;
+  const chartPoints = trend?.points.filter(p => p.rating != null) ?? [];
+  const subtitle = trend?.seriesAvg != null
+    ? `Media episodi ${trend.seriesAvg.toFixed(1)}/10 · TMDB ${tmdbRating.toFixed(1)}`
+    : `TMDB ${tmdbRating.toFixed(1)}`;
 
   return (
     <section className="mt-6">
-      <SectionHeader
-        subtitle={
-          data.seriesAvg != null
-            ? `Media episodi ${data.seriesAvg.toFixed(1)}/10 · TMDB ${data.tmdbRating.toFixed(1)}`
-            : `TMDB ${data.tmdbRating.toFixed(1)}`
-        }
-      />
-      <TvRatingChart
-        points={data.points}
-        seasonMarkers={data.seasonMarkers}
-        seriesAvg={data.seriesAvg}
-        userRating={userRating}
-      />
-      {data.seasonMarkers.length > 1 && (
+      <SectionHeader subtitle={subtitle} />
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <ScoreCard label="TMDB serie" value={tmdbRating} detail={formatVoteCount(voteCount)} accent />
+        <ScoreCard
+          label="Il tuo voto"
+          value={userRating ?? null}
+          detail={userRating != null ? "su 10" : "Non ancora votato"}
+          muted={userRating == null}
+        />
+      </div>
+
+      {seasonsLoading && (
+        <div className="glass flex h-28 items-center justify-center rounded-2xl">
+          <Loader2 className="h-5 w-5 animate-spin text-accent" />
+        </div>
+      )}
+
+      {!seasonsLoading && chartPoints.length > 0 && trend && (
+        <Suspense
+          fallback={
+            <div className="glass flex h-28 items-center justify-center rounded-2xl">
+              <Loader2 className="h-5 w-5 animate-spin text-accent" />
+            </div>
+          }
+        >
+          <TvRatingChart
+            points={trend.points}
+            seasonMarkers={trend.seasonMarkers}
+            seriesAvg={trend.seriesAvg}
+            userRating={userRating}
+          />
+        </Suspense>
+      )}
+
+      {!seasonsLoading && chartPoints.length === 0 && (
+        <p className="glass rounded-2xl p-4 text-center text-sm text-muted-foreground">
+          Grafico episodi non disponibile: TMDB non ha ancora abbastanza voti per episodio.
+        </p>
+      )}
+
+      {!seasonsLoading && (trend?.seasonMarkers.length ?? 0) > 1 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {data.seasonMarkers.map(m => (
+          {trend!.seasonMarkers.map(m => (
             <span
               key={m.season}
               className="rounded-full border border-border bg-surface/50 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground"
@@ -112,6 +147,68 @@ export function MediaRatingsSection({ mediaType, tmdbId, userRating }: Props) {
       )}
     </section>
   );
+}
+
+function buildEpisodeTrend(
+  seasons: Array<Awaited<ReturnType<typeof tmdbSeason>> | undefined>,
+): {
+  points: EpisodeRatingPoint[];
+  seasonMarkers: SeasonRatingMarker[];
+  seriesAvg: number | null;
+} {
+  const points: EpisodeRatingPoint[] = [];
+  const seasonMarkers: SeasonRatingMarker[] = [];
+  let index = 0;
+  const now = Date.now();
+
+  for (const data of seasons) {
+    if (!data) continue;
+    const sn = data.seasonNumber;
+    const startIndex = index;
+    let sum = 0;
+    let rated = 0;
+
+    for (const e of data.episodes) {
+      const airDate = e.airDate;
+      const isFuture = airDate && new Date(airDate).getTime() > now;
+      if (isFuture) continue;
+
+      const rating = e.voteCount > 0 ? e.voteAverage : null;
+      points.push({
+        index,
+        season: sn,
+        episode: e.episodeNumber,
+        label: `S${sn}E${e.episodeNumber}`,
+        name: e.name,
+        rating,
+        voteCount: e.voteCount,
+        airDate,
+      });
+      if (rating != null) {
+        sum += rating;
+        rated++;
+      }
+      index++;
+    }
+
+    if (startIndex < index) {
+      seasonMarkers.push({
+        season: sn,
+        startIndex,
+        endIndex: index - 1,
+        name: data.name,
+        avgRating: rated > 0 ? sum / rated : 0,
+        episodeCount: index - startIndex,
+      });
+    }
+  }
+
+  const ratedPoints = points.filter(p => p.rating != null);
+  const seriesAvg = ratedPoints.length
+    ? ratedPoints.reduce((s, p) => s + (p.rating ?? 0), 0) / ratedPoints.length
+    : null;
+
+  return { points, seasonMarkers, seriesAvg };
 }
 
 function SectionHeader({ subtitle }: { subtitle?: string }) {
@@ -155,116 +252,6 @@ function ScoreCard({
         )}
       </div>
       <p className="mt-1 text-[11px] text-muted-foreground">{detail}</p>
-    </div>
-  );
-}
-
-function TvRatingChart({
-  points,
-  seasonMarkers,
-  seriesAvg,
-  userRating,
-}: {
-  points: import("@/lib/tmdb/tmdb.functions").EpisodeRatingPoint[];
-  seasonMarkers: import("@/lib/tmdb/tmdb.functions").SeasonRatingMarker[];
-  seriesAvg: number | null;
-  userRating?: number;
-}) {
-  const seasonTicks = useMemo(() => {
-    const ticks = new Map<number, string>();
-    for (const m of seasonMarkers) {
-      ticks.set(m.startIndex, `S${m.season}`);
-    }
-    return ticks;
-  }, [seasonMarkers]);
-
-  const chartWidth = Math.max(320, points.length * 12);
-
-  return (
-    <div className="glass overflow-hidden rounded-2xl p-3">
-      {userRating != null && (
-        <p className="mb-2 text-[11px] text-muted-foreground">
-          Il tuo voto serie: <span className="font-bold text-accent">{userRating}/10</span>
-        </p>
-      )}
-      <div className="overflow-x-auto -mx-1 px-1 pb-1">
-        <div style={{ minWidth: chartWidth }}>
-          <ChartContainer config={chartConfig} className="h-[220px] w-full">
-            <AreaChart data={points} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" />
-              {seasonMarkers.map((m, i) => (
-                <ReferenceArea
-                  key={m.season}
-                  x1={m.startIndex}
-                  x2={m.endIndex + 0.99}
-                  fill={SEASON_COLORS[i % SEASON_COLORS.length]}
-                  strokeOpacity={0}
-                />
-              ))}
-              {seriesAvg != null && (
-                <ReferenceLine
-                  y={seriesAvg}
-                  stroke="hsl(var(--muted-foreground))"
-                  strokeDasharray="4 4"
-                  strokeOpacity={0.6}
-                />
-              )}
-              <XAxis
-                dataKey="index"
-                tickLine={false}
-                axisLine={false}
-                interval={0}
-                tick={({ x, y, payload }) => {
-                  const label = seasonTicks.get(Number(payload.value));
-                  if (!label) return null;
-                  return (
-                    <text x={x} y={y + 12} textAnchor="middle" fill="hsl(var(--muted-foreground))" fontSize={10}>
-                      {label}
-                    </text>
-                  );
-                }}
-              />
-              <YAxis
-                domain={[0, 10]}
-                ticks={[0, 2, 4, 6, 8, 10]}
-                tickLine={false}
-                axisLine={false}
-                width={28}
-                tick={{ fontSize: 10 }}
-              />
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(_, payload) => {
-                      const p = payload?.[0]?.payload as typeof points[number] | undefined;
-                      if (!p) return "";
-                      return `${p.label} · ${p.name}`;
-                    }}
-                    formatter={(value) => [
-                      typeof value === "number" ? `${value.toFixed(1)}/10` : "—",
-                      "TMDB",
-                    ]}
-                  />
-                }
-              />
-              <Area
-                type="monotone"
-                dataKey="rating"
-                stroke="hsl(var(--accent))"
-                fill="hsl(var(--accent))"
-                fillOpacity={0.2}
-                strokeWidth={2}
-                dot={{ r: 2, fill: "hsl(var(--accent))", strokeWidth: 0 }}
-                activeDot={{ r: 4 }}
-                connectNulls={false}
-              />
-            </AreaChart>
-          </ChartContainer>
-        </div>
-      </div>
-      <p className="mt-1 text-center text-[10px] text-muted-foreground">
-        Scorri → · linea tratteggiata = media episodi
-      </p>
     </div>
   );
 }

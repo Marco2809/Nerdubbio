@@ -350,6 +350,9 @@ function MediaDetail() {
           <MediaRatingsSection
             mediaType={type as "tv" | "movie"}
             tmdbId={item.tmdb_id ?? numericId}
+            tmdbRating={tmdbQuery.data?.item.rating ?? item.rating}
+            voteCount={tmdbQuery.data?.item.voteCount}
+            seasonsInfo={tmdbQuery.data?.item.seasonsInfo}
             userRating={entry?.rating}
           />
         )}
