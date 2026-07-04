@@ -6,6 +6,7 @@ import {
   clearNerdacoloSession,
   loadNerdacoloResult,
   loadNerdacoloSession,
+  recordNerdacoloFeedback,
 } from "@/lib/recommendation/nerdacoloEngine";
 import type { NerdacoloCandidate, NerdacoloFinalResult } from "@/lib/recommendation/nerdacolo-types";
 import { useUserStore, type MediaMeta } from "@/lib/user-store";
@@ -136,9 +137,11 @@ function ResultPage() {
     }
   };
 
+  // Il feedback aggiorna anche i pesi delle sessioni future (bias persistente).
   const handleFeedback = (action: FeedbackAction) => {
     switch (action) {
       case "perfect":
+        recordNerdacoloFeedback("perfect");
         toast.success("Perfetto! La sfera ringrazia.");
         unlockAchievement();
         break;
@@ -151,28 +154,33 @@ function ResultPage() {
         toast("Scartato — non te lo propongo più");
         break;
       case "heavy":
+        recordNerdacoloFeedback("lighter");
         dismiss(mediaId);
         toast("Ok, la prossima sarà più leggera");
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
         break;
       case "light":
+        recordNerdacoloFeedback("heavier");
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
         toast("Rifai il Dubbio per qualcosa di più intenso");
         break;
       case "long":
+        recordNerdacoloFeedback("shorter");
         dismiss(mediaId);
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
         toast("Cerco qualcosa di più breve");
         break;
       case "action":
+        recordNerdacoloFeedback("action");
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
         toast("Rifai il Dubbio con più azione");
         break;
       case "niche":
+        recordNerdacoloFeedback("niche");
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
         toast("Rifai il Dubbio per una chicca");
@@ -214,6 +222,11 @@ function ResultPage() {
               </span>
             ))}
           </div>
+        )}
+        {result.rejectedButRecoveredTraits.length > 0 && (
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Avviso della sfera: include comunque {result.rejectedButRecoveredTraits.join(", ")} — dosati bene.
+          </p>
         )}
       </div>
 

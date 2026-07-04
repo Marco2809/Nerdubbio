@@ -63,8 +63,19 @@ export type NerdacoloUserContext = {
   moodProfile: string[];
   /** Titoli votati ≥8 con chiave media */
   highlyRatedIds: string[];
+  /** Nomi dei titoli votati ≥8 — usati per spiegazioni concrete ("hai amato Dark") */
+  highlyRatedTitles?: string[];
   language: "it" | "en";
   country: string;
+};
+
+/** Bias persistente dal feedback post-risultato — applicato alle sessioni future. */
+export type NerdacoloFeedbackBias = {
+  lighter: number;
+  heavier: number;
+  shorter: number;
+  action: number;
+  niche: number;
 };
 
 export type ScoringEffects = {
@@ -155,6 +166,8 @@ export type NerdacoloSessionState = {
   country: string;
   /** Ultima frase del Nerdacolo mostrata in UI */
   lastOracleLine?: string;
+  /** Nomi dei titoli votati alto — per la spiegazione finale */
+  ratedTitles?: string[];
 };
 
 export type NerdacoloStartParams = {
@@ -198,6 +211,9 @@ export type NerdacoloFinalResult = {
 };
 
 export const MAX_QUESTIONS = 10;
+/** Sotto questa soglia di domande non si chiude per confidence/gap: il gap
+    iniziale viene dal pool, non dalle risposte dell'utente. */
+export const MIN_QUESTIONS = 4;
 export const MIN_CANDIDATES = 5;
 export const CONFIDENCE_STOP = 85;
 export const SCORE_GAP_STOP = 15;

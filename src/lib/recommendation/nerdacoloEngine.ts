@@ -34,11 +34,13 @@ import type {
   NerdacoloUserContext,
   ScoringEffects,
 } from "./nerdacolo-types";
+import type { NerdacoloFeedbackBias } from "./nerdacolo-types";
 import {
   CONFIDENCE_STOP,
   ELIMINATION_THRESHOLD,
   MAX_QUESTIONS,
   MIN_CANDIDATES,
+  MIN_QUESTIONS,
   SCORE_GAP_STOP,
 } from "./nerdacolo-types";
 
@@ -80,9 +82,12 @@ export function buildNerdacoloUserContext(
     )
     .map(([k]) => k);
 
-  const highlyRatedIds = Object.entries(state.media)
-    .filter(([, m]) => (m.rating ?? 0) >= 8)
-    .map(([k]) => k);
+  const highlyRated = Object.entries(state.media).filter(([, m]) => (m.rating ?? 0) >= 8);
+  const highlyRatedIds = highlyRated.map(([k]) => k);
+  const highlyRatedTitles = highlyRated
+    .map(([, m]) => m.title)
+    .filter((t): t is string => !!t)
+    .slice(0, 6);
 
   return {
     userId,
@@ -93,9 +98,71 @@ export function buildNerdacoloUserContext(
     excludedGenres: [],
     moodProfile: state.moodProfile ?? [],
     highlyRatedIds,
+    highlyRatedTitles,
     language,
     country: "IT",
   };
+}
+
+// ============================================================
+// Feedback bias persistente — il feedback post-risultato pesa
+// sulle sessioni future (spec: "il feedback deve aggiornare pesi futuri").
+// ============================================================
+
+const FEEDBACK_BIAS_KEY = "nerdubbio:nerdacolo-feedback-bias:v1";
+const EMPTY_BIAS: NerdacoloFeedbackBias = { lighter: 0, heavier: 0, shorter: 0, action: 0, niche: 0 };
+
+export function loadFeedbackBias(): NerdacoloFeedbackBias {
+  if (typeof localStorage === "undefined") return { ...EMPTY_BIAS };
+  try {
+    const raw = localStorage.getItem(FEEDBACK_BIAS_KEY);
+    return raw ? { ...EMPTY_BIAS, ...(JSON.parse(raw) as Partial<NerdacoloFeedbackBias>) } : { ...EMPTY_BIAS };
+  } catch {
+    return { ...EMPTY_BIAS };
+  }
+}
+
+/** Registra feedback dell'utente sul risultato. "perfect" fa decadere i bias. */
+export function recordNerdacoloFeedback(
+  kind: keyof NerdacoloFeedbackBias | "perfect",
+) {
+  if (typeof localStorage === "undefined") return;
+  const bias = loadFeedbackBias();
+  if (kind === "perfect") {
+    for (const k of Object.keys(bias) as (keyof NerdacoloFeedbackBias)[]) {
+      bias[k] = Math.max(0, bias[k] - 1);
+    }
+  } else {
+    bias[kind] = Math.min(3, bias[kind] + 1);
+  }
+  localStorage.setItem(FEEDBACK_BIAS_KEY, JSON.stringify(bias));
+}
+
+/** Applica il bias accumulato allo score iniziale dei candidati (effetto soft, max ±9). */
+function applyFeedbackBias(c: NerdacoloCandidate, bias: NerdacoloFeedbackBias): number {
+  let delta = 0;
+  if (bias.lighter) {
+    delta += traitToNumber("comedyLevel", c.traits.comedyLevel) * bias.lighter * 2;
+    delta -= traitToNumber("emotionalImpact", c.traits.emotionalImpact) === -1 ? bias.lighter * 3 : 0;
+    if (c.traits.horrorLevel === "high") delta -= bias.lighter * 3;
+  }
+  if (bias.heavier) {
+    if (c.traits.emotionalImpact === "heavy") delta += bias.heavier * 3;
+    if (c.traits.comedyLevel === "high") delta -= bias.heavier * 2;
+  }
+  if (bias.shorter) {
+    if (c.traits.commitment === "short") delta += bias.shorter * 3;
+    if (c.traits.commitment === "long") delta -= bias.shorter * 3;
+  }
+  if (bias.action) {
+    if (c.traits.pace === "fast") delta += bias.action * 2;
+    if (c.traits.visualSpectacle === "high") delta += bias.action * 1;
+  }
+  if (bias.niche) {
+    if (c.traits.mainstreamLevel === "hidden_gem") delta += bias.niche * 3;
+    if (c.traits.mainstreamLevel === "mainstream") delta -= bias.niche * 2;
+  }
+  return Math.max(-9, Math.min(9, Math.round(delta)));
 }
 
 function filterPoolByMode(
@@ -281,7 +348,15 @@ function traitVariance(
   return vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length;
 }
 
-/** Potere discriminante di una domanda sui candidati rimasti. */
+/**
+ * Potere discriminante di una domanda sui candidati rimasti.
+ *
+ * Simula ogni opzione sul pool e misura:
+ * - quanto le opzioni dividono il campo (varianza dei sopravvissuti);
+ * - se opzioni diverse producono vincitori diversi (la domanda può
+ *   davvero cambiare il risultato finale, non solo lo score).
+ * AI: in futuro sostituibile con information gain su embedding dei candidati.
+ */
 export function calculateQuestionValue(
   question: NerdacoloQuestion,
   session: NerdacoloSessionState,
@@ -291,13 +366,22 @@ export function calculateQuestionValue(
   const candidates = session.candidates;
   if (!candidates.length) return -999;
 
-  let candidateSplitPower = 0;
+  // Campione (top 60) per tenere il costo costante anche con pool grandi.
+  const sample = candidates.slice(0, 60);
+  const survivorFractions: number[] = [];
+  const leaders = new Set<string>();
   for (const opt of question.options) {
-    const sim = applyAnswerToCandidates([...candidates], opt, session.mode, 0);
-    const top = sim.candidates[0]?.title ?? "";
-    candidateSplitPower += top ? 1 : 0;
+    const sim = applyAnswerToCandidates(sample, opt, session.mode, 0);
+    survivorFractions.push(sim.candidates.length / Math.max(sample.length, 1));
+    leaders.add(sim.candidates[0]?.mediaKey ?? "none");
   }
-  candidateSplitPower = candidateSplitPower / Math.max(question.options.length, 1);
+  const meanSurv = survivorFractions.reduce((a, b) => a + b, 0) / Math.max(survivorFractions.length, 1);
+  const survSpread =
+    survivorFractions.reduce((s, f) => s + (f - meanSurv) ** 2, 0) / Math.max(survivorFractions.length, 1);
+  // Opzioni che eliminano quote diverse di pool = domanda che taglia davvero.
+  // Vincitori diversi tra opzioni = domanda che può ribaltare la classifica.
+  const leaderChange = (leaders.size - 1) / Math.max(question.options.length - 1, 1);
+  const candidateSplitPower = Math.min(1, survSpread * 8 + leaderChange * 0.7);
 
   let uncertaintyReduction = 0;
   for (const trait of question.discriminates) {
@@ -372,12 +456,12 @@ function shouldStopSession(session: NerdacoloSessionState): boolean {
   session.confidence = conf;
   const sorted = [...session.candidates].sort((a, b) => b.score - a.score);
   const gap = sorted.length >= 2 ? sorted[0]!.score - sorted[1]!.score : sorted[0]?.score ?? 0;
-  return (
-    session.questionCount >= MAX_QUESTIONS ||
-    conf >= CONFIDENCE_STOP ||
-    gap >= SCORE_GAP_STOP ||
-    session.candidates.length <= MIN_CANDIDATES
-  );
+  if (session.questionCount >= MAX_QUESTIONS) return true;
+  if (session.candidates.length <= MIN_CANDIDATES) return true;
+  // Confidence/gap chiudono solo dopo un minimo di domande: il distacco
+  // iniziale arriva dallo scoring del pool, non dalle risposte dell'utente.
+  if (session.questionCount < MIN_QUESTIONS) return false;
+  return conf >= CONFIDENCE_STOP || gap >= SCORE_GAP_STOP;
 }
 
 export function startNerdacoloSession(params: NerdacoloStartParams): NerdacoloStartResult {
@@ -386,6 +470,15 @@ export function startNerdacoloSession(params: NerdacoloStartParams): NerdacoloSt
 
   const filtered = filterPoolByMode(catalog, params.mode, params.userProfile);
   let candidates = buildInitialCandidates(filtered, params.userProfile);
+
+  // Il feedback delle sessioni passate ("troppo pesante", "meno mainstream"…)
+  // pesa sullo score iniziale — effetto soft, l'utente può sempre smentirlo rispondendo.
+  const bias = loadFeedbackBias();
+  if (Object.values(bias).some(v => v > 0)) {
+    candidates = candidates
+      .map(c => ({ ...c, score: Math.max(0, Math.min(100, c.score + applyFeedbackBias(c, bias))) }))
+      .sort((a, b) => b.score - a.score);
+  }
 
   if (candidates.length < 20) {
     const fallback = filterPoolByMode(CATALOG, params.mode, params.userProfile);
@@ -404,6 +497,7 @@ export function startNerdacoloSession(params: NerdacoloStartParams): NerdacoloSt
     sessionId: randomId(),
     mode: params.mode,
     candidates: candidates.slice(0, 150),
+    ratedTitles: (params.userProfile.highlyRatedTitles ?? []).slice(0, 3),
     initialPoolSize: candidates.length,
     eliminatedCount: 0,
     acceptedTraits: {},
@@ -443,12 +537,17 @@ export function answerQuestion(
   const answer = question.options.find(o => o.id === answerId);
   if (!answer) throw new Error(`Risposta sconosciuta: ${answerId}`);
 
-  const { candidates, eliminatedCount } = applyAnswerToCandidates(
+  const applied = applyAnswerToCandidates(
     sessionState.candidates,
     answer,
     sessionState.mode,
     sessionState.eliminatedCount,
   );
+  const candidates = applied.candidates;
+  // Clamp: se la risposta azzera la pool ripristiniamo i migliori 5, quindi
+  // il conteggio scartati non può superare (pool iniziale - rimasti).
+  const kept = candidates.length ? candidates.length : Math.min(MIN_CANDIDATES, sessionState.candidates.length);
+  const eliminatedCount = Math.min(applied.eliminatedCount, Math.max(0, sessionState.initialPoolSize - kept));
 
   const updated: NerdacoloSessionState = {
     ...sessionState,
@@ -513,14 +612,75 @@ function traitLabelsFromAnswers(session: NerdacoloSessionState): string[] {
   return labels.slice(-5);
 }
 
+/** Differenza chiave alt vs main — per un "perché no" concreto invece dei punti. */
+function keyDifference(main: NerdacoloCandidate, alt: NerdacoloCandidate): string {
+  if (alt.traits.commitment === "long" && main.traits.commitment !== "long") return "impegno troppo lungo";
+  if (alt.traits.emotionalImpact === "heavy" && main.traits.emotionalImpact !== "heavy") return "più pesante di quel che cercavi";
+  if (alt.traits.horrorLevel === "high" && main.traits.horrorLevel !== "high") return "troppo horror per stasera";
+  if (alt.traits.comedyLevel === "high" && main.traits.comedyLevel !== "high") return "troppo leggero rispetto al mood";
+  if (alt.traits.complexity === "complex" && main.traits.complexity !== "complex") return "chiede più neuroni di quelli dichiarati";
+  if (alt.traits.pace === "slow" && main.traits.pace !== "slow") return "ritmo più lento";
+  if (alt.traits.mainstreamLevel === "mainstream" && main.traits.mainstreamLevel !== "mainstream") return "troppo mainstream per la richiesta";
+  return "meno allineato alle tue risposte";
+}
+
+/** Per le scelte audaci: 3 alternative massimamente diverse tra loro (greedy sui generi). */
+function diverseAlternatives(sorted: NerdacoloCandidate[], main: NerdacoloCandidate): NerdacoloCandidate[] {
+  const pool = sorted.slice(1, 15);
+  const picked: NerdacoloCandidate[] = [];
+  const genreSets = [new Set(main.genres)];
+  for (const c of pool) {
+    if (picked.length >= 3) break;
+    const overlapMax = Math.max(
+      ...genreSets.map(gs => c.genres.filter(g => gs.has(g)).length),
+      0,
+    );
+    if (overlapMax <= 1) {
+      picked.push(c);
+      genreSets.push(new Set(c.genres));
+    }
+  }
+  // Se la diversità non basta, completa con i migliori per score.
+  for (const c of pool) {
+    if (picked.length >= 3) break;
+    if (!picked.includes(c)) picked.push(c);
+  }
+  return picked;
+}
+
+/** Trait penalizzati dalle risposte ma comunque presenti (moderati) nel vincitore. */
+function recoveredTraits(session: NerdacoloSessionState, main: NerdacoloCandidate): string[] {
+  const penalized = new Set<string>();
+  for (const a of session.answers) {
+    const q = NERDACOLO_QUESTION_BY_ID[a.questionId];
+    const opt = q?.options.find(o => o.id === a.answerId);
+    for (const k of Object.keys(opt?.effects.penalizeTraits ?? {})) penalized.add(k);
+  }
+  const labels: Record<string, string> = {
+    violenceLevel: "un po' di violenza",
+    horrorLevel: "qualche brivido",
+    emotionalImpact: "momenti intensi",
+    complexity: "qualche incastro di trama",
+    romanceLevel: "una vena romantica",
+  };
+  const out: string[] = [];
+  for (const [k, label] of Object.entries(labels)) {
+    if (!penalized.has(k)) continue;
+    const v = main.traits[k as keyof NerdacoloTraits];
+    if (v === "medium") out.push(label);
+  }
+  return out;
+}
+
 export function generateFinalRecommendation(
   sessionState: NerdacoloSessionState,
 ): NerdacoloFinalResult {
   const sorted = [...sessionState.candidates].sort((a, b) => b.score - a.score);
   const main = sorted[0]!;
-  const alternatives = sorted.slice(1, 4);
   const confidence = computeConfidence(sorted);
   const isBoldPick = confidence < 70;
+  // Scelta audace → alternative volutamente diverse tra loro, non 3 cloni del main.
+  const alternatives = isBoldPick ? diverseAlternatives(sorted, main) : sorted.slice(1, 4);
 
   const answerLabels = traitLabelsFromAnswers(sessionState);
   const matchedTraits: string[] = [];
@@ -532,17 +692,22 @@ export function generateFinalRecommendation(
   if (main.traits.horrorLevel === "high") matchedTraits.push("horror");
   if (main.traits.comfortLevel === "high") matchedTraits.push("comfort");
 
-  const whyNotOthers = sorted.slice(1, 4).map(alt => {
-    const diff = main.score - alt.score;
-    const reason = alt.penalties[0] ?? `meno allineato (${diff} pt)`;
+  const whyNotOthers = alternatives.map(alt => {
+    const reason = alt.penalties[0] ?? keyDifference(main, alt);
     return `${alt.title}: ${reason}`;
   });
 
+  // Spiegazione concreta: risposte date + titoli che l'utente ha votato alto.
   const likedTitles = sessionState.answers.length > 0 ? answerLabels.join(", ") : "il mood della serata";
   const genreStr = main.genres.slice(0, 3).join(", ");
+  const rated = sessionState.ratedTitles ?? [];
+  const ratedHint =
+    rated.length && main.reasons.includes("simile a titoli che hai amato")
+      ? ` È nella stessa corrente di ${rated.slice(0, 2).join(" e ")}, che hai votato alto.`
+      : "";
   const explanation = isBoldPick
-    ? `Scelta audace: ti consiglio ${main.title} (${genreStr}). Con le risposte su ${likedTitles}, è il miglior match tra i ${sessionState.initialPoolSize} candidati iniziali, anche se la sfera non è al 100% sicura.`
-    : `Ti consiglio ${main.title} perché hai scelto ${likedTitles}. Ha ${matchedTraits.join(", ") || "un profilo coerente"} e voto TMDB ${main.tmdbRating.toFixed(1)}. Ho scartato ${sessionState.eliminatedCount} titoli incompatibili.`;
+    ? `Scelta audace: ti consiglio ${main.title} (${genreStr}). Con le risposte su ${likedTitles} nessun titolo domina davvero, ma questo è il miglior match tra i ${sessionState.initialPoolSize} candidati.${ratedHint} Le alternative sotto sono volutamente molto diverse.`
+    : `Ti consiglio ${main.title} perché hai scelto ${likedTitles}. Ha ${matchedTraits.join(", ") || "un profilo coerente"} e voto TMDB ${main.tmdbRating.toFixed(1)}.${ratedHint} Ho scartato ${sessionState.eliminatedCount} titoli incompatibili con le tue risposte.`;
 
   return {
     mainRecommendation: main,
@@ -550,7 +715,7 @@ export function generateFinalRecommendation(
     explanation,
     compatibilityScore: main.score,
     matchedTraits,
-    rejectedButRecoveredTraits: [],
+    rejectedButRecoveredTraits: recoveredTraits(sessionState, main),
     whyNotOthers,
     confidence,
     isBoldPick,
