@@ -46,13 +46,20 @@ function ProssimiPage() {
   const { provider: providerId } = Route.useSearch();
   const navigate = useNavigate({ from: "/prossimi" });
 
-  const followedTvIds = Object.values(state.media)
+  const followedTv = Object.values(state.media)
     .filter(m => m.status === "watching" || m.status === "plan_to_watch")
-    .map(m => resolveMedia(m.id))
-    .filter((x): x is { type: "tv" | "movie"; tmdbId: number } => !!x && x.type === "tv")
-    .map(x => x.tmdbId);
+    .map(m => ({
+      media: resolveMedia(m.id),
+      recency: Date.parse(m.lastWatchedAt ?? m.addedAt ?? "") || 0,
+    }))
+    .filter((x): x is { media: { type: "tv"; tmdbId: number }; recency: number } =>
+      !!x.media && x.media.type === "tv");
 
-  const uniqueTvIds = Array.from(new Set(followedTvIds));
+  const allFollowedIds = Array.from(new Set(followedTv.map(x => x.media.tmdbId)));
+  // L'API next-episodes accetta max 30 id: interroga le serie toccate più di recente.
+  const uniqueTvIds = Array.from(new Set(
+    [...followedTv].sort((a, b) => b.recency - a.recency).map(x => x.media.tmdbId),
+  )).slice(0, 30);
 
   const upcomingQuery = useQuery({
     queryKey: ["tmdb", "upcoming-it"],
@@ -75,7 +82,7 @@ function ProssimiPage() {
 
   // Filtri "In arrivo su streaming" configurabili dalle Impostazioni.
   const filters = state.upcomingFilters ?? { newSeries: true, seasonPremieres: true, includeMovies: true };
-  const followedSet = new Set(uniqueTvIds);
+  const followedSet = new Set(allFollowedIds);
 
   // Solo "prime": serie nuove (stagione 1) per tutti; nuove stagioni SOLO di
   // serie che segui, e solo con l'episodio 1. Gli episodi correnti delle serie

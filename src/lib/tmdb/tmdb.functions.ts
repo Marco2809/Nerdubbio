@@ -531,15 +531,18 @@ export const tmdbUpcomingTv = createServerFn({ method: "GET" })
     const now = new Date();
     const later = new Date(now.getTime() + data.days * 86400000);
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
-    const res = await tmdb<any>(`/discover/tv`, {
+    // first_air_date (non air_date): vogliamo serie NUOVE che debuttano nella
+    // finestra, non serie qualsiasi con episodi in onda. 2 pagine per avere
+    // abbastanza candidati dopo i filtri.
+    const pages = await Promise.all([1, 2].map(page => tmdb<any>(`/discover/tv`, {
       sort_by: "popularity.desc",
-      "air_date.gte": fmt(now),
-      "air_date.lte": fmt(later),
+      "first_air_date.gte": fmt(now),
+      "first_air_date.lte": fmt(later),
       watch_region: data.region,
       include_adult: "false",
-      page: 1,
-    });
-    const raws = (res.results ?? []).slice(0, 25);
+      page,
+    }).catch(() => ({ results: [] }))));
+    const raws = pages.flatMap(res => res.results ?? []).slice(0, 40);
     const today = fmt(now);
     // Riusa la stessa logica "episodio o premiere" delle serie seguite → coerenza garantita.
     const details = await Promise.all(raws.map((r: any) => nextEventForTv(r.id, data.region, today)));
