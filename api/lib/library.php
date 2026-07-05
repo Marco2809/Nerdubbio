@@ -33,6 +33,15 @@ function library_episode_key(int $season, int $episode): string {
     return "S{$season}E{$episode}";
 }
 
+/** True se tutti gli episodi 1..N della stagione risultano visti. */
+function library_is_season_complete(array $watchedMap, int $season, int $episodesPerSeason): bool {
+    if ($episodesPerSeason <= 0 || $episodesPerSeason > 200) return false;
+    for ($i = 1; $i <= $episodesPerSeason; $i++) {
+        if (!isset($watchedMap[library_episode_key($season, $i)])) return false;
+    }
+    return true;
+}
+
 function library_ensure_stats(PDO $pdo, string $userId): void {
     $stmt = $pdo->prepare('SELECT user_id FROM user_stats WHERE user_id = ?');
     $stmt->execute([$userId]);
@@ -480,6 +489,7 @@ function library_toggle_episode(
         if (!isset($counts[$k])) $counts[$k] = 1;
     }
     $wasWatched = isset($watched[$key]);
+    $seasonWasComplete = library_is_season_complete($watched, $season, $episodesPerSeason);
 
     if ($unwatch) {
         if (!$wasWatched) return library_fetch_state($pdo, $userId);
@@ -492,6 +502,10 @@ function library_toggle_episode(
             unset($watched[$key], $counts[$key]);
             $xpDelta = -15;
             $bumpStreak = false;
+            // Stagione era completa e ora no → togli anche il bonus una tantum.
+            if ($seasonWasComplete && !library_is_season_complete($watched, $season, $episodesPerSeason)) {
+                $xpDelta -= 50;
+            }
         }
     } else {
         if ($wasWatched) {
@@ -503,11 +517,10 @@ function library_toggle_episode(
             $counts[$key] = 1;
             $xpDelta = 15;
             $bumpStreak = true;
-            $seasonComplete = true;
-            for ($i = 1; $i <= $episodesPerSeason; $i++) {
-                if (!isset($watched[library_episode_key($season, $i)])) { $seasonComplete = false; break; }
+            // Bonus stagione solo la prima volta che la stagione si completa.
+            if (!$seasonWasComplete && library_is_season_complete($watched, $season, $episodesPerSeason)) {
+                $xpDelta += 50;
             }
-            if ($seasonComplete) $xpDelta += 50;
         }
         $entry['lastWatchedAt'] = date('c');
     }
