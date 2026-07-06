@@ -5,6 +5,7 @@ import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { useUserStore } from "@/lib/user-store";
+import { useI18n } from "@/lib/i18n";
 import { findById } from "@/lib/mock-catalog";
 import {
   tmdbUpcomingMovies,
@@ -51,6 +52,7 @@ function resolveMedia(id: string): { type: "tv" | "movie"; tmdbId: number; title
 
 function ProssimiPage() {
   const { state } = useUserStore();
+  const { t, locale } = useI18n();
   const { provider: providerId } = Route.useSearch();
   const navigate = useNavigate({ from: "/prossimi" });
   const [calendarMovies, setCalendarMovies] = useState(true);
@@ -158,12 +160,12 @@ function ProssimiPage() {
 
   const calendarEvents = useMemo(() => {
     const tvItems = calendarEpQuery.data?.items ?? [];
-    let events = eventsFromNextEpisodes(tvItems, followedSet);
+    let events = eventsFromNextEpisodes(tvItems, followedSet, undefined, locale);
     if (calendarMovies && filters.includeMovies) {
-      events = [...events, ...eventsFromMovies(upcomingQuery.data?.items ?? [])];
+      events = [...events, ...eventsFromMovies(upcomingQuery.data?.items ?? [], undefined, locale)];
     }
     events = filterCalendarByProvider(events, providerId);
-    return groupCalendarEvents(events);
+    return groupCalendarEvents(events, undefined, locale);
   }, [
     calendarEpQuery.data,
     calendarMovies,
@@ -171,6 +173,7 @@ function ProssimiPage() {
     followedSet,
     providerId,
     upcomingQuery.data,
+    locale,
   ]);
 
   const calendarLoading =
@@ -178,8 +181,8 @@ function ProssimiPage() {
     || (calendarMovies && filters.includeMovies && upcomingQuery.isLoading);
 
   return (
-    <AppShell title="Prossimamente" subtitle="Calendario, premiere e cinema"
-      right={<span className="rounded-full bg-hero px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary-foreground">🇮🇹 IT</span>}>
+    <AppShell title={t("prossimi.title")} subtitle={t("prossimi.subtitle")}
+      right={<span className="rounded-full bg-hero px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary-foreground">{t("common.regionIt")}</span>}>
 
       <ReleaseCalendar
         days={calendarEvents}
@@ -193,14 +196,14 @@ function ProssimiPage() {
       {availableProviders.length > 0 && (
         <div className="mb-5">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Filtra per servizio</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("prossimi.filterProvider")}</p>
             {activeProvider && (
               <button
                 type="button"
                 onClick={() => setProvider(undefined)}
                 className="flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-semibold text-foreground"
               >
-                <X className="h-3 w-3" /> Rimuovi filtro
+                <X className="h-3 w-3" /> {t("common.removeFilter")}
               </button>
             )}
           </div>
@@ -212,7 +215,7 @@ function ProssimiPage() {
                 !providerId ? "bg-hero text-primary-foreground" : "glass text-foreground/80"
               }`}
             >
-              Tutti
+              {t("common.all")}
             </button>
             {availableProviders.map(p => {
               const active = p.id === providerId;
@@ -242,19 +245,19 @@ function ProssimiPage() {
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-accent" />
-            <h2 className="text-sm font-bold uppercase tracking-wider">Serie in arrivo su streaming</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wider">{t("prossimi.streamingSection")}</h2>
           </div>
-          <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Prossimi 45 giorni · IT</span>
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{t("prossimi.streamingWindow")}</span>
         </div>
         {(upcomingTvQuery.isLoading || nextEpQuery.isLoading) && <SkeletonList />}
         {upcomingTvQuery.error && (
-          <div className="glass rounded-2xl p-4 text-sm text-destructive">Impossibile caricare le uscite streaming.</div>
+          <div className="glass rounded-2xl p-4 text-sm text-destructive">{t("prossimi.loadStreamingError")}</div>
         )}
         {upcomingTvQuery.data && !nextEpQuery.isLoading && upcomingTvItems.length === 0 && (
           <div className="glass rounded-2xl p-4 text-sm text-muted-foreground">
             {activeProvider
-              ? <>Nessuna nuova serie o premiere su <strong>{activeProvider.name}</strong> nei prossimi 45 giorni.</>
-              : "Nessuna nuova serie o premiere delle tue serie in arrivo al momento."}
+              ? <>{t("prossimi.noStreamingProvider", { provider: activeProvider.name })}</>
+              : t("prossimi.noStreaming")}
           </div>
         )}
         {upcomingTvItems.length > 0 && (
@@ -269,23 +272,22 @@ function ProssimiPage() {
       </section>
 
 
-      {/* Film al cinema */}
       {filters.includeMovies && (
         <section className="mb-8">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Popcorn className="h-4 w-4 text-accent" />
-              <h2 className="text-sm font-bold uppercase tracking-wider">Al cinema in Italia</h2>
+              <h2 className="text-sm font-bold uppercase tracking-wider">{t("prossimi.cinemaSection")}</h2>
             </div>
-            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Prima le uscite più vicine</span>
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{t("prossimi.cinemaHint")}</span>
           </div>
           {upcomingQuery.isLoading && <SkeletonList />}
           {upcomingQuery.error && (
-            <div className="glass rounded-2xl p-4 text-sm text-destructive">Impossibile caricare le uscite. Riprova più tardi.</div>
+            <div className="glass rounded-2xl p-4 text-sm text-destructive">{t("prossimi.loadCinemaError")}</div>
           )}
           {upcomingQuery.data && movies.length === 0 && (
             <div className="glass rounded-2xl p-4 text-sm text-muted-foreground">
-              Nessuna uscita imminente al cinema.
+              {t("prossimi.noCinema")}
             </div>
           )}
           {movies.length > 0 && (
@@ -313,6 +315,7 @@ function ShowMoreList<T>({
   render: (item: T) => ReactNode;
   className?: string;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? items : items.slice(0, initial);
   const hidden = items.length - initial;
@@ -326,7 +329,7 @@ function ShowMoreList<T>({
           onClick={() => setExpanded(v => !v)}
           className="mt-3 w-full rounded-xl border border-border bg-surface/60 py-2.5 text-xs font-semibold text-muted-foreground transition hover:border-accent hover:text-foreground"
         >
-          {expanded ? "Mostra meno" : `Mostra altro (${hidden})`}
+          {expanded ? t("common.showLess") : t("common.showMore", { count: hidden })}
         </button>
       )}
     </>

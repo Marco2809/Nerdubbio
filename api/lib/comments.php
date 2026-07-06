@@ -22,6 +22,7 @@ function comments_row_to_json(array $row, string $viewerId): array {
         ],
         'author_status' => $row['media_status'] ?? null,
         'author_rating' => $row['media_rating'] !== null ? (int) $row['media_rating'] : null,
+        'author_language' => normalize_locale($row['author_language'] ?? 'it'),
     ];
 }
 
@@ -77,9 +78,11 @@ function comments_list(
     $mediaKey = comments_media_key($mediaType, $tmdbId);
     $listSql = "SELECT c.id, c.user_id, c.body, c.spoiler, c.created_at,
                        p.handle, p.display_name, p.avatar_url,
-                       um.status AS media_status, um.rating AS media_rating
+                       um.status AS media_status, um.rating AS media_rating,
+                       us.language AS author_language
                 FROM media_comments c
                 JOIN profiles p ON p.id = c.user_id
+                LEFT JOIN user_stats us ON us.user_id = c.user_id
                 LEFT JOIN user_media um ON um.user_id = c.user_id AND um.media_key = ?
                 WHERE c.media_type = ? AND c.tmdb_id = ?
                   AND c.season IS NULL AND c.episode IS NULL
@@ -137,9 +140,11 @@ function comments_create(
     $stmt = $pdo->prepare(
         'SELECT c.id, c.user_id, c.body, c.spoiler, c.created_at,
                 p.handle, p.display_name, p.avatar_url,
-                um.status AS media_status, um.rating AS media_rating
+                um.status AS media_status, um.rating AS media_rating,
+                us.language AS author_language
          FROM media_comments c
          JOIN profiles p ON p.id = c.user_id
+         LEFT JOIN user_stats us ON us.user_id = c.user_id
          LEFT JOIN user_media um ON um.user_id = c.user_id AND um.media_key = ?
          WHERE c.id = ?'
     );

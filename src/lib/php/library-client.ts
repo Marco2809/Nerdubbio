@@ -1,3 +1,4 @@
+import type { Locale } from '@/lib/i18n';
 import { api } from '@/lib/php/client';
 import type { MediaMeta, UserMediaEntry, UserStatus } from '@/lib/user-store';
 import type { TvTimePendingItem } from '@/lib/tvtime-import';
@@ -11,7 +12,7 @@ export interface LibraryState {
   dismissed: string[];
   achievements: string[];
   onboardingDone: boolean;
-  language: 'it' | 'en';
+  language: Locale;
   favoriteGenres: string[];
   moodProfile?: string[];
   upcomingFilters: {

@@ -6,7 +6,7 @@ import { scheduleAllReminders } from "@/lib/reminders";
 import { BottomNav } from "./BottomNav";
 import { Wordmark } from "./Wordmark";
 import { useAuthUser } from "@/hooks/use-auth-user";
-import { useUserStore } from "@/lib/user-store";
+import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/lib/toast";
@@ -14,8 +14,7 @@ import { toast } from "@/lib/toast";
 export function AppShell({ children, title, subtitle, right }: {
   children: ReactNode; title?: string; subtitle?: string; right?: ReactNode;
 }) {
-  const { state } = useUserStore();
-  const lang: "it" | "en" = state.language === "en" ? "en" : "it";
+  const { t } = useI18n();
   useEffect(() => { scheduleAllReminders(); }, []);
   return (
     <div className="min-h-screen pb-32">
@@ -23,11 +22,10 @@ export function AppShell({ children, title, subtitle, right }: {
         <div className="mb-4 flex min-h-12 items-center justify-between py-1">
           <Link
             to="/app"
-            aria-label={lang === "en" ? "Nerdoubt home" : "Nerdubbio home"}
+            aria-label={`${t("brand.name")} home`}
             className="inline-flex items-center rounded-lg transition-opacity hover:opacity-80 active:opacity-70 text-foreground"
           >
             <Wordmark
-              lang={lang}
               withIcon
               className="h-10 sm:h-11 drop-shadow-[0_0_14px_rgba(168,85,247,0.4)]"
             />

@@ -1,23 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, MessageCircle, Trash2 } from "lucide-react";
+import { Languages, Loader2, MessageCircle, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/lib/toast";
+import { useI18n, useStatusLabel, localeToBcp47 } from "@/lib/i18n";
 import {
   commentsApi,
   mediaCommentsKey,
   type CommentScope,
   type MediaComment,
 } from "@/lib/php/comments-client";
-
-const STATUS_LABEL: Record<string, string> = {
-  plan_to_watch: "Da vedere",
-  watching: "In corso",
-  paused: "In pausa",
-  completed: "Visto",
-  dropped: "Abbandonato",
-  favorite: "Preferito",
-};
+import { translateApi } from "@/lib/php/translate-client";
 
 type Props = {
   mediaType: "tv" | "movie";
@@ -26,6 +19,7 @@ type Props = {
 
 export function MediaCommentsSection({ mediaType, tmdbId }: Props) {
   const qc = useQueryClient();
+  const { locale, t } = useI18n();
   const [scope, setScope] = useState<CommentScope>("all");
   const [body, setBody] = useState("");
   const [spoiler, setSpoiler] = useState(false);
@@ -54,7 +48,7 @@ export function MediaCommentsSection({ mediaType, tmdbId }: Props) {
         };
       });
       setExtra([]);
-      toast.success("Commento pubblicato");
+      toast.success(t("comments.published"));
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -71,7 +65,7 @@ export function MediaCommentsSection({ mediaType, tmdbId }: Props) {
         };
       });
       setExtra(prev => prev.filter(c => c.id !== id));
-      toast.success("Commento eliminato");
+      toast.success(t("comments.deleted"));
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -104,7 +98,7 @@ export function MediaCommentsSection({ mediaType, tmdbId }: Props) {
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider">
           <MessageCircle className="h-4 w-4 text-accent" />
-          Commenti
+          {t("comments.title")}
           {data && data.total > 0 ? (
             <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-semibold normal-case text-muted-foreground">
               {data.total}
@@ -121,7 +115,7 @@ export function MediaCommentsSection({ mediaType, tmdbId }: Props) {
                 scope === s ? "bg-hero text-primary-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {s === "all" ? "Tutti" : "Amici"}
+              {t(s === "all" ? "comments.all" : "comments.friends")}
             </button>
           ))}
         </div>
@@ -133,7 +127,7 @@ export function MediaCommentsSection({ mediaType, tmdbId }: Props) {
           onChange={e => setBody(e.target.value)}
           maxLength={2000}
           rows={3}
-          placeholder="Cosa ne pensi? Condividi la tua opinione…"
+          placeholder={t("comments.placeholder")}
           className="w-full resize-none rounded-xl border border-border bg-surface/60 px-3 py-2 text-sm outline-none ring-accent focus:ring-1"
         />
         <div className="mt-2 flex items-center justify-between gap-2">
@@ -144,7 +138,7 @@ export function MediaCommentsSection({ mediaType, tmdbId }: Props) {
               onChange={e => setSpoiler(e.target.checked)}
               className="rounded border-border"
             />
-            Contiene spoiler
+            {t("comments.spoiler")}
           </label>
           <button
             type="button"
@@ -152,20 +146,18 @@ export function MediaCommentsSection({ mediaType, tmdbId }: Props) {
             onClick={() => createMut.mutate()}
             className="rounded-xl bg-hero px-4 py-2 text-xs font-bold text-primary-foreground shadow-glow-pink disabled:opacity-40"
           >
-            {createMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Pubblica"}
+            {createMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("comments.publish")}
           </button>
         </div>
       </div>
 
       {isLoading && (
-        <p className="mt-4 text-center text-sm text-muted-foreground animate-pulse">Caricamento commenti…</p>
+        <p className="mt-4 text-center text-sm text-muted-foreground animate-pulse">{t("comments.loading")}</p>
       )}
 
       {!isLoading && comments.length === 0 && (
         <p className="mt-4 rounded-2xl border border-dashed border-border bg-surface/30 p-4 text-center text-sm text-muted-foreground">
-          {scope === "friends"
-            ? "Nessun commento dagli amici. Sii il primo!"
-            : "Nessun commento ancora. Sii il primo a scrivere qualcosa!"}
+          {scope === "friends" ? t("comments.emptyFriends") : t("comments.emptyAll")}
         </p>
       )}
 
@@ -174,6 +166,7 @@ export function MediaCommentsSection({ mediaType, tmdbId }: Props) {
           <CommentCard
             key={c.id}
             comment={c}
+            viewerLang={locale}
             onDelete={() => deleteMut.mutate(c.id)}
             deleting={deleteMut.isPending}
           />
@@ -187,7 +180,7 @@ export function MediaCommentsSection({ mediaType, tmdbId }: Props) {
           onClick={() => loadMoreMut.mutate()}
           className="mt-3 w-full rounded-xl border border-border bg-surface/60 py-2.5 text-xs font-semibold text-muted-foreground transition hover:border-accent hover:text-foreground disabled:opacity-50"
         >
-          {loadMoreMut.isPending ? "Caricamento…" : "Carica altri commenti"}
+          {loadMoreMut.isPending ? t("comments.loadingMore") : t("comments.loadMore")}
         </button>
       )}
     </section>
@@ -196,16 +189,51 @@ export function MediaCommentsSection({ mediaType, tmdbId }: Props) {
 
 function CommentCard({
   comment,
+  viewerLang,
   onDelete,
   deleting,
 }: {
   comment: MediaComment;
+  viewerLang: import("@/lib/i18n").Locale;
   onDelete: () => void;
   deleting: boolean;
 }) {
+  const { t } = useI18n();
+  const statusLabel = useStatusLabel(comment.author_status ?? undefined);
   const [revealed, setRevealed] = useState(!comment.spoiler);
-  const when = formatWhen(comment.created_at);
-  const statusLabel = comment.author_status ? STATUS_LABEL[comment.author_status] : null;
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [translatedText, setTranslatedText] = useState<string | null>(null);
+  const [translating, setTranslating] = useState(false);
+
+  const when = formatWhen(comment.created_at, t, localeToBcp47(viewerLang));
+  const authorLang = comment.author_language ?? "it";
+  const canTranslate =
+    !comment.is_mine
+    && authorLang !== viewerLang
+    && revealed;
+
+  async function handleTranslate() {
+    if (showTranslation) {
+      setShowTranslation(false);
+      return;
+    }
+    if (translatedText) {
+      setShowTranslation(true);
+      return;
+    }
+    setTranslating(true);
+    try {
+      const res = await translateApi.translate(comment.body, viewerLang, authorLang);
+      setTranslatedText(res.text);
+      setShowTranslation(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("comments.translateError"));
+    } finally {
+      setTranslating(false);
+    }
+  }
+
+  const displayBody = showTranslation && translatedText ? translatedText : comment.body;
 
   return (
     <article className="glass rounded-2xl p-3">
@@ -233,7 +261,7 @@ function CommentCard({
               {comment.author.display_name || comment.author.handle}
             </Link>
             <span className="text-[11px] text-muted-foreground">@{comment.author.handle}</span>
-            {statusLabel && (
+            {comment.author_status && (
               <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-muted-foreground">
                 {statusLabel}
               </span>
@@ -249,10 +277,31 @@ function CommentCard({
               onClick={() => setRevealed(true)}
               className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200"
             >
-              ⚠ Spoiler — tocca per rivelare
+              {t("comments.spoilerReveal")}
             </button>
           ) : (
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{comment.body}</p>
+            <>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{displayBody}</p>
+              {canTranslate && (
+                <button
+                  type="button"
+                  disabled={translating}
+                  onClick={() => void handleTranslate()}
+                  className="mt-2 inline-flex items-center gap-1 rounded-lg border border-border bg-surface/60 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition hover:border-accent hover:text-accent disabled:opacity-50"
+                >
+                  {translating ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Languages className="h-3 w-3" />
+                  )}
+                  {translating
+                    ? t("comments.translating")
+                    : showTranslation
+                      ? t("comments.showOriginal")
+                      : t("comments.translate")}
+                </button>
+              )}
+            </>
           )}
         </div>
         {comment.is_mine && (
@@ -261,7 +310,7 @@ function CommentCard({
             disabled={deleting}
             onClick={onDelete}
             className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
-            aria-label="Elimina commento"
+            aria-label={t("comments.deleteAria")}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -271,17 +320,21 @@ function CommentCard({
   );
 }
 
-function formatWhen(iso: string): string {
+function formatWhen(
+  iso: string,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  bcp47: string,
+): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const now = Date.now();
   const diff = now - d.getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Adesso";
-  if (mins < 60) return `${mins} min fa`;
+  if (mins < 1) return t("comments.now");
+  if (mins < 60) return t("comments.minAgo", { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} h fa`;
+  if (hours < 24) return t("comments.hoursAgo", { n: hours });
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days} g fa`;
-  return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
+  if (days < 7) return t("comments.daysAgo", { n: days });
+  return d.toLocaleDateString(bcp47, { day: "2-digit", month: "short", year: "numeric" });
 }

@@ -1,19 +1,22 @@
+import { I18nContext, normalizeLocale, translate, type Locale } from "@/lib/i18n/context";
+import { useContext } from "react";
 import { cn } from "@/lib/utils";
 import { BRAND } from "@/lib/brand";
 import { BrandIcon } from "./BrandIcon";
 
 type Props = {
-  lang?: "it" | "en";
+  lang?: Locale;
   className?: string;
-  /** Sfera oracle + wordmark affiancati (landing, auth, onboarding). */
   withIcon?: boolean;
 };
 
 const wordmarkSrc = `/wordmark.png?v=${BRAND.assetVer}`;
 
-/** Wordmark NERDUBBIO — asset ufficiale con gradient neon e play nel «O». */
-export function Wordmark({ lang = "it", className, withIcon = false }: Props) {
-  const label = lang === "it" ? "Nerdubbio" : "Nerdoubt";
+export function Wordmark({ lang, className, withIcon = false }: Props) {
+  const i18n = useContext(I18nContext);
+  const label = lang != null
+    ? translate(normalizeLocale(lang), "brand.name")
+    : i18n.t("brand.name");
 
   return (
     <span

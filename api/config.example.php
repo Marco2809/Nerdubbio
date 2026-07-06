@@ -23,4 +23,8 @@ return [
     'smtp_pass'      => '',
     'smtp_from'      => 'no-reply@cocoon-ms.it',
     'smtp_from_name' => 'Nerdubbio',
+
+    // Traduzione commenti (DeepL free/pro — opzionale; senza chiave usa MyMemory)
+    'deepl_auth_key' => '',
+    'deepl_pro'      => false,
 ];

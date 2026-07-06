@@ -1,4 +1,5 @@
 import type { NextEpisodeInfo, ProviderInfo, UpcomingMovie } from "@/lib/tmdb/tmdb.functions";
+import { localeToBcp47, translate, type Locale } from "@/lib/i18n";
 
 export type CalendarEventKind = "tv_episode" | "tv_premiere" | "movie_cinema";
 
@@ -42,17 +43,18 @@ function dayDiff(fromIso: string, toIso: string): number {
   return Math.round((b - a) / 86400000);
 }
 
-export function formatCalendarDayLabel(dateIso: string, refIso = todayIso()): string {
+export function formatCalendarDayLabel(dateIso: string, refIso = todayIso(), locale: Locale = "it"): string {
   const diff = dayDiff(refIso, dateIso);
-  if (diff === 0) return "Oggi";
-  if (diff === 1) return "Domani";
+  const bcp = localeToBcp47(locale);
+  if (diff === 0) return translate(locale, "calendar.today");
+  if (diff === 1) return translate(locale, "calendar.tomorrow");
   const d = parseDay(dateIso);
-  const weekday = d.toLocaleDateString("it-IT", { weekday: "long" });
+  const weekday = d.toLocaleDateString(bcp, { weekday: "long" });
   const cap = weekday.charAt(0).toUpperCase() + weekday.slice(1);
   if (diff >= 2 && diff <= 6) {
-    return `${cap} ${d.toLocaleDateString("it-IT", { day: "numeric", month: "short" })}`;
+    return `${cap} ${d.toLocaleDateString(bcp, { day: "numeric", month: "short" })}`;
   }
-  return d.toLocaleDateString("it-IT", {
+  return d.toLocaleDateString(bcp, {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -63,6 +65,7 @@ export function eventsFromNextEpisodes(
   items: NextEpisodeInfo[],
   followedIds: Set<number>,
   refIso = todayIso(),
+  locale: Locale = "it",
 ): CalendarEvent[] {
   const max = parseDay(refIso);
   max.setDate(max.getDate() + CALENDAR_DAYS);
@@ -78,7 +81,7 @@ export function eventsFromNextEpisodes(
       const kind: CalendarEventKind = ev.kind === "premiere" ? "tv_premiere" : "tv_episode";
       const subtitle =
         kind === "tv_premiere"
-          ? `Premiere · Stagione ${ev.season}${ev.name ? ` — ${ev.name}` : ""}`
+          ? `${translate(locale, "calendar.premiere")} · S${ev.season}${ev.name ? ` — ${ev.name}` : ""}`
           : `S${ev.season}E${ev.episode}${ev.name ? ` — ${ev.name}` : ""}`;
 
       return {
@@ -99,6 +102,7 @@ export function eventsFromNextEpisodes(
 export function eventsFromMovies(
   items: UpcomingMovie[],
   refIso = todayIso(),
+  locale: Locale = "it",
 ): CalendarEvent[] {
   const max = parseDay(refIso);
   max.setDate(max.getDate() + CALENDAR_DAYS);
@@ -115,7 +119,7 @@ export function eventsFromMovies(
       mediaType: "movie" as const,
       posterUrl: m.posterUrl,
       followed: false,
-      subtitle: "Al cinema · Italia",
+      subtitle: translate(locale, "calendar.cinemaIt"),
       providers: m.providers,
     }));
 }
@@ -123,6 +127,7 @@ export function eventsFromMovies(
 export function groupCalendarEvents(
   events: CalendarEvent[],
   refIso = todayIso(),
+  locale: Locale = "it",
 ): CalendarDayGroup[] {
   const byDate = new Map<string, CalendarEvent[]>();
   for (const ev of events) {
@@ -135,10 +140,10 @@ export function groupCalendarEvents(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, dayEvents]) => ({
       date,
-      label: formatCalendarDayLabel(date, refIso),
+      label: formatCalendarDayLabel(date, refIso, locale),
       events: dayEvents.sort((a, b) => {
         if (a.followed !== b.followed) return a.followed ? -1 : 1;
-        return a.title.localeCompare(b.title, "it");
+        return a.title.localeCompare(b.title, localeToBcp47(locale));
       }),
     }));
 }

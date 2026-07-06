@@ -7,6 +7,7 @@
 import type { CatalogItem } from "@/lib/mock-catalog";
 import { CATALOG } from "@/lib/mock-catalog";
 import type { LibraryState } from "@/lib/php/library-client";
+import { normalizeLocale, quizLocale } from "@/lib/i18n";
 import {
   NERDACOLO_QUESTION_BY_ID,
   questionsForMode,
@@ -70,7 +71,6 @@ function pickOracleLine(extra?: string): string {
 export function buildNerdacoloUserContext(
   state: LibraryState,
   userId?: string,
-  language: "it" | "en" = "it",
 ): NerdacoloUserContext {
   const seenIds = Object.entries(state.media)
     .filter(([, m]) => m.status === "completed" || m.status === "dropped")
@@ -99,7 +99,7 @@ export function buildNerdacoloUserContext(
     moodProfile: state.moodProfile ?? [],
     highlyRatedIds,
     highlyRatedTitles,
-    language,
+    language: quizLocale(normalizeLocale(state.language)),
     country: "IT",
   };
 }

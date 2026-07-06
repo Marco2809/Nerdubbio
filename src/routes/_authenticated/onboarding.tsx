@@ -8,6 +8,7 @@ import { CATALOG, type CatalogItem } from "@/lib/mock-catalog";
 import { Wordmark } from "@/components/nerdubbio/Wordmark";
 import { NERDACOLO, QUEST } from "@/lib/brand";
 import { libraryApi, LIBRARY_QUERY_KEY } from "@/lib/php/library-client";
+import { LOCALES, LOCALE_LABELS, type Locale } from "@/lib/i18n";
 
 function catalogToTmdb(c: CatalogItem): TmdbItem {
   return {
@@ -82,7 +83,7 @@ function Onboarding() {
   const queryClient = useQueryClient();
   const { state, loading } = useUserStore();
   const [stepIdx, setStepIdx] = useState(0);
-  const [lang, setLang] = useState<"it" | "en">("it");
+  const [lang, setLang] = useState<Locale>("it");
   const [genres, setGenres] = useState<string[]>([]);
   const [seen, setSeen] = useState<TmdbItem[]>([]);
   const [dubbioIdx, setDubbioIdx] = useState(0);
@@ -267,10 +268,11 @@ function Onboarding() {
               <p className="mt-2 text-sm text-muted-foreground">
                 Puoi cambiarla poi dalle impostazioni. Non ti giudichiamo.
               </p>
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                {(["it", "en"] as const).map((l) => (
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {LOCALES.map((l) => (
                   <button
                     key={l}
+                    type="button"
                     onClick={() => setLang(l)}
                     className={`group relative overflow-hidden rounded-3xl border p-5 text-left transition-all ${
                       lang === l
@@ -278,13 +280,7 @@ function Onboarding() {
                         : "border-white/10 bg-white/[0.03] hover:border-white/20"
                     }`}
                   >
-                    <p className="text-3xl">{l === "it" ? "🇮🇹" : "🇬🇧"}</p>
-                    <p className="mt-2 text-sm font-bold">
-                      {l === "it" ? "Italiano" : "English"}
-                    </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {l === "it" ? "Interfaccia in italiano" : "English interface"}
-                    </p>
+                    <p className="text-sm font-bold">{LOCALE_LABELS[l]}</p>
                   </button>
                 ))}
               </div>
@@ -427,7 +423,7 @@ function Onboarding() {
                 Ecco cosa ha capito Nerdacolo su di te:
               </p>
               <div className="mt-6 space-y-3">
-                <SummaryRow label="Lingua" value={lang === "it" ? "Italiano" : "English"} />
+                <SummaryRow label="Lingua" value={LOCALE_LABELS[lang]} />
                 <SummaryRow label="Generi" value={genres.slice(0, 4).join(" · ") || "—"} extra={genres.length > 4 ? `+${genres.length - 4}` : undefined} />
                 <SummaryRow label="Mood serata" value={moodProfile.slice(0, 4).join(" · ") || "—"} extra={moodProfile.length > 4 ? `+${moodProfile.length - 4}` : undefined} />
                 <SummaryRow label="Titoli visti" value={`${seen.length} selezionati`} />

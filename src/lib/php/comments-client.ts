@@ -1,3 +1,4 @@
+import type { Locale } from '@/lib/i18n';
 import { api } from '@/lib/php/client';
 
 export type CommentScope = 'all' | 'friends';
@@ -18,6 +19,7 @@ export interface MediaComment {
   author: MediaCommentAuthor;
   author_status: string | null;
   author_rating: number | null;
+  author_language: Locale;
 }
 
 export interface CommentsListResult {

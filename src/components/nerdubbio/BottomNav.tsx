@@ -1,23 +1,16 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { NERDACOLO } from "@/lib/brand";
 import { useFriendRequestCount } from "@/hooks/use-friend-requests-count";
+import { useI18n } from "@/lib/i18n";
 import { Home, Search, Sparkles, CalendarDays, User } from "lucide-react";
 
-type NavItem = { to: string; label: string; icon: typeof Home; primary?: boolean; badge?: boolean };
-const items: NavItem[] = [
-  { to: "/app", label: "Home", icon: Home },
-  { to: "/search", label: "Cerca", icon: Search },
-  { to: "/dubbio", label: NERDACOLO.short, icon: Sparkles, primary: true },
-  { to: "/prossimi", label: "In arrivo", icon: CalendarDays },
-  { to: "/profile", label: "Profilo", icon: User, badge: true },
-];
-
 function NavBadge({ count }: { count: number }) {
+  const { t } = useI18n();
   if (count <= 0) return null;
   return (
     <span
       className="absolute -right-2 -top-1.5 grid min-h-[16px] min-w-[16px] place-items-center rounded-full border border-background bg-destructive px-1 text-[9px] font-bold leading-none text-white shadow-sm"
-      aria-label={`${count} richieste di amicizia`}
+      aria-label={t("nav.friendRequests", { count })}
     >
       {count > 9 ? "9+" : count}
     </span>
@@ -27,6 +20,15 @@ function NavBadge({ count }: { count: number }) {
 export function BottomNav() {
   const { pathname } = useLocation();
   const friendRequests = useFriendRequestCount();
+  const { t } = useI18n();
+
+  const items = [
+    { to: "/app", label: t("nav.home"), icon: Home },
+    { to: "/search", label: t("nav.search"), icon: Search },
+    { to: "/dubbio", label: NERDACOLO.short, icon: Sparkles, primary: true },
+    { to: "/prossimi", label: t("nav.upcoming"), icon: CalendarDays },
+    { to: "/profile", label: t("nav.profile"), icon: User, badge: true },
+  ] as const;
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 pb-safe">
@@ -35,8 +37,8 @@ export function BottomNav() {
           {items.map(it => {
             const Icon = it.icon;
             const active = pathname === it.to || (it.to !== "/app" && pathname.startsWith(it.to));
-            const badgeCount = it.badge ? friendRequests : 0;
-            if (it.primary) {
+            const badgeCount = "badge" in it && it.badge ? friendRequests : 0;
+            if ("primary" in it && it.primary) {
               return (
                 <Link key={it.to} to={it.to as never} className="-mt-8 flex flex-col items-center gap-1">
                   <span className="grid h-16 w-16 place-items-center rounded-full bg-hero shadow-glow-pink text-primary-foreground">

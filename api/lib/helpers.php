@@ -41,6 +41,12 @@ function uuid(): string {
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 }
 
+function normalize_locale(?string $lang): string {
+    static $allowed = ['it', 'en', 'es', 'fr', 'de'];
+    $lang = strtolower(trim((string) $lang));
+    return in_array($lang, $allowed, true) ? $lang : 'it';
+}
+
 function parse_json(mixed $val, mixed $default = []): mixed {
     if ($val === null || $val === '') return $default;
     if (is_array($val)) return $val;

@@ -7,6 +7,7 @@ import { buildStatusPatches } from "@/lib/resolve-show-statuses";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "@/lib/toast";
+import { LOCALES, LOCALE_LABELS, useI18n, type Locale } from "@/lib/i18n";
 import { ArrowLeft, Globe, Shield, Trash2, Download, Sparkles, PlayCircle, Popcorn, CheckCircle2, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -17,6 +18,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
 function Settings() {
   const queryClient = useQueryClient();
   const { state, update } = useUserStore();
+  const { t } = useI18n();
   const [syncing, setSyncing] = useState(false);
   const filters = state.upcomingFilters ?? { newSeries: true, seasonPremieres: true, includeMovies: true };
   const setFilter = (patch: Partial<typeof filters>) =>
@@ -27,7 +29,7 @@ function Settings() {
     try {
       const patches = await buildStatusPatches(state.media);
       if (patches.length === 0) {
-        toast.success("Stati serie già corretti");
+        toast.success(t("settings.syncDone"));
         return;
       }
       const CHUNK = 40;
@@ -37,11 +39,11 @@ function Settings() {
         queryClient.setQueryData(LIBRARY_QUERY_KEY, next);
       }
       const completed = patches.filter(p => p.status === "completed").length;
-      toast.success(`Aggiornate ${patches.length} serie`, {
-        description: completed ? `${completed} segnate come concluse` : undefined,
+      toast.success(t("settings.syncUpdated", { count: patches.length }), {
+        description: completed ? t("settings.syncCompleted", { count: completed }) : undefined,
       });
     } catch {
-      toast.error("Errore sincronizzazione stati");
+      toast.error(t("settings.syncError"));
     } finally {
       setSyncing(false);
     }
@@ -49,43 +51,51 @@ function Settings() {
 
   return (
     <AppShell>
-      <Link to="/profile" className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground"><ArrowLeft className="h-3 w-3"/> Indietro</Link>
-      <h1 className="text-2xl font-extrabold">Impostazioni</h1>
+      <Link to="/profile" className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground">
+        <ArrowLeft className="h-3 w-3"/> {t("common.back")}
+      </Link>
+      <h1 className="text-2xl font-extrabold">{t("settings.title")}</h1>
 
       <section className="mt-6">
-        <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">Lingua</p>
-        <div className="glass flex gap-2 rounded-2xl p-1">
-          {(["it","en"] as const).map(l => (
-            <button key={l} onClick={() => update({ language: l })}
-              className={`flex-1 rounded-xl py-2 text-sm font-semibold ${state.language === l ? "bg-hero text-primary-foreground" : "text-muted-foreground"}`}>
-              {l === "it" ? "🇮🇹 Italiano" : "🇬🇧 English"}
+        <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">{t("settings.language")}</p>
+        <div className="glass flex flex-wrap gap-2 rounded-2xl p-2">
+          {LOCALES.map(l => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => update({ language: l as Locale })}
+              className={`rounded-xl px-3 py-2 text-xs font-semibold sm:text-sm ${
+                state.language === l ? "bg-hero text-primary-foreground" : "text-muted-foreground"
+              }`}
+            >
+              {LOCALE_LABELS[l]}
             </button>
           ))}
         </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">Salvato sul tuo account e sincronizzato tra dispositivi.</p>
+        <p className="mt-2 text-[11px] text-muted-foreground">{t("settings.languageHint")}</p>
       </section>
 
       <section className="mt-6">
-        <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">In arrivo su streaming</p>
+        <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">{t("settings.streamingSection")}</p>
         <div className="space-y-2">
           <Toggle
             icon={<Sparkles className="h-4 w-4"/>}
-            label="Nuove serie e nuove stagioni"
-            hint="Premiere assoluta o inizio di una nuova stagione"
+            label={t("settings.newSeries")}
+            hint={t("settings.newSeriesHint")}
             checked={filters.newSeries}
             onChange={v => setFilter({ newSeries: v })}
           />
           <Toggle
             icon={<PlayCircle className="h-4 w-4"/>}
-            label="Solo episodio 1 di una stagione"
-            hint="Ignora gli episodi a metà stagione delle serie che non segui"
+            label={t("settings.seasonPremieres")}
+            hint={t("settings.seasonPremieresHint")}
             checked={filters.seasonPremieres}
             onChange={v => setFilter({ seasonPremieres: v })}
           />
           <Toggle
             icon={<Popcorn className="h-4 w-4"/>}
-            label="Includi film al cinema"
-            hint="Mostra la sezione 'Al cinema in Italia'"
+            label={t("settings.includeMovies")}
+            hint={t("settings.includeMoviesHint")}
             checked={filters.includeMovies}
             onChange={v => setFilter({ includeMovies: v })}
           />
@@ -93,7 +103,7 @@ function Settings() {
       </section>
 
       <section className="mt-6">
-        <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">Libreria</p>
+        <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">{t("settings.librarySection")}</p>
         <button
           type="button"
           disabled={syncing}
@@ -104,36 +114,32 @@ function Settings() {
             {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold">Correggi serie concluse</span>
-            <span className="mt-0.5 block text-[11px] text-muted-foreground">
-              Confronta TMDB e segna come &quot;Viste&quot; le serie finite che hai completato
-            </span>
+            <span className="block text-sm font-semibold">{t("settings.fixCompletedTitle")}</span>
+            <span className="mt-0.5 block text-[11px] text-muted-foreground">{t("settings.fixCompletedHint")}</span>
           </span>
         </button>
       </section>
 
       <section className="mt-6 space-y-2">
-        <Row icon={<Globe className="h-4 w-4"/>} label="Profilo pubblico" hint="Attivo" />
-        <Row icon={<Shield className="h-4 w-4"/>} label="Spoiler protection" hint="Sempre" />
-        <Row icon={<Download className="h-4 w-4"/>} label="Esporta i miei dati" />
-        <Row icon={<Trash2 className="h-4 w-4"/>} label="Cancella account" danger />
+        <Row icon={<Globe className="h-4 w-4"/>} label={t("settings.account")} hint="—" />
+        <Row icon={<Shield className="h-4 w-4"/>} label={t("settings.privacy")} hint="—" />
+        <Row icon={<Download className="h-4 w-4"/>} label={t("settings.exportData")} />
+        <Row icon={<Trash2 className="h-4 w-4"/>} label={t("settings.deleteAccount")} danger />
       </section>
 
       <section className="mt-8">
         <TmdbAttribution />
       </section>
-
-      <p className="mt-6 text-center text-[10px] text-muted-foreground">Privacy by design. Nessun dato venduto. Mai.</p>
     </AppShell>
   );
 }
 
 function Row({ icon, label, hint, danger }: { icon: React.ReactNode; label: string; hint?: string; danger?: boolean }) {
   return (
-    <button className="glass flex w-full items-center gap-3 rounded-2xl p-3 text-left">
+    <button type="button" className="glass flex w-full items-center gap-3 rounded-2xl p-3 text-left">
       <span className={danger ? "text-destructive" : "text-accent"}>{icon}</span>
       <span className={`flex-1 text-sm font-semibold ${danger ? "text-destructive" : ""}`}>{label}</span>
-      {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+      {hint && hint !== "—" && <span className="text-xs text-muted-foreground">{hint}</span>}
     </button>
   );
 }
