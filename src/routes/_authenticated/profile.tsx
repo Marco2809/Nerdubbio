@@ -5,7 +5,6 @@ import { useAuthUser } from "@/hooks/use-auth-user";
 import { useFriendRequestCount } from "@/hooks/use-friend-requests-count";
 import { Trophy, Flame, Star, Settings2, Crown, Users, Download, ExternalLink, BarChart3, Tv, Clapperboard } from "lucide-react";
 import { countAllMovies, countAllSeries } from "@/lib/library-display";
-import { TvTimeReimportCard } from "@/components/nerdubbio/TvTimeReimportCard";
 import { useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/profile")({
@@ -160,7 +159,6 @@ function Profile() {
           <Download className="h-5 w-5 text-accent" />
           <div className="flex-1"><p className="text-sm font-semibold">{t("profile.tvTime")}</p><p className="text-xs text-muted-foreground">{t("profile.tvTimeHint")}</p></div>
         </Link>
-        <TvTimeReimportCard />
       </section>
     </AppShell>
   );

@@ -1,6 +1,8 @@
 export {
   LOCALES,
   LOCALE_LABELS,
+  LOCALE_FLAGS,
+  LOCALE_NAMES,
   normalizeLocale,
   quizLocale,
   localeToBcp47,

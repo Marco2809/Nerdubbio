@@ -7,7 +7,8 @@ import { buildStatusPatches } from "@/lib/resolve-show-statuses";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "@/lib/toast";
-import { LOCALES, LOCALE_LABELS, useI18n, pageTitle, type Locale } from "@/lib/i18n";
+import { LOCALES, LOCALE_FLAGS, LOCALE_NAMES, useI18n, pageTitle, type Locale } from "@/lib/i18n";
+import { TvTimeReimportCard } from "@/components/nerdubbio/TvTimeReimportCard";
 import { ArrowLeft, Globe, Shield, Trash2, Download, Sparkles, PlayCircle, Popcorn, CheckCircle2, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -59,18 +60,26 @@ function Settings() {
       <section className="mt-6">
         <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">{t("settings.language")}</p>
         <div className="glass flex flex-wrap gap-2 rounded-2xl p-2">
-          {LOCALES.map(l => (
-            <button
-              key={l}
-              type="button"
-              onClick={() => update({ language: l as Locale })}
-              className={`rounded-xl px-3 py-2 text-xs font-semibold sm:text-sm ${
-                state.language === l ? "bg-hero text-primary-foreground" : "text-muted-foreground"
-              }`}
-            >
-              {LOCALE_LABELS[l]}
-            </button>
-          ))}
+          {LOCALES.map(l => {
+            const active = state.language === l;
+            return (
+              <button
+                key={l}
+                type="button"
+                onClick={() => update({ language: l as Locale })}
+                aria-label={LOCALE_NAMES[l]}
+                aria-pressed={active}
+                title={LOCALE_NAMES[l]}
+                className={`grid h-11 w-11 place-items-center rounded-xl text-2xl transition ${
+                  active
+                    ? "bg-hero shadow-glow-pink ring-2 ring-accent"
+                    : "bg-surface-2 opacity-70 hover:opacity-100"
+                }`}
+              >
+                <span aria-hidden>{LOCALE_FLAGS[l]}</span>
+              </button>
+            );
+          })}
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground">{t("settings.languageHint")}</p>
       </section>
@@ -102,7 +111,7 @@ function Settings() {
         </div>
       </section>
 
-      <section className="mt-6">
+      <section className="mt-6 space-y-2">
         <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">{t("settings.librarySection")}</p>
         <button
           type="button"
@@ -118,6 +127,7 @@ function Settings() {
             <span className="mt-0.5 block text-[11px] text-muted-foreground">{t("settings.fixCompletedHint")}</span>
           </span>
         </button>
+        <TvTimeReimportCard />
       </section>
 
       <section className="mt-6 space-y-2">

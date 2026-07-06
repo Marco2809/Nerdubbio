@@ -9,6 +9,23 @@ export const LOCALE_LABELS: Record<Locale, string> = {
   de: "🇩🇪 Deutsch",
 };
 
+/** Solo bandiera + nome breve, per selettori compatti a icone. */
+export const LOCALE_FLAGS: Record<Locale, string> = {
+  it: "🇮🇹",
+  en: "🇬🇧",
+  es: "🇪🇸",
+  fr: "🇫🇷",
+  de: "🇩🇪",
+};
+
+export const LOCALE_NAMES: Record<Locale, string> = {
+  it: "Italiano",
+  en: "English",
+  es: "Español",
+  fr: "Français",
+  de: "Deutsch",
+};
+
 export function normalizeLocale(value?: string | null): Locale {
   if (value && (LOCALES as readonly string[]).includes(value)) return value as Locale;
   return "it";
