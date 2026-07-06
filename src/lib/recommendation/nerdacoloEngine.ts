@@ -7,9 +7,9 @@
 import type { CatalogItem } from "@/lib/mock-catalog";
 import { CATALOG } from "@/lib/mock-catalog";
 import type { LibraryState } from "@/lib/php/library-client";
-import { normalizeLocale, quizLocale } from "@/lib/i18n";
+import { normalizeLocale } from "@/lib/i18n";
 import {
-  NERDACOLO_QUESTION_BY_ID,
+  questionById,
   questionsForMode,
 } from "./nerdacolo-questions";
 import {
@@ -99,7 +99,7 @@ export function buildNerdacoloUserContext(
     moodProfile: state.moodProfile ?? [],
     highlyRatedIds,
     highlyRatedTitles,
-    language: quizLocale(normalizeLocale(state.language)),
+    language: normalizeLocale(state.language),
     country: "IT",
   };
 }
@@ -420,7 +420,7 @@ export function calculateQuestionValue(
   const userProfileUnknownFactor = categoryKnown ? 0 : 1;
 
   const repetitionPenalty = session.askedQuestionIds.filter(id => {
-    const q = NERDACOLO_QUESTION_BY_ID[id];
+    const q = questionById(session.language, id);
     return q?.category === question.category;
   }).length * 0.3;
 
@@ -469,7 +469,7 @@ function computeConfidence(candidates: NerdacoloCandidate[]): number {
 }
 
 function questionsAvailable(session: NerdacoloSessionState): NerdacoloQuestion[] {
-  return questionsForMode(session.mode).filter(q => {
+  return questionsForMode(session.mode, session.language).filter(q => {
     if (session.askedQuestionIds.includes(q.id)) return false;
     if (q.appliesTo === "movie" && session.mode === "tv") return false;
     if (q.appliesTo === "tv" && session.mode === "movie") return false;
@@ -492,7 +492,7 @@ function shouldStopSession(session: NerdacoloSessionState): boolean {
 }
 
 export function startNerdacoloSession(params: NerdacoloStartParams): NerdacoloStartResult {
-  const lang = params.language ?? params.userProfile.language ?? "it";
+  const lang = normalizeLocale(params.language ?? params.userProfile.language ?? "it");
   const catalog = params.catalogPool.length > 0 ? params.catalogPool : CATALOG;
 
   const filtered = filterPoolByMode(catalog, params.mode, params.userProfile);
@@ -558,7 +558,7 @@ export function answerQuestion(
   questionId: string,
   answerId: string,
 ): NerdacoloAnswerResult {
-  const question = NERDACOLO_QUESTION_BY_ID[questionId];
+  const question = questionById(sessionState.language, questionId);
   if (!question) throw new Error(`Domanda sconosciuta: ${questionId}`);
 
   const answer = question.options.find(o => o.id === answerId);
@@ -642,7 +642,7 @@ export function answerQuestion(
 function traitLabelsFromAnswers(session: NerdacoloSessionState): string[] {
   const labels: string[] = [];
   for (const a of session.answers) {
-    const q = NERDACOLO_QUESTION_BY_ID[a.questionId];
+    const q = questionById(session.language, a.questionId);
     const opt = q?.options.find(o => o.id === a.answerId);
     if (opt) labels.push(opt.label.toLowerCase());
   }
@@ -689,7 +689,7 @@ function diverseAlternatives(sorted: NerdacoloCandidate[], main: NerdacoloCandid
 function recoveredTraits(session: NerdacoloSessionState, main: NerdacoloCandidate): string[] {
   const penalized = new Set<string>();
   for (const a of session.answers) {
-    const q = NERDACOLO_QUESTION_BY_ID[a.questionId];
+    const q = questionById(session.language, a.questionId);
     const opt = q?.options.find(o => o.id === a.answerId);
     for (const k of Object.keys(opt?.effects.penalizeTraits ?? {})) penalized.add(k);
   }

@@ -15,12 +15,12 @@ if ($action === 'signup') {
     $name  = trim($body['display_name'] ?? '');
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($pass) < 6) {
-        json_out(['error' => 'Email o password non validi'], 400);
+        api_err('invalid_signup', 400);
     }
 
     $exists = $pdo->prepare('SELECT id FROM users WHERE email = ?');
     $exists->execute([$email]);
-    if ($exists->fetch()) json_out(['error' => 'Email già registrata'], 409);
+    if ($exists->fetch()) api_err('email_taken', 409);
 
     $id   = uuid();
     $hash = password_hash($pass, PASSWORD_BCRYPT);
@@ -34,7 +34,7 @@ if ($action === 'signup') {
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
-        json_out(['error' => 'Errore creazione account'], 500);
+        api_err('account_create_failed', 500);
     }
 
     json_out(['token' => make_token($id, $email), 'user' => fetch_profile($pdo, $id)]);
@@ -49,7 +49,7 @@ if ($action === 'login') {
     $user = $stmt->fetch();
 
     if (!$user || !$user['password_hash'] || !password_verify($pass, $user['password_hash'])) {
-        json_out(['error' => 'Credenziali non valide'], 401);
+        api_err('invalid_credentials', 401);
     }
 
     $profile = fetch_profile($pdo, $user['id']);
@@ -65,11 +65,11 @@ if ($action === 'google') {
     $credential = trim($body['credential'] ?? '');
     $clientId   = (string) app_config('google_client_id');
 
-    if (!$clientId) json_out(['error' => 'Login Google non configurato'], 400);
-    if (!$credential) json_out(['error' => 'Token Google mancante'], 400);
+    if (!$clientId) api_err('google_not_configured', 400);
+    if (!$credential) api_err('google_token_missing', 400);
 
     $claims = verify_google_id_token($credential, $clientId);
-    if (!$claims) json_out(['error' => 'Token Google non valido'], 401);
+    if (!$claims) api_err('google_token_invalid', 401);
 
     $email    = strtolower(trim($claims['email'] ?? ''));
     $sub      = (string) ($claims['sub'] ?? '');
@@ -77,7 +77,7 @@ if ($action === 'google') {
     $avatar   = $claims['picture'] ?? null;
     $verified = !empty($claims['email_verified']);
 
-    if (!$email || !$verified) json_out(['error' => 'Email Google non verificata'], 401);
+    if (!$email || !$verified) api_err('google_email_unverified', 401);
 
     $stmt = $pdo->prepare('SELECT * FROM users WHERE google_id = ? OR email = ? LIMIT 1');
     $stmt->execute([$sub, $email]);
@@ -110,7 +110,7 @@ if ($action === 'google') {
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
-        json_out(['error' => 'Errore login Google'], 500);
+        api_err('google_login_failed', 500);
     }
 
     json_out(['token' => make_token($id, $email), 'user' => fetch_profile($pdo, $id)]);
@@ -119,7 +119,7 @@ if ($action === 'google') {
 if ($action === 'me') {
     $jwt = require_auth();
     $profile = fetch_profile($pdo, $jwt['sub']);
-    if (!$profile) json_out(['error' => 'Utente non trovato'], 404);
+    if (!$profile) api_err('user_not_found', 404);
     json_out($profile);
 }
 
@@ -135,11 +135,11 @@ if ($action === 'profile') {
         if ($k === 'handle') {
             $handle = strtolower(trim((string) $body['handle']));
             if (!preg_match('/^[a-z0-9_]{3,24}$/', $handle)) {
-                json_out(['error' => 'Handle non valido (3-24 caratteri, a-z 0-9 _)'], 400);
+                api_err('invalid_handle', 400);
             }
             $dup = $pdo->prepare('SELECT 1 FROM profiles WHERE handle = ? AND id != ?');
             $dup->execute([$handle, $jwt['sub']]);
-            if ($dup->fetch()) json_out(['error' => 'Handle già in uso'], 409);
+            if ($dup->fetch()) api_err('handle_taken', 409);
         }
         $sets[] = "`$k` = ?";
         $vals[] = $body[$k];
@@ -159,7 +159,7 @@ if ($action === 'profile') {
 if ($action === 'forgot') {
     $email = strtolower(trim($body['email'] ?? ''));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        json_out(['error' => 'Email non valida'], 400);
+        api_err('invalid_email', 400);
     }
 
     $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ?');
@@ -189,15 +189,15 @@ if ($action === 'reset') {
     $token = trim($body['token'] ?? '');
     $pass  = $body['password'] ?? '';
 
-    if (strlen($pass) < 6) json_out(['error' => 'Password troppo corta'], 400);
-    if ($token === '') json_out(['error' => 'Token mancante'], 400);
+    if (strlen($pass) < 6) api_err('password_too_short', 400);
+    if ($token === '') api_err('token_missing', 400);
 
     $stmt = $pdo->prepare(
         'SELECT user_id FROM password_reset_tokens WHERE token = ? AND expires_at > NOW() LIMIT 1'
     );
     $stmt->execute([$token]);
     $row = $stmt->fetch();
-    if (!$row) json_out(['error' => 'Link non valido o scaduto'], 400);
+    if (!$row) api_err('reset_link_invalid', 400);
 
     $hash = password_hash($pass, PASSWORD_BCRYPT);
     $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([$hash, $row['user_id']]);
@@ -210,4 +210,4 @@ if ($action === 'reset') {
     json_out(['token' => make_token($row['user_id'], $email), 'user' => fetch_profile($pdo, $row['user_id'])]);
 }
 
-json_out(['error' => 'Azione non valida'], 400);
+api_err('invalid_action', 400);

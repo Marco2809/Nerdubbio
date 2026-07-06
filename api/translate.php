@@ -10,7 +10,7 @@ $body   = body();
 $jwt    = require_auth();
 
 if ($action !== 'translate') {
-    json_out(['error' => 'Azione non valida'], 400);
+    api_err('invalid_action', 400);
 }
 
 json_out(translate_text(

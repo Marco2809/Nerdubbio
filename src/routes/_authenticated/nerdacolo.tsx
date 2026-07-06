@@ -19,7 +19,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Dices, Loader2, Plus, RotateCcw, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/lib/toast";
-import { pageTitle } from "@/lib/i18n";
+import { pageTitle, useI18n } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/nerdacolo")({
   head: () => ({ meta: [{ title: pageTitle("nerdacoloRoll", "it", { name: NERDACOLO.name }) }] }),
@@ -82,6 +82,7 @@ function PoolCard({
 }
 
 function NerdacoloRollPage() {
+  const { t } = useI18n();
   const { state, addToList } = useUserStore();
   const [phase, setPhase] = useState<Phase>("loading");
   const [pool, setPool] = useState<CatalogItem[]>([]);
@@ -131,8 +132,11 @@ function NerdacoloRollPage() {
       return next;
     });
     setDiscardsUsed(u => u + 1);
-    toast.message(`Scartato: ${discarded.title}`, {
-      description: `Entra in pool #${index + 1}: ${replacement.title}`,
+    toast.message(t("nerdacoloRoll.discarded", { title: discarded.title }), {
+      description: t("nerdacoloRoll.discardedDesc", {
+        slot: String(index + 1),
+        replacement: replacement.title,
+      }),
     });
   };
 
@@ -291,7 +295,7 @@ function NerdacoloRollPage() {
                 type="button"
                 onClick={() => {
                   addToList(catalogMediaId(pick), "plan_to_watch", toMeta(pick));
-                  toast.success(`"${pick.title}" in watchlist`);
+                  toast.success(t("nerdacoloRoll.addedWatchlist", { title: pick.title }));
                 }}
                 className="rounded-2xl bg-hero py-3 text-sm font-bold text-primary-foreground"
               >

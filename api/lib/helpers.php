@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/errors.php';
+
 function cors(): void {
     $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
     header("Access-Control-Allow-Origin: $origin");

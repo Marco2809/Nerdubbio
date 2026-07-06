@@ -11,7 +11,7 @@ $body   = body();
 if ($action === 'public_profile') {
     $handle = strtolower(trim($_GET['handle'] ?? ($body['handle'] ?? '')));
     $profile = social_public_profile($pdo, $handle);
-    if (!$profile) json_out(['error' => 'Profilo non trovato'], 404);
+    if (!$profile) api_err('profile_not_found', 404);
     json_out($profile);
 }
 
@@ -73,4 +73,4 @@ if ($action === 'group_delete') {
     json_out(['groups' => social_group_delete($pdo, $userId, (string) ($body['group_id'] ?? ''))]);
 }
 
-json_out(['error' => 'Azione non valida'], 400);
+api_err('invalid_action', 400);

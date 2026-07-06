@@ -45,9 +45,9 @@ function comments_list(
     int $offset = 0,
 ): array {
     if (!in_array($mediaType, ['tv', 'movie'], true)) {
-        json_out(['error' => 'Tipo media non valido'], 400);
+        api_err('invalid_media_type', 400);
     }
-    if ($tmdbId <= 0) json_out(['error' => 'TMDB id non valido'], 400);
+    if ($tmdbId <= 0) api_err('invalid_tmdb_id', 400);
     if (!in_array($scope, ['all', 'friends'], true)) $scope = 'all';
 
     $offset = max(0, $offset);
@@ -112,14 +112,14 @@ function comments_create(
     bool $spoiler = false,
 ): array {
     if (!in_array($mediaType, ['tv', 'movie'], true)) {
-        json_out(['error' => 'Tipo media non valido'], 400);
+        api_err('invalid_media_type', 400);
     }
-    if ($tmdbId <= 0) json_out(['error' => 'TMDB id non valido'], 400);
+    if ($tmdbId <= 0) api_err('invalid_tmdb_id', 400);
 
     $body = trim($body);
-    if ($body === '') json_out(['error' => 'Commento vuoto'], 400);
+    if ($body === '') api_err('comment_empty', 400);
     if (mb_strlen($body) > COMMENT_BODY_MAX) {
-        json_out(['error' => 'Commento troppo lungo (max ' . COMMENT_BODY_MAX . ' caratteri)'], 400);
+        api_err('comment_too_long', 400, ['max' => COMMENT_BODY_MAX]);
     }
 
     $rate = $pdo->prepare(
@@ -128,7 +128,7 @@ function comments_create(
     );
     $rate->execute([$userId]);
     if ((int) $rate->fetchColumn() >= 20) {
-        json_out(['error' => 'Troppi commenti in poco tempo, riprova tra un po\''], 429);
+        api_err('comment_rate_limit', 429);
     }
 
     $id = uuid();
@@ -150,7 +150,7 @@ function comments_create(
     );
     $stmt->execute([comments_media_key($mediaType, $tmdbId), $id]);
     $row = $stmt->fetch();
-    if (!$row) json_out(['error' => 'Errore creazione commento'], 500);
+    if (!$row) api_err('comment_create_failed', 500);
 
     return ['comment' => comments_row_to_json($row, $userId)];
 }
@@ -161,8 +161,8 @@ function comments_delete(PDO $pdo, string $userId, string $commentId): array {
     );
     $stmt->execute([$commentId]);
     $row = $stmt->fetch();
-    if (!$row) json_out(['error' => 'Commento non trovato'], 404);
-    if ($row['user_id'] !== $userId) json_out(['error' => 'Permesso negato'], 403);
+    if (!$row) api_err('comment_not_found', 404);
+    if ($row['user_id'] !== $userId) api_err('permission_denied', 403);
 
     $pdo->prepare('UPDATE media_comments SET deleted_at = NOW() WHERE id = ?')
         ->execute([$commentId]);

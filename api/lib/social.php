@@ -146,19 +146,19 @@ function social_friends_list(PDO $pdo, string $userId): array {
 
 function social_send_friend_request(PDO $pdo, string $userId, string $handle): array {
     $target = social_find_user_by_handle($pdo, $handle);
-    if (!$target) json_out(['error' => 'Utente non trovato'], 404);
-    if ($target['id'] === $userId) json_out(['error' => 'Non puoi aggiungere te stesso'], 400);
+    if (!$target) api_err('user_not_found', 404);
+    if ($target['id'] === $userId) api_err('cannot_add_self', 400);
 
     $ctx = social_friends_context($pdo, $userId, $target['id']);
-    if ($ctx === 'accepted') json_out(['error' => 'Siete già amici'], 409);
-    if ($ctx === 'pending_out') json_out(['error' => 'Richiesta già inviata'], 409);
+    if ($ctx === 'accepted') api_err('already_friends', 409);
+    if ($ctx === 'pending_out') api_err('request_already_sent', 409);
     if ($ctx === 'pending_in') {
         $pdo->prepare(
             'UPDATE friendships SET status = ? WHERE user_id = ? AND friend_id = ?'
         )->execute(['accepted', $target['id'], $userId]);
         return social_friends_list($pdo, $userId);
     }
-    if ($ctx === 'blocked') json_out(['error' => 'Impossibile inviare richiesta'], 403);
+    if ($ctx === 'blocked') api_err('cannot_send_request', 403);
 
     $pdo->prepare(
         'INSERT INTO friendships (user_id, friend_id, status) VALUES (?, ?, ?)'
@@ -172,7 +172,7 @@ function social_respond_friend(PDO $pdo, string $userId, string $requesterId, bo
         'SELECT 1 FROM friendships WHERE user_id = ? AND friend_id = ? AND status = ?'
     );
     $stmt->execute([$requesterId, $userId, 'pending']);
-    if (!$stmt->fetch()) json_out(['error' => 'Richiesta non trovata'], 404);
+    if (!$stmt->fetch()) api_err('request_not_found', 404);
 
     if ($accept) {
         $pdo->prepare(
@@ -235,7 +235,7 @@ function social_groups_list(PDO $pdo, string $userId): array {
 
 function social_group_create(PDO $pdo, string $userId, string $name): array {
     $name = trim($name);
-    if ($name === '' || strlen($name) > 120) json_out(['error' => 'Nome gruppo non valido'], 400);
+    if ($name === '' || strlen($name) > 120) api_err('invalid_group_name', 400);
 
     $id = uuid();
     $pdo->beginTransaction();
@@ -247,7 +247,7 @@ function social_group_create(PDO $pdo, string $userId, string $name): array {
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
-        json_out(['error' => 'Errore creazione gruppo'], 500);
+        api_err('group_create_failed', 500);
     }
 
     return social_groups_list($pdo, $userId);
@@ -257,21 +257,21 @@ function social_group_add_member(PDO $pdo, string $userId, string $groupId, stri
     $group = $pdo->prepare('SELECT * FROM groups WHERE id = ?');
     $group->execute([$groupId]);
     $g = $group->fetch();
-    if (!$g) json_out(['error' => 'Gruppo non trovato'], 404);
+    if (!$g) api_err('group_not_found', 404);
 
     $isMember = $pdo->prepare('SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?');
     $isMember->execute([$groupId, $userId]);
-    if (!$isMember->fetch()) json_out(['error' => 'Non sei nel gruppo'], 403);
+    if (!$isMember->fetch()) api_err('not_in_group', 403);
 
     $target = social_find_user_by_handle($pdo, $handle);
-    if (!$target) json_out(['error' => 'Utente non trovato'], 404);
+    if (!$target) api_err('user_not_found', 404);
     if (social_friends_context($pdo, $userId, $target['id']) !== 'accepted') {
-        json_out(['error' => 'Puoi invitare solo amici accettati'], 400);
+        api_err('invite_friends_only', 400);
     }
 
     $exists = $pdo->prepare('SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?');
     $exists->execute([$groupId, $target['id']]);
-    if ($exists->fetch()) json_out(['error' => 'Già nel gruppo'], 409);
+    if ($exists->fetch()) api_err('already_in_group', 409);
 
     $pdo->prepare('INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, ?)')
         ->execute([$groupId, $target['id'], 'member']);
@@ -283,13 +283,13 @@ function social_group_remove_member(PDO $pdo, string $userId, string $groupId, s
     $group = $pdo->prepare('SELECT * FROM groups WHERE id = ?');
     $group->execute([$groupId]);
     $g = $group->fetch();
-    if (!$g) json_out(['error' => 'Gruppo non trovato'], 404);
+    if (!$g) api_err('group_not_found', 404);
 
     if ($memberId === $g['owner_id'] && $userId !== $g['owner_id']) {
-        json_out(['error' => 'Non puoi rimuovere il proprietario'], 403);
+        api_err('cannot_remove_owner', 403);
     }
     if ($memberId !== $userId && $userId !== $g['owner_id']) {
-        json_out(['error' => 'Permesso negato'], 403);
+        api_err('permission_denied', 403);
     }
 
     $pdo->prepare('DELETE FROM group_members WHERE group_id = ? AND user_id = ?')
@@ -306,8 +306,8 @@ function social_group_delete(PDO $pdo, string $userId, string $groupId): array {
     $group = $pdo->prepare('SELECT owner_id FROM groups WHERE id = ?');
     $group->execute([$groupId]);
     $g = $group->fetch();
-    if (!$g) json_out(['error' => 'Gruppo non trovato'], 404);
-    if ($g['owner_id'] !== $userId) json_out(['error' => 'Solo il proprietario può eliminare'], 403);
+    if (!$g) api_err('group_not_found', 404);
+    if ($g['owner_id'] !== $userId) api_err('owner_only_delete', 403);
 
     $pdo->prepare('DELETE FROM groups WHERE id = ?')->execute([$groupId]);
     return social_groups_list($pdo, $userId);

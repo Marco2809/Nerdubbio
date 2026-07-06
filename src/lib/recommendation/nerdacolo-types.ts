@@ -1,4 +1,4 @@
-import type { CatalogItem } from "@/lib/mock-catalog";
+import type { Locale } from "@/lib/i18n";
 
 /** Modalità sessione Nerdacolo. */
 export type NerdacoloMode = "movie" | "tv" | "surprise";
@@ -65,7 +65,7 @@ export type NerdacoloUserContext = {
   highlyRatedIds: string[];
   /** Nomi dei titoli votati ≥8 — usati per spiegazioni concrete ("hai amato Dark") */
   highlyRatedTitles?: string[];
-  language: "it" | "en";
+  language: Locale;
   country: string;
 };
 
@@ -162,7 +162,7 @@ export type NerdacoloSessionState = {
   answers: { questionId: string; answerId: string; funnyReaction: string }[];
   questionCount: number;
   confidence: number;
-  language: "it" | "en";
+  language: Locale;
   country: string;
   /** Ultima frase del Nerdacolo mostrata in UI */
   lastOracleLine?: string;
@@ -175,7 +175,7 @@ export type NerdacoloStartParams = {
   mode: NerdacoloMode;
   userProfile: NerdacoloUserContext;
   catalogPool: CatalogItem[];
-  language?: "it" | "en";
+  language?: Locale;
   country?: string;
 };
 

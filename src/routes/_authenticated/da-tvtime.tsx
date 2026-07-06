@@ -9,11 +9,16 @@ import { applyResolvedTvStatuses } from "@/lib/resolve-show-statuses";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { UploadCloud, CheckCircle2, AlertTriangle, Loader2, Sparkles, ShieldCheck, Rocket, Import, Search, Check } from "lucide-react";
 import { toast } from "@/lib/toast";
-import { useI18n, pageTitle } from "@/lib/i18n";
+import { useI18n, pageTitle, translate } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/da-tvtime")({
   head: () => ({
-    meta: [{ title: pageTitle("tvtime") }],
+    meta: [
+      { title: pageTitle("tvtime") },
+      { name: "description", content: translate("it", "meta.tvtimeOgDesc") },
+      { property: "og:title", content: translate("it", "meta.tvtimeOgTitle") },
+      { property: "og:description", content: translate("it", "meta.tvtimeOgDesc") },
+    ],
   }),
   component: DaTvTimePage,
 });

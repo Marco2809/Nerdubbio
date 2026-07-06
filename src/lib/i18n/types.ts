@@ -14,9 +14,9 @@ export function normalizeLocale(value?: string | null): Locale {
   return "it";
 }
 
-/** Lingua quiz Nerdacolo (domande tradotte: IT + EN; altre → EN). */
-export function quizLocale(locale: Locale): "it" | "en" {
-  return locale === "it" ? "it" : "en";
+/** Lingua quiz Nerdacolo — tutte e 5 le locale supportate. */
+export function quizLocale(locale: Locale): Locale {
+  return normalizeLocale(locale);
 }
 
 export function localeToBcp47(locale: Locale): string {

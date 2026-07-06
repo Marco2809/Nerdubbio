@@ -1,3 +1,5 @@
+import { formatApiError, parseApiErrorBody } from './api-errors';
+
 const BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
 const TOKEN_KEY = 'nb_token';
 
@@ -30,7 +32,9 @@ async function api<T = unknown>(path: string, method: Method = 'GET', body?: unk
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
-      msg = ((await res.json()) as { error?: string }).error ?? msg;
+      const body = await res.json();
+      const { code, vars } = parseApiErrorBody(body);
+      msg = formatApiError(code, vars);
     } catch {
       /* ignore */
     }

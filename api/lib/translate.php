@@ -73,10 +73,10 @@ function translate_mymemory(string $text, string $target, ?string $source): ?str
 function translate_text(string $text, string $targetLang, ?string $sourceLang = null): array {
     $text = trim($text);
     if ($text === '') {
-        json_out(['error' => 'Testo vuoto'], 400);
+        api_err('translate_empty', 400);
     }
     if (mb_strlen($text) > TRANSLATE_BODY_MAX) {
-        json_out(['error' => 'Testo troppo lungo'], 400);
+        api_err('translate_too_long', 400);
     }
 
     $target = normalize_locale($targetLang);
@@ -92,7 +92,7 @@ function translate_text(string $text, string $targetLang, ?string $sourceLang = 
         $provider = 'mymemory';
     }
     if ($translated === null) {
-        json_out(['error' => 'Traduzione non disponibile al momento'], 503);
+        api_err('translate_unavailable', 503);
     }
 
     return [

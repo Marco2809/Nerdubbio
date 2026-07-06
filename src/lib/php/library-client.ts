@@ -1,7 +1,13 @@
 import type { Locale } from '@/lib/i18n';
+import { setApiLocale } from '@/lib/php/api-errors';
 import { api } from '@/lib/php/client';
 import type { MediaMeta, UserMediaEntry, UserStatus } from '@/lib/user-store';
 import type { TvTimePendingItem } from '@/lib/tvtime-import';
+
+function syncApiLocale(state: LibraryState): LibraryState {
+  if (state.language) setApiLocale(state.language);
+  return state;
+}
 
 export interface LibraryState {
   xp: number;
@@ -26,11 +32,11 @@ export interface LibraryState {
 
 export const libraryApi = {
   get(): Promise<LibraryState> {
-    return api<LibraryState>('/api/library.php?action=get');
+    return api<LibraryState>('/api/library.php?action=get').then(syncApiLocale);
   },
 
   patchSettings(patch: Partial<LibraryState>): Promise<LibraryState> {
-    return api<LibraryState>('/api/library.php?action=patch_settings', 'PATCH', patch);
+    return api<LibraryState>('/api/library.php?action=patch_settings', 'PATCH', patch).then(syncApiLocale);
   },
 
   addToList(id: string, status: UserStatus, meta?: MediaMeta): Promise<LibraryState> {

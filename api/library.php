@@ -21,32 +21,32 @@ if ($action === 'patch_settings') {
 if ($action === 'add_to_list') {
     $id = (string) ($body['id'] ?? '');
     $status = (string) ($body['status'] ?? 'plan_to_watch');
-    if ($id === '') json_out(['error' => 'ID mancante'], 400);
+    if ($id === '') api_err('missing_id', 400);
     json_out(library_add_to_list($pdo, $userId, $id, $status, $body['meta'] ?? null));
 }
 
 if ($action === 'set_status') {
     $id = (string) ($body['id'] ?? '');
     $status = (string) ($body['status'] ?? 'plan_to_watch');
-    if ($id === '') json_out(['error' => 'ID mancante'], 400);
+    if ($id === '') api_err('missing_id', 400);
     json_out(library_set_status($pdo, $userId, $id, $status, is_array($body['meta'] ?? null) ? $body['meta'] : null));
 }
 
 if ($action === 'remove_from_list') {
     $id = (string) ($body['id'] ?? '');
-    if ($id === '') json_out(['error' => 'ID mancante'], 400);
+    if ($id === '') api_err('missing_id', 400);
     json_out(library_remove_from_list($pdo, $userId, $id));
 }
 
 if ($action === 'dismiss') {
     $id = (string) ($body['id'] ?? '');
-    if ($id === '') json_out(['error' => 'ID mancante'], 400);
+    if ($id === '') api_err('missing_id', 400);
     json_out(library_dismiss($pdo, $userId, $id));
 }
 
 if ($action === 'toggle_episode') {
     $id = (string) ($body['id'] ?? '');
-    if ($id === '') json_out(['error' => 'ID mancante'], 400);
+    if ($id === '') api_err('missing_id', 400);
     json_out(library_toggle_episode(
         $pdo,
         $userId,
@@ -62,7 +62,7 @@ if ($action === 'toggle_episode') {
 
 if ($action === 'log_movie_watch') {
     $id = (string) ($body['id'] ?? '');
-    if ($id === '') json_out(['error' => 'ID mancante'], 400);
+    if ($id === '') api_err('missing_id', 400);
     json_out(library_log_movie_watch(
         $pdo,
         $userId,
@@ -73,7 +73,7 @@ if ($action === 'log_movie_watch') {
 
 if ($action === 'mark_all_watched') {
     $id = (string) ($body['id'] ?? '');
-    if ($id === '') json_out(['error' => 'ID mancante'], 400);
+    if ($id === '') api_err('missing_id', 400);
     json_out(library_mark_all_watched(
         $pdo,
         $userId,
@@ -86,20 +86,20 @@ if ($action === 'mark_all_watched') {
 
 if ($action === 'clear_watched') {
     $id = (string) ($body['id'] ?? '');
-    if ($id === '') json_out(['error' => 'ID mancante'], 400);
+    if ($id === '') api_err('missing_id', 400);
     json_out(library_clear_watched($pdo, $userId, $id, $body['restoreStatus'] ?? null));
 }
 
 if ($action === 'set_rating') {
     $id = (string) ($body['id'] ?? '');
-    if ($id === '') json_out(['error' => 'ID mancante'], 400);
+    if ($id === '') api_err('missing_id', 400);
     $rating = array_key_exists('rating', $body) && $body['rating'] !== null ? (int) $body['rating'] : null;
     json_out(library_set_rating($pdo, $userId, $id, $rating));
 }
 
 if ($action === 'set_reaction') {
     $id = (string) ($body['id'] ?? '');
-    if ($id === '') json_out(['error' => 'ID mancante'], 400);
+    if ($id === '') api_err('missing_id', 400);
     json_out(library_set_reaction(
         $pdo,
         $userId,
@@ -133,4 +133,4 @@ if ($action === 'watch_stats') {
     json_out(library_fetch_watch_stats($pdo, $userId));
 }
 
-json_out(['error' => 'Azione non valida'], 400);
+api_err('invalid_action', 400);

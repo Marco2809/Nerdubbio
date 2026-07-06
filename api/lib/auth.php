@@ -32,7 +32,7 @@ function require_auth(): array {
     $payload = $token ? jwt_verify($token) : null;
     if (!$payload) {
         http_response_code(401);
-        die(json_encode(['error' => 'Non autenticato']));
+        die(json_encode(['error' => 'not_authenticated']));
     }
     return $payload;
 }

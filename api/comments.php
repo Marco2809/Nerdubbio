@@ -33,4 +33,4 @@ if ($action === 'delete') {
     json_out(comments_delete($pdo, $userId, (string) ($body['id'] ?? '')));
 }
 
-json_out(['error' => 'Azione non valida'], 400);
+api_err('invalid_action', 400);
