@@ -7,7 +7,8 @@ import { buildStatusPatches } from "@/lib/resolve-show-statuses";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "@/lib/toast";
-import { LOCALES, LOCALE_FLAGS, LOCALE_NAMES, useI18n, pageTitle, type Locale } from "@/lib/i18n";
+import { LOCALES, LOCALE_NAMES, useI18n, pageTitle, type Locale } from "@/lib/i18n";
+import { FlagIcon } from "@/components/nerdubbio/FlagIcon";
 import { TvTimeReimportCard } from "@/components/nerdubbio/TvTimeReimportCard";
 import { ArrowLeft, Globe, Shield, Trash2, Download, Sparkles, PlayCircle, Popcorn, CheckCircle2, Loader2 } from "lucide-react";
 
@@ -70,13 +71,13 @@ function Settings() {
                 aria-label={LOCALE_NAMES[l]}
                 aria-pressed={active}
                 title={LOCALE_NAMES[l]}
-                className={`grid h-11 w-11 place-items-center rounded-xl text-2xl transition ${
+                className={`grid h-11 w-11 place-items-center rounded-xl transition ${
                   active
                     ? "bg-hero shadow-glow-pink ring-2 ring-accent"
                     : "bg-surface-2 opacity-70 hover:opacity-100"
                 }`}
               >
-                <span aria-hidden>{LOCALE_FLAGS[l]}</span>
+                <FlagIcon locale={l} className="h-5 w-[1.875rem]" />
               </button>
             );
           })}
