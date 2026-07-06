@@ -10,6 +10,7 @@ import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, tmdbWatchProviders, ty
 import { useReturnPath, useSmartBack } from "@/lib/media-nav";
 import { applyShowProgressAfterWatch, formatSeriesStatusLabel } from "@/lib/check-show-after-watch";
 import { toast } from "@/lib/toast";
+import { useI18n, localeToBcp47 } from "@/lib/i18n";
 import { MediaCommentsSection } from "@/components/nerdubbio/MediaCommentsSection";
 import { MediaRatingsSection } from "@/components/nerdubbio/MediaRatingsSection";
 import {
@@ -23,10 +24,15 @@ const EPISODES_PER_SEASON = 10;
 export const Route = createFileRoute("/_authenticated/media/$type/$id")({
   head: () => ({ meta: [{ title: "Dettaglio — Nerdubbio" }] }),
   component: MediaDetail,
-  notFoundComponent: () => (
-    <div className="p-8 text-center text-muted-foreground">Contenuto non trovato.</div>
-  ),
+  notFoundComponent: MediaNotFound,
 });
+
+function MediaNotFound() {
+  const { t } = useI18n();
+  return (
+    <div className="p-8 text-center text-muted-foreground">{t("media.contentNotFound")}</div>
+  );
+}
 
 function tmdbToCatalogItem(t: TmdbItem): CatalogItem {
   return {
@@ -48,6 +54,7 @@ function tmdbToCatalogItem(t: TmdbItem): CatalogItem {
 }
 
 function MediaDetail() {
+  const { t } = useI18n();
   const { id, type } = Route.useParams();
   const mockItem = findById(id);
   // Accetta sia "tv-123" / "movie-45" sia solo "123"
@@ -107,7 +114,7 @@ function MediaDetail() {
     );
   }
   if (!mockItem && tmdbQuery.error) {
-    return <div className="p-8 text-center text-destructive">Errore: {(tmdbQuery.error as Error).message}</div>;
+    return <div className="p-8 text-center text-destructive">{t("media.loadError", { message: (tmdbQuery.error as Error).message })}</div>;
   }
 
   const item: CatalogItem = mockItem ?? tmdbToCatalogItem(tmdbQuery.data!.item);
@@ -132,12 +139,12 @@ function MediaDetail() {
   };
 
   const actions: { s: UserStatus; label: string; icon: React.ReactNode }[] = [
-    { s: "plan_to_watch", label: "Da vedere", icon: <Plus className="h-4 w-4" /> },
-    { s: "watching", label: "In corso", icon: <Star className="h-4 w-4" /> },
-    { s: "completed", label: "Visto", icon: <CheckCircle2 className="h-4 w-4" /> },
-    { s: "paused", label: "In pausa", icon: <Pause className="h-4 w-4" /> },
-    { s: "dropped", label: "Abbandonato", icon: <X className="h-4 w-4" /> },
-    { s: "favorite", label: "Preferito", icon: <Heart className="h-4 w-4" /> },
+    { s: "plan_to_watch", label: t("status.plan_to_watch"), icon: <Plus className="h-4 w-4" /> },
+    { s: "watching", label: t("status.watching"), icon: <Star className="h-4 w-4" /> },
+    { s: "completed", label: t("status.completed"), icon: <CheckCircle2 className="h-4 w-4" /> },
+    { s: "paused", label: t("status.paused"), icon: <Pause className="h-4 w-4" /> },
+    { s: "dropped", label: t("status.dropped"), icon: <X className="h-4 w-4" /> },
+    { s: "favorite", label: t("status.favorite"), icon: <Heart className="h-4 w-4" /> },
   ];
 
   return (
@@ -148,13 +155,13 @@ function MediaDetail() {
       </div>
 
       <div className="mx-auto -mt-14 max-w-md px-safe">
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">{item.type === "tv" ? "Serie TV" : "Film"} · {item.year}</p>
+        <p className="text-xs uppercase tracking-widest text-muted-foreground">{item.type === "tv" ? t("media.series") : t("media.movie")} · {item.year}</p>
         <h1 className="mt-1 text-3xl font-extrabold">{item.title}</h1>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1"><Star className="h-3 w-3 fill-accent text-accent" /> {item.rating.toFixed(1)}</span>
           <span>·</span>
-          {(item.seasons ?? 0) > 0 && <><span>{item.seasons} stagioni</span><span>·</span></>}
-          {(item.runtimeMin ?? 0) > 0 && <span>{item.runtimeMin}′</span>}
+          {(item.seasons ?? 0) > 0 && <><span>{t("media.seasons", { n: item.seasons! })}</span><span>·</span></>}
+          {(item.runtimeMin ?? 0) > 0 && <span>{t("media.runtime", { n: item.runtimeMin! })}</span>}
         </div>
         <div className="mt-3 flex flex-wrap gap-1">
           {item.genres.map(g => <span key={g} className="rounded-full border border-border px-2 py-0.5 text-[10px]">{g}</span>)}
@@ -165,18 +172,18 @@ function MediaDetail() {
           )}
         </div>
 
-        <p className="mt-4 text-sm leading-relaxed text-foreground/90">{item.overview || "Sinossi non disponibile."}</p>
+        <p className="mt-4 text-sm leading-relaxed text-foreground/90">{item.overview || t("media.synopsisMissing")}</p>
 
         {streamingOn.length > 0 ? (
           <div className="mt-4">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">Dove vederlo</p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">{t("media.whereToWatch")}</p>
             <p className="mt-1 text-sm font-semibold">{streamingOn.join(" · ")}</p>
           </div>
         ) : null}
 
         <div className="mt-6">
           <div className="flex items-center justify-between">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">Stato</p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">{t("media.state")}</p>
             <span
               className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                 entry
@@ -184,7 +191,7 @@ function MediaDetail() {
                   : "border border-border text-muted-foreground"
               }`}
             >
-              {entry ? actions.find(a => a.s === entry.status)?.label ?? entry.status : "Non in libreria"}
+              {entry ? actions.find(a => a.s === entry.status)?.label ?? entry.status : t("status.notInLibrary")}
             </span>
           </div>
 
@@ -210,12 +217,12 @@ function MediaDetail() {
                       .then(() => {
                         toast.success(
                           wasInLibrary
-                            ? `"${item.title}" spostato in ${a.label}`
-                            : `"${item.title}" aggiunto a ${a.label}`,
+                            ? t("media.movedTo", { title: item.title, status: a.label })
+                            : t("media.addedTo", { title: item.title, status: a.label }),
                           {
                             description: wasInLibrary && prevLabel
-                              ? `Stato precedente: ${prevLabel}`
-                              : "Ora è nella tua libreria",
+                              ? t("media.prevStatus", { status: prevLabel })
+                              : t("media.nowInLibrary"),
                           },
                         );
                         const seasonsInfo = tmdbQuery.data?.item.seasonsInfo;
@@ -230,7 +237,7 @@ function MediaDetail() {
                         }
                       })
                       .catch((e: unknown) => {
-                        toast.error("Impossibile salvare lo stato", {
+                        toast.error(t("media.saveStatusError"), {
                           description: e instanceof Error ? e.message : undefined,
                         });
                       });
@@ -252,7 +259,7 @@ function MediaDetail() {
           {entry && item.type === "movie" && entry.status === "completed" && (
             <div className="mt-3 flex items-center justify-between rounded-2xl border border-border bg-surface/40 px-3 py-2">
               <div>
-                <p className="text-xs font-semibold">Visioni</p>
+                <p className="text-xs font-semibold">{t("media.views")}</p>
                 <p className="text-lg font-bold tabular-nums">
                   ×{Math.max(entry.watchCount ?? 1, 1)}
                 </p>
@@ -267,13 +274,13 @@ function MediaDetail() {
                   };
                   const prev = entry.watchCount ?? 1;
                   logMovieWatch(item.id, meta);
-                  toast.reward(`Rivisto "${item.title}"!`, 15, {
-                    description: `Visione ×${prev + 1}`,
+                  toast.reward(t("media.rewatched", { title: item.title }), 15, {
+                    description: t("media.viewCount", { n: prev + 1 }),
                   });
                 }}
                 className="rounded-xl bg-hero px-3 py-2 text-xs font-semibold text-primary-foreground shadow-glow-pink"
               >
-                Ho rivisto +1
+                {t("media.rewatchedBtn")}
               </button>
             </div>
           )}
@@ -284,33 +291,33 @@ function MediaDetail() {
                 <button
                   className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl border border-destructive/30 bg-destructive/10 py-2 text-xs font-semibold text-destructive transition hover:bg-destructive/20"
                 >
-                  <Trash2 className="h-3.5 w-3.5" /> Rimuovi dalla libreria
+                  <Trash2 className="h-3.5 w-3.5" /> {t("media.removeFromLibrary")}
                 </button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Rimuovere "{item.title}"?</AlertDialogTitle>
+                  <AlertDialogTitle>{t("media.removeTitle", { title: item.title })}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Il titolo verrà tolto dalla tua libreria. Progressi episodi, voto e stato verranno cancellati. L'azione non è reversibile.
+                    {t("media.removeDesc")}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => {
                       const prevLabel = entry ? actions.find(x => x.s === entry.status)?.label : null;
                       const epsCount = entry?.watchedEpisodes?.length ?? 0;
                       removeFromList(item.id);
-                      toast.success(`"${item.title}" rimosso dalla libreria`, {
+                      toast.success(t("media.removed", { title: item.title }), {
                         description: [
-                          prevLabel ? `Stato: ${prevLabel}` : null,
-                          epsCount > 0 ? `${epsCount} episodi tracciati eliminati` : null,
-                        ].filter(Boolean).join(" · ") || "Progressi cancellati",
+                          prevLabel ? t("media.statusLabel", { status: prevLabel }) : null,
+                          epsCount > 0 ? t("media.episodesDeleted", { count: epsCount }) : null,
+                        ].filter(Boolean).join(" · ") || t("media.progressCleared"),
                       });
                     }}
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   >
-                    Rimuovi
+                    {t("media.remove")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -322,15 +329,13 @@ function MediaDetail() {
         <AlertDialog open={syncOpen} onOpenChange={setSyncOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Sincronizzare gli episodi?</AlertDialogTitle>
+              <AlertDialogTitle>{t("media.syncEpisodesTitle")}</AlertDialogTitle>
               <AlertDialogDescription>
-                Hai segnato "{item.title}" come <strong>Visto</strong>, ma alcuni episodi risultano
-                ancora non spuntati. Vuoi segnare tutti gli episodi già usciti come visti per mantenere
-                la coerenza? Guadagnerai XP per ogni episodio aggiunto.
+                {t("media.syncEpisodesDesc", { title: item.title })}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-              <AlertDialogCancel>Solo stato</AlertDialogCancel>
+              <AlertDialogCancel>{t("media.syncOnlyStatus")}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => {
                   const seasonsInfo = tmdbQuery.data?.item.seasonsInfo ?? [];
@@ -344,13 +349,11 @@ function MediaDetail() {
                       backdropUrl: tmdbQuery.data?.item.backdropUrl ?? null,
                     },
                   });
-                  toast.success("Episodi sincronizzati come visti", {
+                  toast.success(t("media.episodesSynced"), {
                     action: {
-                      label: "Annulla",
+                      label: t("common.cancel"),
                       onClick: () => {
                         clearWatchedEpisodes(item.id, prevStatus);
-                        // ripristina eventuali episodi già visti in precedenza
-                        // (implementazione soft: pulisce e lascia lo stato precedente)
                         void prevWatched;
                       },
                     },
@@ -359,7 +362,7 @@ function MediaDetail() {
                 }}
                 className="bg-hero text-primary-foreground hover:opacity-90"
               >
-                Sì, sincronizza
+                {t("media.syncYes")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -395,17 +398,17 @@ function MediaDetail() {
                 await unwatchEpisode(item.id, s, e, epsInSeason, item.seasons!, mediaMeta);
                 if (!opts.silent) {
                   if (prevCount > 1) {
-                    toast(`S${s}E${e} ×${prevCount} → ×${prevCount - 1}`, {
+                    toast(t("media.episodeWatchDecrement", { s, e, from: prevCount, to: prevCount - 1 }), {
                       action: {
-                        label: "Annulla",
+                        label: t("common.cancel"),
                         onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, mediaMeta),
                       },
                       duration: 4000,
                     });
                   } else {
-                    toast(`S${s}E${e} segnato come non visto`, {
+                    toast(t("media.episodeUnwatched", { s, e }), {
                       action: {
-                        label: "Annulla",
+                        label: t("common.cancel"),
                         onClick: () => toggleEpisode(item.id, s, e, epsInSeason, item.seasons!, mediaMeta),
                       },
                       duration: 4000,
@@ -419,23 +422,23 @@ function MediaDetail() {
                 if (!opts?.silent) {
                   const undoFirstWatch = {
                     action: {
-                      label: "Annulla",
+                      label: t("common.cancel"),
                       onClick: () => unwatchEpisode(item.id, s, e, epsInSeason, item.seasons!, mediaMeta),
                     },
                     duration: 4000,
                   };
                   if (prevCount > 0) {
-                    toast.reward(`S${s}E${e} rivisto!`, 15, {
-                      description: `Visione ×${prevCount + 1}`,
+                    toast.reward(t("media.episodeRewatched", { s, e }), 15, {
+                      description: t("media.viewCount", { n: prevCount + 1 }),
                       ...undoFirstWatch,
                     });
                   } else {
-                    toast.reward(`S${s}E${e} visto!`, 15, undoFirstWatch);
+                    toast.reward(t("media.episodeWatched", { s, e }), 15, undoFirstWatch);
                   }
                 }
                 runProgressCheck(nextState.media[item.id]);
               } catch (err: unknown) {
-                toast.error("Impossibile salvare l'episodio", {
+                toast.error(t("media.saveEpisodeError"), {
                   description: err instanceof Error ? err.message : undefined,
                 });
               }
@@ -445,8 +448,8 @@ function MediaDetail() {
               for (const ep of episodeNumbers) {
                 nextState = await toggleEpisode(item.id, seasonNumber, ep, epsCount, item.seasons!, mediaMeta);
               }
-              toast.reward(`Stagione ${seasonNumber} completata!`, episodeNumbers.length * 15 + 50, {
-                description: `${episodeNumbers.length} episodi segnati come visti`,
+              toast.reward(t("media.seasonCompleted", { n: seasonNumber }), episodeNumbers.length * 15 + 50, {
+                description: t("media.seasonCompletedDesc", { count: episodeNumbers.length }),
               });
               runProgressCheck(nextState.media[item.id]);
             }}
@@ -467,7 +470,7 @@ function MediaDetail() {
 
         {(item.similar?.length ?? 0) > 0 ? (
           <section className="mt-6">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">Simili</h2>
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">{t("media.similar")}</h2>
             <div className="grid grid-cols-3 gap-2">
               {item.similar!.map(sid => {
                 const s = findById(sid); if (!s) return null;
@@ -486,23 +489,24 @@ function MediaDetail() {
 }
 
 function SeriesRating({ value, onChange }: { value: number | undefined; onChange: (r: number | undefined) => void }) {
+  const { t } = useI18n();
   return (
     <div className="mt-6">
-      <p className="text-xs uppercase tracking-widest text-muted-foreground">Il tuo voto</p>
+      <p className="text-xs uppercase tracking-widest text-muted-foreground">{t("media.yourRating")}</p>
       <div className="mt-2 flex items-center gap-1">
         {Array.from({ length: 10 }).map((_, i) => {
           const n = i + 1;
           const active = value != null && n <= value;
           return (
             <button key={n} onClick={() => onChange(value === n ? undefined : n)}
-              aria-label={`Vota ${n}/10`}
+              aria-label={t("media.rateN", { n })}
               className={`h-8 flex-1 rounded-lg text-[10px] font-bold transition ${active ? "bg-hero text-primary-foreground shadow-glow-pink" : "border border-border bg-surface/60 text-muted-foreground"}`}>
               {n}
             </button>
           );
         })}
       </div>
-      {value != null && <p className="mt-1 text-[11px] text-accent">Voto {value}/10. Toccalo di nuovo per rimuoverlo.</p>}
+      {value != null && <p className="mt-1 text-[11px] text-accent">{t("media.ratingValue", { n: value })}. {t("media.removeRating")}</p>}
     </div>
   );
 }
@@ -527,6 +531,7 @@ function SeasonsTracker({
     epsCount: number,
   ) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [openSeason, setOpenSeason] = useState<number>(entry?.currentSeason ?? 1);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -538,10 +543,10 @@ function SeasonsTracker({
   return (
     <section className="mt-6">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-bold uppercase tracking-wider">Stagioni & episodi</h2>
+        <h2 className="text-sm font-bold uppercase tracking-wider">{t("media.seasonsEpisodes")}</h2>
         <span className="text-xs text-muted-foreground">
-          {totalEpisodeWatches(entry) || watched.length} visioni
-          {totalEpisodeWatches(entry) > watched.length ? ` · ${watched.length} episodi` : ""}
+          {t("media.viewsCount", { n: totalEpisodeWatches(entry) || watched.length })}
+          {totalEpisodeWatches(entry) > watched.length ? t("media.episodesCount", { n: watched.length }) : ""}
         </span>
       </div>
 
@@ -565,7 +570,7 @@ function SeasonsTracker({
       </div>
       {(entry?.currentSeason ?? 0) > 0 && (entry?.currentEpisode ?? 0) > 0 ? (
         <p className="mt-3 text-center text-xs text-accent">
-          Ultimo episodio: S{entry!.currentSeason}E{entry!.currentEpisode}. Un altro episodio e poi dormi?
+          {t("media.lastEpisode", { s: entry!.currentSeason!, e: entry!.currentEpisode! })}
         </p>
       ) : null}
     </section>
@@ -593,6 +598,7 @@ function SeasonCard({
     epsCount: number,
   ) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const q = useQuery({
     queryKey: ["tmdb", "season", tmdbId, seasonNumber],
     queryFn: () => tmdbSeason({ data: { tmdbId: tmdbId!, seasonNumber } }),
@@ -619,16 +625,16 @@ function SeasonCard({
   const unmarkAll = () => {
     const marked = episodes.filter(ep => watchedSet.has(`S${seasonNumber}E${ep.episodeNumber}`));
     marked.forEach(ep => onToggle(seasonNumber, ep.episodeNumber, epsCount, { silent: true, unwatch: true }));
-    if (marked.length) toast(`Stagione ${seasonNumber} segnata come non vista`);
+    if (marked.length) toast(t("media.seasonUnmarked", { n: seasonNumber }));
   };
 
   return (
     <div id={`season-${seasonNumber}`} className="glass overflow-hidden rounded-2xl scroll-mt-24">
       <button onClick={onToggleOpen} className="flex w-full items-center gap-3 p-3 text-left">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">{q.data?.name ?? `Stagione ${seasonNumber}`}</p>
+          <p className="text-sm font-semibold">{q.data?.name ?? t("media.seasonN", { n: seasonNumber })}</p>
           <p className="text-xs text-muted-foreground">
-            {epsCount ? `${watchedInSeason}/${epsCount} episodi` : "Tocca per caricare"}
+            {epsCount ? t("media.epsProgress", { watched: watchedInSeason, total: epsCount }) : t("media.tapToLoad")}
           </p>
         </div>
         <div className="h-1.5 w-20 overflow-hidden rounded-full bg-surface-2">
@@ -642,7 +648,7 @@ function SeasonCard({
             <div className="grid place-items-center py-6"><Loader2 className="h-5 w-5 animate-spin text-accent" /></div>
           )}
           {q.error && (
-            <p className="py-3 text-center text-xs text-destructive">Impossibile caricare gli episodi.</p>
+            <p className="py-3 text-center text-xs text-destructive">{t("media.loadEpisodesError")}</p>
           )}
           {episodes.length > 0 && (
             <>
@@ -662,12 +668,12 @@ function SeasonCard({
               {watchedInSeason === epsCount ? (
                 <button onClick={unmarkAll}
                   className="mt-3 w-full rounded-xl border border-border bg-surface/60 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground">
-                  Annulla: segna tutta la stagione come non vista
+                  {t("media.unmarkSeason")}
                 </button>
               ) : (
                 <button onClick={markAll}
                   className="mt-3 w-full rounded-xl border border-border bg-surface/60 py-2 text-xs font-semibold">
-                  Segna tutta la stagione come vista (+50 XP bonus)
+                  {t("media.markSeason")}
                 </button>
               )}
             </>
@@ -688,10 +694,11 @@ function EpisodeRow({
   onLogWatch: () => void;
   onUnwatch: () => void;
 }) {
+  const { t, locale } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const airDate = ep.airDate ? new Date(ep.airDate) : null;
   const airLabel = airDate && !isNaN(airDate.getTime())
-    ? airDate.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" })
+    ? airDate.toLocaleDateString(localeToBcp47(locale), { day: "2-digit", month: "short", year: "numeric" })
     : null;
   const isFuture = airDate && airDate.getTime() > Date.now();
 
@@ -730,7 +737,7 @@ function EpisodeRow({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{ep.name}</p>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-            {airLabel && <span className={isFuture ? "text-accent" : ""}>{isFuture ? "In uscita " : ""}{airLabel}</span>}
+            {airLabel && <span className={isFuture ? "text-accent" : ""}>{isFuture ? t("media.airing") : ""}{airLabel}</span>}
             {ep.runtime ? <span>· {ep.runtime}′</span> : null}
             {ep.voteCount > 0 && (
               <span className="flex items-center gap-0.5">
@@ -741,7 +748,7 @@ function EpisodeRow({
           <div className="mt-1 flex items-center gap-2">
             {ep.overview ? (
               <button onClick={() => setExpanded(v => !v)} className="text-[11px] font-semibold text-accent hover:underline">
-                {expanded ? "Nascondi" : "Trama"}
+                {expanded ? t("media.hide") : t("media.plot")}
               </button>
             ) : null}
             <button
@@ -793,6 +800,7 @@ function EpisodeRow({
 
 
 function CastSection({ cast, loading, returnPath }: { cast: CastMember[]; loading: boolean; returnPath: string }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
 
   const prefetchPerson = (personId: number) => {
@@ -807,10 +815,10 @@ function CastSection({ cast, loading, returnPath }: { cast: CastMember[]; loadin
     return (
       <section className="mt-6">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-sm font-bold uppercase tracking-wider">Cast</h2>
+          <h2 className="text-sm font-bold uppercase tracking-wider">{t("media.cast")}</h2>
           <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
-            Caricamento…
+            {t("common.loading")}
           </p>
         </div>
         <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2">
@@ -827,7 +835,7 @@ function CastSection({ cast, loading, returnPath }: { cast: CastMember[]; loadin
   if (!cast.length) return null;
   return (
     <section className="mt-6">
-      <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">Cast</h2>
+      <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">{t("media.cast")}</h2>
       <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2">
         {cast.map(c => (
           <Link

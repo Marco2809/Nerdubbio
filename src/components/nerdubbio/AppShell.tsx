@@ -49,6 +49,7 @@ export function AppShell({ children, title, subtitle, right }: {
 }
 
 function AccountMenu() {
+  const { t } = useI18n();
   const { user, profile } = useAuthUser();
   const { signOut } = useAuth();
   const navigate = useNavigate();
@@ -69,7 +70,7 @@ function AccountMenu() {
     await signOut();
     setSigningOut(false);
     setOpen(false);
-    toast.success("A presto!");
+    toast.success(t("account.signOutToast"));
     await router.invalidate();
     navigate({ to: "/auth", replace: true });
   }
@@ -80,7 +81,7 @@ function AccountMenu() {
         type="button"
         onClick={() => setOpen(!open)}
         className="grid h-10 w-10 place-items-center overflow-hidden rounded-full border border-border bg-surface/60 text-sm font-bold"
-        aria-label="Account"
+        aria-label={t("account.aria")}
       >
         {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : initial}
       </button>
@@ -93,13 +94,13 @@ function AccountMenu() {
               <p className="truncate text-[11px] text-muted-foreground">@{profile?.handle ?? "..."}</p>
             </div>
             <Link to="/profile" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-surface-2">
-              <UserIcon className="h-4 w-4" /> Profilo
+              <UserIcon className="h-4 w-4" /> {t("account.profile")}
             </Link>
             <Link to="/amici" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-surface-2">
-              <Users className="h-4 w-4" /> Amici
+              <Users className="h-4 w-4" /> {t("account.friends")}
             </Link>
             <Link to="/settings" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-surface-2">
-              <Settings2 className="h-4 w-4" /> Impostazioni
+              <Settings2 className="h-4 w-4" /> {t("account.settings")}
             </Link>
             <button
               type="button"
@@ -108,7 +109,7 @@ function AccountMenu() {
               className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-destructive hover:bg-surface-2 disabled:opacity-50"
             >
               {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-              Esci
+              {t("account.signOut")}
             </button>
           </div>
         </>

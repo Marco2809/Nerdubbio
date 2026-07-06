@@ -6,22 +6,24 @@ import { useFriendRequestCount } from "@/hooks/use-friend-requests-count";
 import { Trophy, Flame, Star, Settings2, Crown, Users, Download, ExternalLink, BarChart3, Tv, Clapperboard } from "lucide-react";
 import { countAllMovies, countAllSeries } from "@/lib/library-display";
 import { TvTimeReimportCard } from "@/components/nerdubbio/TvTimeReimportCard";
+import { useI18n } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/profile")({
   head: () => ({ meta: [{ title: "Profilo — Nerdubbio" }] }),
   component: Profile,
 });
 
-const BADGES = [
-  { code: "primo-dubbio", title: "Prima Quest completata", icon: "🎲" },
-  { code: "serial-watcher", title: "Serial Watcher", icon: "📺" },
-  { code: "binge-warrior", title: "Binge Warrior", icon: "⚔️" },
-  { code: "plot-twist", title: "Plot Twist Survivor", icon: "🌀" },
-  { code: "sci-fi", title: "Sci-Fi Addicted", icon: "🛸" },
-  { code: "comfort", title: "Comfort Zone Breaker", icon: "💥" },
-];
+const BADGE_KEYS = [
+  { code: "primo-dubbio", titleKey: "profile.badgeFirstQuest", icon: "🎲" },
+  { code: "serial-watcher", titleKey: "profile.badgeSerialWatcher", icon: "📺" },
+  { code: "binge-warrior", titleKey: "profile.badgeBingeWarrior", icon: "⚔️" },
+  { code: "plot-twist", titleKey: "profile.badgePlotTwist", icon: "🌀" },
+  { code: "sci-fi", titleKey: "profile.badgeSciFi", icon: "🛸" },
+  { code: "comfort", titleKey: "profile.badgeComfort", icon: "💥" },
+] as const;
 
 function Profile() {
+  const { t } = useI18n();
   const { state } = useUserStore();
   const { user, profile } = useAuthUser();
   const friendRequests = useFriendRequestCount();
@@ -34,7 +36,7 @@ function Profile() {
   const initial = name.charAt(0).toUpperCase();
 
   return (
-    <AppShell subtitle="Il tuo nerd" title="Profilo"
+    <AppShell subtitle={t("profile.subtitle")} title={t("profile.title")}
       right={<Link to="/settings" className="grid h-9 w-9 place-items-center rounded-full glass"><Settings2 className="h-4 w-4"/></Link>}>
       <div className="glass rounded-3xl p-5">
         <div className="flex items-center gap-4">
@@ -45,7 +47,7 @@ function Profile() {
           )}
           <div className="min-w-0 flex-1">
             <p className="text-lg font-bold truncate">{name}</p>
-            <p className="text-xs text-muted-foreground">@{handle} · Livello {state.level} · {state.xp} XP</p>
+            <p className="text-xs text-muted-foreground">@{handle} · {t("profile.levelXp", { level: state.level, xp: state.xp })}</p>
             <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
               <div className="h-full bg-hero" style={{ width: `${(state.xp % xpToNext) / xpToNext * 100}%` }} />
             </div>
@@ -56,19 +58,19 @@ function Profile() {
           params={{ handle }}
           className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-border py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
         >
-          <ExternalLink className="h-3 w-3" /> Profilo pubblico
+          <ExternalLink className="h-3 w-3" /> {t("profile.publicProfile")}
         </Link>
       </div>
 
       <div className="mt-4 grid grid-cols-4 gap-2 text-center">
-        <Stat icon={<Star className="h-4 w-4"/>} label="Visti" value={stats.completed} />
-        <Stat icon={<Flame className="h-4 w-4"/>} label="Streak" value={state.streak} />
-        <Stat icon={<Trophy className="h-4 w-4"/>} label="Badge" value={state.achievements.length} />
-        <Stat icon={<Star className="h-4 w-4"/>} label="Ore" value={stats.hours} />
+        <Stat icon={<Star className="h-4 w-4"/>} label={t("profile.watched")} value={stats.completed} />
+        <Stat icon={<Flame className="h-4 w-4"/>} label={t("profile.streak")} value={state.streak} />
+        <Stat icon={<Trophy className="h-4 w-4"/>} label={t("profile.badges")} value={state.achievements.length} />
+        <Stat icon={<Star className="h-4 w-4"/>} label={t("profile.hours")} value={stats.hours} />
       </div>
 
       <section className="mt-4">
-        <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">La tua libreria</p>
+        <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">{t("profile.library")}</p>
         <div className="grid grid-cols-2 gap-2">
           <Link
             to="/profilo/serie"
@@ -80,8 +82,8 @@ function Profile() {
               <span className="text-lg font-extrabold text-gradient">{seriesCount}</span>
             </div>
             <div>
-              <p className="text-sm font-bold">Serie</p>
-              <p className="text-[11px] text-muted-foreground">In corso · Da vedere · Viste</p>
+              <p className="text-sm font-bold">{t("profile.series")}</p>
+              <p className="text-[11px] text-muted-foreground">{t("profile.seriesHint")}</p>
             </div>
           </Link>
           <Link
@@ -94,8 +96,8 @@ function Profile() {
               <span className="text-lg font-extrabold text-gradient">{moviesCount}</span>
             </div>
             <div>
-              <p className="text-sm font-bold">Film</p>
-              <p className="text-[11px] text-muted-foreground">Da vedere · Visti</p>
+              <p className="text-sm font-bold">{t("profile.movies")}</p>
+              <p className="text-[11px] text-muted-foreground">{t("profile.moviesHint")}</p>
             </div>
           </Link>
         </div>
@@ -104,21 +106,21 @@ function Profile() {
       <Link to="/statistiche" className="mt-3 glass flex items-center gap-3 rounded-2xl p-4">
         <BarChart3 className="h-5 w-5 text-accent" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold">Statistiche binge</p>
-          <p className="text-[11px] text-muted-foreground">Episodi/mese, ore totali, serie più viste</p>
+          <p className="text-sm font-bold">{t("profile.bingeStats")}</p>
+          <p className="text-[11px] text-muted-foreground">{t("profile.bingeStatsHint")}</p>
         </div>
         <span className="text-xs font-bold text-accent">→</span>
       </Link>
 
       <section className="mt-6">
-        <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">Achievements</h2>
+        <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">{t("profile.achievements")}</h2>
         <div className="grid grid-cols-3 gap-2">
-          {BADGES.map(b => {
+          {BADGE_KEYS.map(b => {
             const unlocked = state.achievements.includes(b.code);
             return (
               <div key={b.code} className={`glass rounded-2xl p-3 text-center ${unlocked ? "shadow-glow" : "opacity-40"}`}>
                 <div className="text-2xl">{b.icon}</div>
-                <p className="mt-1 text-[10px] font-semibold leading-tight">{b.title}</p>
+                <p className="mt-1 text-[10px] font-semibold leading-tight">{t(b.titleKey)}</p>
               </div>
             );
           })}
@@ -130,7 +132,7 @@ function Profile() {
           <Users className="h-5 w-5 text-accent" />
           <div className="flex-1">
             <p className="text-sm font-semibold">
-              Amici
+              {t("profile.friends")}
               {friendRequests > 0 && (
                 <span className="ml-2 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-white">
                   {friendRequests > 9 ? "9+" : friendRequests}
@@ -139,22 +141,24 @@ function Profile() {
             </p>
             <p className="text-xs text-muted-foreground">
               {friendRequests > 0
-                ? `${friendRequests} richiest${friendRequests === 1 ? "a" : "e"} in attesa`
-                : "Cerca nerd, richieste e lista amici"}
+                ? friendRequests === 1
+                  ? t("profile.friendRequestOne")
+                  : t("profile.friendRequests", { count: friendRequests })
+                : t("profile.friendsHint")}
             </p>
           </div>
         </Link>
         <Link to="/premium" className="glass flex items-center gap-3 rounded-2xl p-4">
           <Crown className="h-5 w-5 text-accent" />
-          <div className="flex-1"><p className="text-sm font-semibold">Passa a Premium</p><p className="text-xs text-muted-foreground">Quest illimitate, AI avanzata, temi</p></div>
+          <div className="flex-1"><p className="text-sm font-semibold">{t("profile.premium")}</p><p className="text-xs text-muted-foreground">{t("profile.premiumHint")}</p></div>
         </Link>
         <Link to="/gruppo" className="glass flex items-center gap-3 rounded-2xl p-4">
           <Users className="h-5 w-5 text-accent" />
-          <div className="flex-1"><p className="text-sm font-semibold">Quest di gruppo</p><p className="text-xs text-muted-foreground">Decidete insieme cosa guardare</p></div>
+          <div className="flex-1"><p className="text-sm font-semibold">{t("profile.groupQuest")}</p><p className="text-xs text-muted-foreground">{t("profile.groupQuestHint")}</p></div>
         </Link>
         <Link to="/da-tvtime" className="glass flex items-center gap-3 rounded-2xl p-4">
           <Download className="h-5 w-5 text-accent" />
-          <div className="flex-1"><p className="text-sm font-semibold">Arrivi da TV Time?</p><p className="text-xs text-muted-foreground">Importa la tua cronologia</p></div>
+          <div className="flex-1"><p className="text-sm font-semibold">{t("profile.tvTime")}</p><p className="text-xs text-muted-foreground">{t("profile.tvTimeHint")}</p></div>
         </Link>
         <TvTimeReimportCard />
       </section>

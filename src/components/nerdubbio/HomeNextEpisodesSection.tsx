@@ -17,6 +17,7 @@ import { PremiereReminderButton } from "@/components/nerdubbio/PremiereReminderB
 import { applyShowProgressAfterWatch } from "@/lib/check-show-after-watch";
 import { toast } from "@/lib/toast";
 import { CalendarDays, Check, ChevronRight } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
 
 type Props = {
   media: Record<string, UserMediaEntry>;
@@ -24,6 +25,7 @@ type Props = {
 };
 
 export function HomeNextEpisodesSection({ media, from }: Props) {
+  const { t } = useI18n();
   const { toggleEpisode, setStatus } = useUserStore();
   const [expanded, setExpanded] = useState(false);
   // Ordinate per ultima visione: in cima le serie toccate di recente,
@@ -54,10 +56,10 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
         });
       }
     });
-    toast.reward(`S${next.season}E${next.episode} vista!`, 15, {
+    toast.reward(t("nextEpisodes.episodeWatchedToast", { s: next.season, e: next.episode }), 15, {
       description: entry.title ?? undefined,
       action: {
-        label: "Annulla",
+        label: t("common.cancel"),
         onClick: () => toggleEpisode(entry.id, next.season, next.episode, 999, 1, meta),
       },
       duration: 4000,
@@ -112,19 +114,19 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
   return (
     <section className="mt-6">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-bold uppercase tracking-wider">Prossimi episodi</h2>
+        <h2 className="text-sm font-bold uppercase tracking-wider">{t("nextEpisodes.title")}</h2>
         <Link
           to="/profilo/serie"
           search={{ tab: "in_corso" }}
           className="flex items-center gap-0.5 text-[11px] font-semibold text-accent"
         >
-          Tutte <ChevronRight className="h-3.5 w-3.5" />
+          {t("nextEpisodes.all")} <ChevronRight className="h-3.5 w-3.5" />
         </Link>
       </div>
 
       {isLoading && (
         <div className="glass rounded-2xl p-4 text-xs text-muted-foreground">
-          Calcolo prossimi episodi…
+          {t("nextEpisodes.computing")}
         </div>
       )}
 
@@ -132,14 +134,14 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
         <div className="glass rounded-2xl p-4 text-xs text-muted-foreground">
           {inProgress.length === 1 ? (
             <>
-              Nessun prossimo episodio per <strong>{inProgress[0]!.title ?? "questa serie"}</strong>.
-              {maxProgressLabel(inProgress[0]!)}
+              {t("nextEpisodes.noneForShow", { title: inProgress[0]!.title ?? t("nextEpisodes.series") })}
+              {maxProgressLabel(inProgress[0]!, t)}
             </>
           ) : (
-            <>Nessun prossimo episodio calcolabile per le serie in corso.</>
+            <>{t("nextEpisodes.none")}</>
           )}
-          {hasErrors ? " Errore TMDB — riprova tra poco." : null}
-          {" "}Apri la scheda serie per verificare il progresso.
+          {hasErrors ? t("nextEpisodes.tmdbError") : null}
+          {t("nextEpisodes.checkShow")}
         </div>
       )}
 
@@ -163,20 +165,20 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
           onClick={() => setExpanded(v => !v)}
           className="mt-3 w-full rounded-xl border border-border bg-surface/60 py-2.5 text-xs font-semibold text-muted-foreground transition hover:border-accent hover:text-foreground"
         >
-          {expanded ? "Mostra meno" : `Mostra altro (${hiddenCount})`}
+          {expanded ? t("common.showLess") : t("common.showMore", { count: hiddenCount })}
         </button>
       )}
     </section>
   );
 }
 
-function maxProgressLabel(entry: UserMediaEntry): string {
+function maxProgressLabel(entry: UserMediaEntry, t: (key: string, vars?: Record<string, string | number>) => string): string {
   const n = entry.watchedEpisodes?.length ?? 0;
   const cs = entry.currentSeason;
   const ce = entry.currentEpisode;
-  if (cs && ce) return ` Ultimo segnato: S${cs}E${ce}${n ? ` (${n} episodi in libreria)` : ""}.`;
-  if (n) return ` ${n} episodi segnati in libreria.`;
-  return " Nessun episodio segnato ancora.";
+  if (cs && ce) return t("nextEpisodes.lastMarked", { s: cs, e: ce }) + (n ? t("nextEpisodes.episodesInLibrary", { n }) : ".");
+  if (n) return t("nextEpisodes.episodesMarked", { n });
+  return t("nextEpisodes.noEpisodesYet");
 }
 
 function NextEpisodeRow({
@@ -194,14 +196,15 @@ function NextEpisodeRow({
   from: string;
   onMark: () => void;
 }) {
+  const { t } = useI18n();
   const label = `S${next.season} · E${next.episode}`;
   const badge = next.kind === "premiere"
-    ? "Premiere"
+    ? t("nextEpisodes.premiere")
     : next.aired
-      ? (next.name || "Da vedere")
+      ? (next.name || t("nextEpisodes.toWatch"))
       : next.airDate
-        ? `Esce ${formatShortDate(next.airDate)}`
-        : "In arrivo";
+        ? t("nextEpisodes.releases", { date: formatShortDate(next.airDate) })
+        : t("nextEpisodes.upcoming");
   const isFuture = !next.aired && !!next.airDate;
 
   return (
@@ -223,7 +226,7 @@ function NextEpisodeRow({
           state={{ from }}
           className="block truncate text-sm font-semibold hover:text-accent"
         >
-          {entry.title ?? "Serie"}
+          {entry.title ?? t("nextEpisodes.series")}
         </Link>
         <p className="text-xs text-muted-foreground">
           {label}
@@ -236,7 +239,7 @@ function NextEpisodeRow({
           {badge}
           {fromLocal && (
             <span className="rounded-full border border-border px-1.5 text-[9px] text-muted-foreground">
-              stima locale
+              {t("nextEpisodes.localEstimate")}
             </span>
           )}
         </p>
@@ -247,15 +250,15 @@ function NextEpisodeRow({
               onClick={onMark}
               className="flex items-center gap-1 rounded-full bg-hero px-3 py-1 text-[11px] font-bold text-primary-foreground shadow-glow-pink"
             >
-              <Check className="h-3 w-3" /> Segna S{next.season}E{next.episode} vista
+              <Check className="h-3 w-3" /> {t("nextEpisodes.markWatched", { s: next.season, e: next.episode })}
             </button>
           )}
           {isFuture && next.airDate && (
             <PremiereReminderButton
               id={`${tmdbId}:S${next.season}E${next.episode}`}
               tmdbId={tmdbId}
-              title={entry.title ?? "Serie"}
-              label={`${label}${next.kind === "premiere" ? " — Premiere" : ""}`}
+              title={entry.title ?? t("nextEpisodes.series")}
+              label={`${label}${next.kind === "premiere" ? ` — ${t("nextEpisodes.premiere")}` : ""}`}
               airDate={next.airDate}
               href={`/media/tv/${tmdbId}#ep-S${next.season}E${next.episode}`}
             />

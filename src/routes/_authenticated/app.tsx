@@ -7,11 +7,12 @@ import { Sparkles, Flame, Trophy, TrendingUp } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { tmdbTrending } from "@/lib/tmdb/tmdb.functions";
 import { HomeNextEpisodesSection } from "@/components/nerdubbio/HomeNextEpisodesSection";
-import { NERDACOLO, QUEST } from "@/lib/brand";
+import { NERDACOLO } from "@/lib/brand";
 import { useReturnPath } from "@/lib/media-nav";
 import { NerdacoloTrigger } from "@/components/nerdubbio/NerdacoloTrigger";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { useEffect } from "react";
+import { useI18n } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({ meta: [{ title: "Home — Nerdubbio" }] }),
@@ -58,6 +59,7 @@ function paramsFor(card: LibCard) {
 }
 
 function HomeDashboard() {
+  const { t } = useI18n();
   const { state, loading } = useUserStore();
   const { user, profile } = useAuthUser();
   const navigate = useNavigate();
@@ -89,7 +91,7 @@ function HomeDashboard() {
   const from = useReturnPath();
 
   return (
-    <AppShell subtitle={`Ciao ${greetName}`} title="Cosa stai guardando?"
+    <AppShell subtitle={t("home.greeting", { name: greetName })} title={t("home.title")}
       right={
         <div className="flex items-center gap-1 rounded-full bg-hero px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-glow">
           <Flame className="h-3.5 w-3.5" /> {state.streak}
@@ -105,7 +107,7 @@ function HomeDashboard() {
             </span>
             <div className="flex-1 min-w-0">
               <p className="text-xs uppercase tracking-widest text-white/70">{NERDACOLO.name}</p>
-              <p className="text-lg font-extrabold text-white">{QUEST.ctaHome}</p>
+              <p className="text-lg font-extrabold text-white">{t("home.questCta")}</p>
             </div>
           </div>
         </div>
@@ -118,8 +120,8 @@ function HomeDashboard() {
         <div className="glass flex items-center gap-3 rounded-2xl border border-accent/30 p-3">
           <span className="text-2xl">🚚</span>
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] uppercase tracking-widest text-accent">TV Time chiude nel 2026</p>
-            <p className="truncate text-sm font-bold">Importa la tua libreria in 30 secondi</p>
+            <p className="text-[10px] uppercase tracking-widest text-accent">{t("home.tvTimeClosing")}</p>
+            <p className="truncate text-sm font-bold">{t("home.tvTimeImport")}</p>
           </div>
           <span className="text-xs font-bold text-accent">→</span>
         </div>
@@ -127,9 +129,9 @@ function HomeDashboard() {
 
       {/* Level card */}
       <div className="mt-4 grid grid-cols-3 gap-2">
-        <StatChip icon={<Trophy className="h-4 w-4" />} label="Livello" value={String(state.level)} />
-        <StatChip icon={<TrendingUp className="h-4 w-4" />} label="XP" value={String(state.xp)} />
-        <StatChip icon={<Flame className="h-4 w-4" />} label="Streak" value={`${state.streak}g`} />
+        <StatChip icon={<Trophy className="h-4 w-4" />} label={t("home.level")} value={String(state.level)} />
+        <StatChip icon={<TrendingUp className="h-4 w-4" />} label={t("home.xp")} value={String(state.xp)} />
+        <StatChip icon={<Flame className="h-4 w-4" />} label={t("home.streak")} value={t("home.streakDays", { n: state.streak })} />
       </div>
 
       {/* Prossimi episodi — tutte le serie in corso */}
@@ -138,7 +140,7 @@ function HomeDashboard() {
       {/* Suggerimento del giorno — TMDB reale */}
       {suggestion && (
         <section className="mt-6">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">Suggerimento del giorno</h2>
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">{t("home.suggestion")}</h2>
           <Link to="/media/$type/$id" params={{ type: suggestion.type, id: String(suggestion.tmdb_id) }}
             state={{ from }}
             className="relative block h-56 overflow-hidden rounded-3xl bg-surface-2 shadow-glow">
@@ -148,7 +150,7 @@ function HomeDashboard() {
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-4">
-              <p className="text-[10px] uppercase tracking-widest text-white/70">{suggestion.type === "tv" ? "Serie" : "Film"}{suggestion.year ? ` · ${suggestion.year}` : ""}</p>
+              <p className="text-[10px] uppercase tracking-widest text-white/70">{suggestion.type === "tv" ? t("home.seriesShort") : t("home.movieShort")}{suggestion.year ? ` · ${suggestion.year}` : ""}</p>
               <h3 className="text-xl font-bold text-white">{suggestion.title}</h3>
               <p className="mt-1 line-clamp-2 text-xs text-white/80">{suggestion.overview}</p>
             </div>
@@ -157,14 +159,14 @@ function HomeDashboard() {
       )}
 
       {/* Liste */}
-      {watching.length > 0 && <LibRow title="In corso" items={watching} from={from} />}
-      {plan.length > 0 && <LibRow title="Da vedere" items={plan} from={from} />}
+      {watching.length > 0 && <LibRow title={t("home.inProgress")} items={watching} from={from} />}
+      {plan.length > 0 && <LibRow title={t("home.toWatch")} items={plan} from={from} />}
 
       <section className="mt-6 grid grid-cols-4 gap-2 text-center">
-        <MiniStat label="Serie" value={stats.series} />
-        <MiniStat label="Film" value={stats.movies} />
-        <MiniStat label="Episodi" value={stats.episodes} />
-        <MiniStat label="Ore viste" value={stats.hours} />
+        <MiniStat label={t("home.statsSeries")} value={stats.series} />
+        <MiniStat label={t("home.statsMovies")} value={stats.movies} />
+        <MiniStat label={t("home.statsEpisodes")} value={stats.episodes} />
+        <MiniStat label={t("home.statsHours")} value={stats.hours} />
       </section>
 
     </AppShell>
