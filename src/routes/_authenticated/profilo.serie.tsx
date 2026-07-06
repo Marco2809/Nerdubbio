@@ -9,6 +9,7 @@ import {
 } from "@/lib/library-display";
 import { useUserStore } from "@/lib/user-store";
 import { ArrowLeft } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
 
 const tabSchema = z.enum(["in_corso", "da_vedere", "viste"]).default("in_corso");
 
@@ -18,33 +19,33 @@ export const Route = createFileRoute("/_authenticated/profilo/serie")({
   component: ProfiloSeriePage,
 });
 
-const TAB_LABELS: Record<string, string> = {
-  in_corso: "In corso",
-  da_vedere: "Da vedere",
-  viste: "Viste",
-};
-
-const EMPTY: Record<string, string> = {
-  in_corso: "Nessuna serie in corso. Aggiungine una dalla ricerca.",
-  da_vedere: "La watchlist serie è vuota.",
-  viste: "Nessuna serie completata ancora.",
-};
-
 function ProfiloSeriePage() {
+  const { t } = useI18n();
   const { state } = useUserStore();
   const { tab } = Route.useSearch();
   const items = filterBySeriesTab(state.media, tab);
 
+  const tabLabels: Record<string, string> = {
+    in_corso: t("library.tabInProgress"),
+    da_vedere: t("library.tabToWatch"),
+    viste: t("library.tabWatched"),
+  };
+  const emptyLabels: Record<string, string> = {
+    in_corso: t("library.emptySeriesWatching"),
+    da_vedere: t("library.emptySeriesPlan"),
+    viste: t("library.emptySeriesCompleted"),
+  };
+
   const tabs = (["in_corso", "da_vedere", "viste"] as const).map(id => ({
     id,
-    label: TAB_LABELS[id]!,
+    label: tabLabels[id]!,
     count: countSeriesTab(state.media, id),
   }));
 
   return (
-    <AppShell subtitle="La tua libreria" title="Serie TV">
+    <AppShell subtitle={t("library.yourLibrary")} title={t("library.seriesTitle")}>
       <Link to="/profile" className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-3 w-3" /> Profilo
+        <ArrowLeft className="h-3 w-3" /> {t("library.backProfile")}
       </Link>
 
       <StatusTabs
@@ -53,9 +54,9 @@ function ProfiloSeriePage() {
         buildTo={id => ({ to: "/profilo/serie", search: { tab: id } })}
       />
 
-      <p className="mt-3 text-xs text-muted-foreground">{items.length} titoli</p>
+      <p className="mt-3 text-xs text-muted-foreground">{t("library.titlesCount", { count: items.length })}</p>
 
-      <LibraryGrid items={items} emptyEmoji="📺" emptyText={EMPTY[tab]} />
+      <LibraryGrid items={items} emptyEmoji="📺" emptyText={emptyLabels[tab]!} />
     </AppShell>
   );
 }

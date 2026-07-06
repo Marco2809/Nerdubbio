@@ -6,6 +6,7 @@ import { MAX_QUESTIONS } from "@/lib/recommendation/nerdacolo-types";
 import { cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useI18n } from "@/lib/i18n";
 
 type Props = {
   question: NerdacoloQuestion;
@@ -24,29 +25,30 @@ export function NerdacoloQuizView({
   onBack,
   consulting = false,
 }: Props) {
+  const { t } = useI18n();
   const step = session.questionCount + 1;
   const progress = (session.questionCount / MAX_QUESTIONS) * 100;
   const remaining = session.candidates.length;
   const scrapped = session.eliminatedCount;
 
   const statusLines = [
-    scrapped > 0 ? `La sfera ha scartato ${scrapped} titoli` : null,
-    remaining > 0 ? `Restano ${remaining} sospetti` : null,
-    session.confidence > 50 ? "Il dubbio si restringe…" : null,
+    scrapped > 0 ? t("dubbio.sphereScrapped", { n: scrapped }) : null,
+    remaining > 0 ? t("dubbio.remainingSuspects", { n: remaining }) : null,
+    session.confidence > 50 ? t("dubbio.doubtNarrows") : null,
   ].filter(Boolean);
 
   if (consulting) {
-    return <NerdacoloLoader title="Nerdacolo consulta la sfera…" />;
+    return <NerdacoloLoader title={t("dubbio.consultSphere")} />;
   }
 
   return (
     <div className="animate-in fade-in duration-300">
       <div className="mb-4 flex items-center justify-between gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-accent">
-          Domanda {step} / {MAX_QUESTIONS}
+          {t("dubbio.questionOf", { n: step, total: MAX_QUESTIONS })}
         </p>
         <span className="rounded-full border border-fuchsia-400/30 bg-fuchsia-400/10 px-2 py-0.5 text-[10px] text-fuchsia-300">
-          {remaining} in gara
+          {t("dubbio.inRace", { n: remaining })}
         </span>
       </div>
 
@@ -101,7 +103,7 @@ export function NerdacoloQuizView({
         onClick={onBack}
         className="mt-4 w-full text-center text-xs text-muted-foreground hover:text-foreground"
       >
-        ← indietro
+        ← {t("dubbio.back")}
       </button>
     </div>
   );
@@ -112,10 +114,11 @@ export function NerdacoloModePicker({
 }: {
   onSelect: (mode: NerdacoloMode) => void;
 }) {
+  const { t } = useI18n();
   const modes: { key: NerdacoloMode; label: string; sub: string; emoji: string }[] = [
-    { key: "tv", label: "Voglio una serie", sub: "Episodi, cliffhanger, dipendenze", emoji: "📺" },
-    { key: "movie", label: "Voglio un film", sub: "Una serata, un titolo, zero cliffhanger", emoji: "🎬" },
-    { key: "surprise", label: "Sorprendimi", sub: "La sfera decide film o serie", emoji: "🔮" },
+    { key: "tv", label: t("dubbio.modeTv"), sub: t("dubbio.modeTvSub"), emoji: "📺" },
+    { key: "movie", label: t("dubbio.modeMovie"), sub: t("dubbio.modeMovieSub"), emoji: "🎬" },
+    { key: "surprise", label: t("dubbio.modeSurprise"), sub: t("dubbio.modeSurpriseSub"), emoji: "🔮" },
   ];
 
   return (

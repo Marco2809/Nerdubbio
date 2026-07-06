@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "@/lib/toast";
+import { useI18n } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/dubbio/risultato")({
   head: () => ({ meta: [{ title: `Risultato ${QUEST.name} — Nerdubbio` }] }),
@@ -42,6 +43,7 @@ function toMeta(c: NerdacoloCandidate): MediaMeta {
 }
 
 function PosterHero({ pick, result }: { pick: NerdacoloCandidate; result: NerdacoloFinalResult }) {
+  const { t } = useI18n();
   return (
     <div className="relative h-64 overflow-hidden rounded-3xl shadow-glow-pink">
       {pick.posterPath ? (
@@ -52,15 +54,15 @@ function PosterHero({ pick, result }: { pick: NerdacoloCandidate; result: Nerdac
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent p-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-hero px-2.5 py-0.5 text-[10px] font-bold uppercase text-primary-foreground">
-            Match {result.compatibilityScore}%
+            {t("dubbio.match", { n: result.compatibilityScore })}
           </span>
           {result.isBoldPick && (
             <span className="rounded-full border border-amber-400/50 bg-amber-400/15 px-2 py-0.5 text-[10px] text-amber-300">
-              Scelta audace
+              {t("dubbio.boldPick")}
             </span>
           )}
           <span className="text-[10px] uppercase tracking-widest text-white/70">
-            {pick.mediaType === "tv" ? "Serie" : "Film"} · {pick.releaseYear}
+            {pick.mediaType === "tv" ? t("home.seriesShort") : t("home.movieShort")} · {pick.releaseYear}
           </span>
         </div>
         <h2 className="mt-1 text-2xl font-extrabold text-white">{pick.title}</h2>
@@ -81,6 +83,7 @@ type FeedbackAction =
   | "watchlist";
 
 function ResultPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const { state, addToList, dismiss, update } = useUserStore();
   const [result, setResult] = useState<NerdacoloFinalResult | null>(null);
@@ -93,7 +96,7 @@ function ResultPage() {
 
   if (!ready) {
     return (
-      <AppShell title={`${NERDACOLO.name} calcola…`}>
+      <AppShell title={t("dubbio.computing", { name: NERDACOLO.name })}>
         <NerdacoloLoader />
       </AppShell>
     );
@@ -101,11 +104,11 @@ function ResultPage() {
 
   if (!result) {
     return (
-      <AppShell title="Nessun risultato">
+      <AppShell title={t("dubbio.noResult")}>
         <p className="text-sm text-muted-foreground">
-          {NERDACOLO.name} non ha un verdetto salvato.{" "}
+          {t("dubbio.noResultHint", { name: NERDACOLO.name })}{" "}
           <Link to="/dubbio" className="text-accent underline">
-            Rifai il Dubbio
+            {t("dubbio.retryDubbio")}
           </Link>
         </p>
       </AppShell>
@@ -124,39 +127,42 @@ function ResultPage() {
   };
 
   const share = async () => {
-    const text = `${NERDACOLO.name} consiglia: ${pick.title} (${result.compatibilityScore}% match) — Nerdubbio`;
+    const text = t("dubbio.recommendShare", {
+      name: NERDACOLO.name,
+      title: pick.title,
+      score: result.compatibilityScore,
+    });
     try {
       if (navigator.share) {
         await navigator.share({ title: QUEST.shareTitle, text });
       } else {
         await navigator.clipboard.writeText(text);
-        toast.success("Copiato negli appunti");
+        toast.success(t("dubbio.copied"));
       }
     } catch {
       /* cancelled */
     }
   };
 
-  // Il feedback aggiorna anche i pesi delle sessioni future (bias persistente).
   const handleFeedback = (action: FeedbackAction) => {
     switch (action) {
       case "perfect":
         recordNerdacoloFeedback("perfect");
-        toast.success("Perfetto! La sfera ringrazia.");
+        toast.success(t("dubbio.perfectToast"));
         unlockAchievement();
         break;
       case "seen":
         addToList(mediaId, "completed", meta);
-        toast.success("Segnato come già visto");
+        toast.success(t("dubbio.markedSeen"));
         break;
       case "nope":
         dismiss(mediaId);
-        toast("Scartato — non te lo propongo più");
+        toast(t("dubbio.dismissed"));
         break;
       case "heavy":
         recordNerdacoloFeedback("lighter");
         dismiss(mediaId);
-        toast("Ok, la prossima sarà più leggera");
+        toast(t("dubbio.lighterNext"));
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
         break;
@@ -164,40 +170,53 @@ function ResultPage() {
         recordNerdacoloFeedback("heavier");
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
-        toast("Rifai il Dubbio per qualcosa di più intenso");
+        toast(t("dubbio.heavierRetry"));
         break;
       case "long":
         recordNerdacoloFeedback("shorter");
         dismiss(mediaId);
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
-        toast("Cerco qualcosa di più breve");
+        toast(t("dubbio.shorterSearch"));
         break;
       case "action":
         recordNerdacoloFeedback("action");
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
-        toast("Rifai il Dubbio con più azione");
+        toast(t("dubbio.actionRetry"));
         break;
       case "niche":
         recordNerdacoloFeedback("niche");
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
-        toast("Rifai il Dubbio per una chicca");
+        toast(t("dubbio.nicheRetry"));
         break;
       case "watchlist":
         addToList(mediaId, "plan_to_watch", meta);
         unlockAchievement();
-        toast.success(`"${pick.title}" in watchlist`);
+        toast.success(t("dubbio.addedWatchlist", { title: pick.title }));
         break;
     }
   };
 
+  const feedbackButtons = [
+    { id: "perfect" as const, label: t("dubbio.perfect"), icon: ThumbsUp },
+    { id: "heavy" as const, label: t("dubbio.tooHeavy"), icon: null },
+    { id: "light" as const, label: t("dubbio.tooLight"), icon: null },
+    { id: "long" as const, label: t("dubbio.tooLong"), icon: null },
+    { id: "action" as const, label: t("dubbio.moreAction"), icon: Zap },
+    { id: "niche" as const, label: t("dubbio.lessMainstream"), icon: null },
+  ];
+
   return (
-    <AppShell subtitle={`${NERDACOLO.name} ha parlato`} title="Ecco cosa guardi stasera">
+    <AppShell subtitle={t("dubbio.spoken", { name: NERDACOLO.name })} title={t("dubbio.tonightPick")}>
       {session && (
         <p className="mb-3 text-[10px] uppercase tracking-widest text-muted-foreground">
-          {session.initialPoolSize} candidati iniziali · {session.eliminatedCount} scartati · confidence {result.confidence}%
+          {t("dubbio.sessionStats", {
+            pool: session.initialPoolSize,
+            eliminated: session.eliminatedCount,
+            confidence: result.confidence,
+          })}
         </p>
       )}
 
@@ -207,36 +226,36 @@ function ResultPage() {
         <div className="flex items-start gap-2">
           <BrandIcon className="mt-0.5 h-8 w-8 shrink-0" compact />
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-accent">Perché te lo consiglio</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-accent">{t("dubbio.whyRecommend")}</p>
             <p className="mt-1 text-sm leading-relaxed">{result.explanation}</p>
           </div>
         </div>
         {result.matchedTraits.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1">
-            {result.matchedTraits.map(t => (
+            {result.matchedTraits.map(trait => (
               <span
-                key={t}
+                key={trait}
                 className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] text-accent"
               >
-                {t}
+                {trait}
               </span>
             ))}
           </div>
         )}
         {result.rejectedButRecoveredTraits.length > 0 && (
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Avviso della sfera: include comunque {result.rejectedButRecoveredTraits.join(", ")} — dosati bene.
+            {t("dubbio.sphereWarning", { traits: result.rejectedButRecoveredTraits.join(", ") })}
           </p>
         )}
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
         <div className="rounded-2xl border border-border bg-surface/40 p-3">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Mood</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("dubbio.mood")}</p>
           <p className="mt-0.5 font-semibold">{result.moodLabel}</p>
         </div>
         <div className="rounded-2xl border border-border bg-surface/40 p-3">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Impegno</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("dubbio.commitment")}</p>
           <p className="mt-0.5 font-semibold">{result.commitmentLabel}</p>
         </div>
       </div>
@@ -244,14 +263,14 @@ function ResultPage() {
       {result.similarTo.length > 0 && (
         <p className="mt-3 text-xs text-muted-foreground">
           <Sparkles className="mr-1 inline h-3 w-3 text-accent" />
-          Somiglia a: {result.similarTo.join(", ")}
+          {t("dubbio.similarTo")} {result.similarTo.join(", ")}
         </p>
       )}
 
       {result.whyNotOthers.length > 0 && (
         <div className="mt-4 rounded-2xl border border-border/60 bg-surface/30 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Cosa ho scartato
+            {t("dubbio.rejected")}
           </p>
           <ul className="mt-2 space-y-1">
             {result.whyNotOthers.map((line, i) => (
@@ -269,21 +288,21 @@ function ResultPage() {
           onClick={() => handleFeedback("watchlist")}
           className="rounded-2xl bg-hero py-3 text-sm font-bold text-primary-foreground shadow-glow"
         >
-          <Plus className="mr-1 inline h-4 w-4" /> Watchlist
+          <Plus className="mr-1 inline h-4 w-4" /> {t("dubbio.watchlist")}
         </button>
         <button
           type="button"
           onClick={() => handleFeedback("seen")}
           className="rounded-2xl border border-border bg-surface/60 py-3 text-sm font-semibold"
         >
-          <Check className="mr-1 inline h-4 w-4" /> Già visto
+          <Check className="mr-1 inline h-4 w-4" /> {t("dubbio.alreadySeen")}
         </button>
         <button
           type="button"
           onClick={() => handleFeedback("nope")}
           className="rounded-2xl border border-border bg-surface/60 py-3 text-sm font-semibold"
         >
-          <ThumbsDown className="mr-1 inline h-4 w-4" /> Non fa per me
+          <ThumbsDown className="mr-1 inline h-4 w-4" /> {t("dubbio.notForMe")}
         </button>
         <Link
           to="/media/$type/$id"
@@ -291,23 +310,16 @@ function ResultPage() {
           className="rounded-2xl border border-accent/40 bg-accent/10 py-3 text-center text-sm font-semibold text-accent"
         >
           {pick.mediaType === "tv" ? <Tv className="mr-1 inline h-4 w-4" /> : <Film className="mr-1 inline h-4 w-4" />}
-          Apri scheda
+          {t("dubbio.openDetail")}
         </Link>
       </div>
 
       <div className="mt-4">
         <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Feedback per la sfera
+          {t("dubbio.feedbackTitle")}
         </p>
         <div className="flex flex-wrap gap-2">
-          {[
-            { id: "perfect" as const, label: "Perfetto", icon: ThumbsUp },
-            { id: "heavy" as const, label: "Troppo pesante", icon: null },
-            { id: "light" as const, label: "Troppo leggero", icon: null },
-            { id: "long" as const, label: "Troppo lungo", icon: null },
-            { id: "action" as const, label: "Più azione", icon: Zap },
-            { id: "niche" as const, label: "Meno mainstream", icon: null },
-          ].map(f => (
+          {feedbackButtons.map(f => (
             <button
               key={f.id}
               type="button"
@@ -323,7 +335,7 @@ function ResultPage() {
 
       {result.alternativeRecommendations.length > 0 && (
         <div className="mt-6">
-          <h3 className="mb-2 text-sm font-bold uppercase tracking-wider">Alternative</h3>
+          <h3 className="mb-2 text-sm font-bold uppercase tracking-wider">{t("dubbio.alternatives")}</h3>
           <div className="space-y-2">
             {result.alternativeRecommendations.map(alt => (
               <Link
@@ -340,7 +352,7 @@ function ResultPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{alt.title}</p>
                   <p className="text-xs text-muted-foreground">
-                    {alt.releaseYear} · Match {alt.score}%
+                    {alt.releaseYear} · {t("dubbio.match", { n: alt.score })}
                   </p>
                 </div>
               </Link>
@@ -355,14 +367,14 @@ function ResultPage() {
           onClick={() => clearNerdacoloSession()}
           className="rounded-2xl border border-border bg-surface/60 py-3 text-center text-sm font-semibold"
         >
-          <RotateCcw className="mr-1 inline h-4 w-4" /> Rifai il Dubbio
+          <RotateCcw className="mr-1 inline h-4 w-4" /> {t("dubbio.retryDubbio")}
         </Link>
         <button
           type="button"
           onClick={() => void share()}
           className="rounded-2xl border border-accent/40 bg-accent/10 py-3 text-sm font-semibold text-accent"
         >
-          <Share2 className="mr-1 inline h-4 w-4" /> Condividi
+          <Share2 className="mr-1 inline h-4 w-4" /> {t("dubbio.share")}
         </button>
       </div>
     </AppShell>

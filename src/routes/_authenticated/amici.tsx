@@ -10,6 +10,7 @@ import {
   type FriendsData,
   type PublicUser,
 } from '@/lib/php/social-client';
+import { useI18n } from '@/lib/i18n';
 
 export const Route = createFileRoute('/_authenticated/amici')({
   head: () => ({ meta: [{ title: 'Amici — Nerdubbio' }] }),
@@ -17,6 +18,7 @@ export const Route = createFileRoute('/_authenticated/amici')({
 });
 
 function AmiciPage() {
+  const { t } = useI18n();
   const qc = useQueryClient();
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -43,19 +45,19 @@ function AmiciPage() {
       const r = await socialApi.search(query.trim());
       setResults(r);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Errore ricerca');
+      toast.error(err instanceof Error ? err.message : t('friends.searchError'));
     } finally {
       setSearching(false);
     }
   }
 
   return (
-    <AppShell title="Amici" subtitle="Social nerd">
+    <AppShell title={t('account.friends')} subtitle={t('friends.subtitle')}>
       <Link
         to="/profile"
         className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground"
       >
-        <ArrowLeft className="h-3 w-3" /> Profilo
+        <ArrowLeft className="h-3 w-3" /> {t('friends.backProfile')}
       </Link>
 
       <form onSubmit={handleSearch} className="flex gap-2">
@@ -64,7 +66,7 @@ function AmiciPage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cerca per @handle o nome…"
+            placeholder={t('friends.searchPlaceholder')}
             className="w-full rounded-2xl border border-border bg-surface/60 py-3 pl-10 pr-4 text-sm outline-none focus:border-accent"
           />
         </div>
@@ -73,13 +75,13 @@ function AmiciPage() {
           disabled={searching}
           className="rounded-2xl bg-hero px-4 text-sm font-bold text-primary-foreground disabled:opacity-50"
         >
-          {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Cerca'}
+          {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : t('friends.searchBtn')}
         </button>
       </form>
 
       {results.length > 0 && (
         <section className="mt-4 space-y-2">
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">Risultati</p>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">{t('friends.results')}</p>
           {results.map((u) => (
             <UserRow
               key={u.id ?? u.handle}
@@ -93,7 +95,7 @@ function AmiciPage() {
                   }
                   className="flex items-center gap-1 rounded-xl bg-hero px-3 py-1.5 text-xs font-bold text-primary-foreground"
                 >
-                  <UserPlus className="h-3 w-3" /> Aggiungi
+                  <UserPlus className="h-3 w-3" /> {t('friends.add')}
                 </button>
               }
             />
@@ -102,7 +104,7 @@ function AmiciPage() {
       )}
 
       {isLoading && (
-        <p className="mt-8 text-center text-sm text-muted-foreground animate-pulse">Caricamento…</p>
+        <p className="mt-8 text-center text-sm text-muted-foreground animate-pulse">{t('common.loading')}</p>
       )}
 
       {data && (
@@ -110,7 +112,7 @@ function AmiciPage() {
           {data.incoming.length > 0 && (
             <section>
               <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
-                Richieste in arrivo
+                {t('friends.incoming')}
               </p>
               <div className="space-y-2">
                 {data.incoming.map((u) => (
@@ -153,11 +155,11 @@ function AmiciPage() {
 
           <section>
             <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
-              I tuoi amici ({data.friends.length})
+              {t('friends.yourFriends', { count: data.friends.length })}
             </p>
             {data.friends.length === 0 ? (
               <p className="glass rounded-2xl p-4 text-sm text-muted-foreground">
-                Nessun amico ancora. Cerca qualcuno per handle e invia una richiesta.
+                {t('friends.noFriends')}
               </p>
             ) : (
               <div className="space-y-2">
@@ -175,7 +177,7 @@ function AmiciPage() {
                         }
                         className="text-xs text-muted-foreground hover:text-destructive"
                       >
-                        Rimuovi
+                        {t('friends.remove')}
                       </button>
                     }
                   />
@@ -186,10 +188,10 @@ function AmiciPage() {
 
           {data.outgoing.length > 0 && (
             <section>
-              <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">In attesa</p>
+              <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">{t('friends.pending')}</p>
               <div className="space-y-2">
                 {data.outgoing.map((u) => (
-                  <UserRow key={u.target_id ?? u.handle} user={u} badge="In attesa" />
+                  <UserRow key={u.target_id ?? u.handle} user={u} badge={t('friends.pending')} />
                 ))}
               </div>
             </section>

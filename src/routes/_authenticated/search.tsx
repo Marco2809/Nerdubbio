@@ -10,6 +10,7 @@ import { Star } from "lucide-react";
 import { useUserStore } from "@/lib/user-store";
 import { isMediaAlreadyWatched } from "@/lib/library-display";
 import { useReturnPath } from "@/lib/media-nav";
+import { useI18n } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/search")({
   head: () => ({ meta: [{ title: "Cerca — Nerdubbio" }] }),
@@ -28,6 +29,7 @@ function useDebounced<T>(value: T, delay = 350) {
 }
 
 function TmdbCard({ item }: { item: TmdbItem }) {
+  const { t } = useI18n();
   const { state } = useUserStore();
   const from = useReturnPath();
   const inLibrary = !!state.media[item.id];
@@ -53,17 +55,17 @@ function TmdbCard({ item }: { item: TmdbItem }) {
         </div>
         {inLibrary && !isWatched && (
           <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-hero px-2 py-1 text-[10px] font-bold text-primary-foreground shadow-glow-pink">
-            <BookmarkCheck className="h-3 w-3" /> In lista
+            <BookmarkCheck className="h-3 w-3" /> {t("search.inList")}
           </div>
         )}
         {isWatched && (
           <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-bold text-white/90">
-            <BookmarkCheck className="h-3 w-3" /> Visto
+            <BookmarkCheck className="h-3 w-3" /> {t("search.watchedBadge")}
           </div>
         )}
         <div className="absolute bottom-0 inset-x-0 p-3">
           <p className="text-[10px] uppercase tracking-widest text-white/70">
-            {item.type === "tv" ? "Serie" : "Film"}{item.year ? ` · ${item.year}` : ""}
+            {item.type === "tv" ? t("home.seriesShort") : t("home.movieShort")}{item.year ? ` · ${item.year}` : ""}
           </p>
           <h3 className="text-sm font-semibold text-white line-clamp-2">{item.title}</h3>
         </div>
@@ -73,6 +75,7 @@ function TmdbCard({ item }: { item: TmdbItem }) {
 }
 
 function SearchPage() {
+  const { t } = useI18n();
   const [q, setQ] = useState("");
   const [type, setType] = useState<"all"|"movie"|"tv">("all");
   const [genre, setGenre] = useState<string | null>(null);
@@ -96,33 +99,31 @@ function SearchPage() {
   const results = useMemo(
     () => raw
       .filter(it => type === "all" || it.type === type)
-      // Trending: nascondi solo ciò che hai già visto/abbandonato (non da vedere/in corso)
       .filter(it => debouncedQ ? true : !isMediaAlreadyWatched(userState.media[it.id])),
     [raw, type, debouncedQ, userState.media]
   );
 
-  // Fallback mock only if TMDB is loading and we have nothing
   const showMockFallback = !debouncedQ && trending.isLoading;
   const mockFallback = useMemo(() => CATALOG.slice(0, 8), []);
   const loading = search.isFetching || trending.isFetching;
 
   return (
-    <AppShell subtitle="Trova" title="Cerca contenuti">
+    <AppShell subtitle={t("search.subtitle")} title={t("search.title")}>
       <div className="glass flex items-center gap-2 rounded-2xl px-3 py-2">
         <SearchIcon className="h-4 w-4 text-muted-foreground" />
         <input
           value={q} onChange={e => setQ(e.target.value)}
-          placeholder="Serie, film, attori…"
+          placeholder={t("search.placeholder")}
           className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />
         {loading && <Loader2 className="h-4 w-4 animate-spin text-accent" />}
       </div>
 
       <div className="mt-3 flex gap-2">
-        {(["all","movie","tv"] as const).map(t => (
-          <button key={t} onClick={() => setType(t)}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${type===t ? "bg-hero text-primary-foreground shadow-glow" : "bg-surface-2 text-muted-foreground"}`}>
-            {t === "all" ? "Tutti" : t === "movie" ? "Film" : "Serie"}
+        {(["all","movie","tv"] as const).map(tab => (
+          <button key={tab} onClick={() => setType(tab)}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${type===tab ? "bg-hero text-primary-foreground shadow-glow" : "bg-surface-2 text-muted-foreground"}`}>
+            {tab === "all" ? t("common.all") : tab === "movie" ? t("home.movieShort") : t("home.seriesShort")}
           </button>
         ))}
       </div>
@@ -139,12 +140,14 @@ function SearchPage() {
       </div>
 
       <p className="mt-4 text-xs text-muted-foreground">
-        {debouncedQ ? `${results.length} risultati per "${debouncedQ}"` : `Trending ora · ${results.length}`}
+        {debouncedQ
+          ? t("search.resultsFor", { count: results.length, query: debouncedQ })
+          : t("search.trendingNow", { count: results.length })}
       </p>
 
       {(search.error || trending.error) && (
         <p className="mt-2 text-xs text-destructive">
-          Errore TMDB: {(search.error ?? trending.error)?.message}
+          {t("search.tmdbError", { message: (search.error ?? trending.error)?.message ?? "" })}
         </p>
       )}
 
@@ -153,16 +156,15 @@ function SearchPage() {
       </div>
 
       {showMockFallback && (
-        <p className="mt-4 text-center text-xs text-muted-foreground">Sto caricando i trend di TMDB…</p>
+        <p className="mt-4 text-center text-xs text-muted-foreground">{t("search.loadingTrending")}</p>
       )}
 
       {!loading && results.length === 0 && debouncedQ && (
         <div className="mt-10 text-center text-sm text-muted-foreground">
-          Nulla trovato. Nerdacolo suggerisce di cambiare parola.
+          {t("search.noResults")}
         </div>
       )}
 
-      {/* used to keep mockFallback reference alive without rendering when data arrives */}
       <span className="hidden">{mockFallback.length}</span>
     </AppShell>
   );

@@ -9,6 +9,7 @@ import {
 } from "@/lib/library-display";
 import { useUserStore } from "@/lib/user-store";
 import { ArrowLeft } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
 
 const tabSchema = z.enum(["da_vedere", "visti"]).default("da_vedere");
 
@@ -18,31 +19,31 @@ export const Route = createFileRoute("/_authenticated/profilo/film")({
   component: ProfiloFilmPage,
 });
 
-const TAB_LABELS: Record<string, string> = {
-  da_vedere: "Da vedere",
-  visti: "Visti",
-};
-
-const EMPTY: Record<string, string> = {
-  da_vedere: "Nessun film in lista. Aggiungine uno dalla ricerca.",
-  visti: "Nessun film segnato come visto.",
-};
-
 function ProfiloFilmPage() {
+  const { t } = useI18n();
   const { state } = useUserStore();
   const { tab } = Route.useSearch();
   const items = filterByMovieTab(state.media, tab);
 
+  const tabLabels: Record<string, string> = {
+    da_vedere: t("library.tabMoviesToWatch"),
+    visti: t("library.tabMoviesWatched"),
+  };
+  const emptyLabels: Record<string, string> = {
+    da_vedere: t("library.emptyMoviesPlan"),
+    visti: t("library.emptyMoviesCompleted"),
+  };
+
   const tabs = (["da_vedere", "visti"] as const).map(id => ({
     id,
-    label: TAB_LABELS[id]!,
+    label: tabLabels[id]!,
     count: countMovieTab(state.media, id),
   }));
 
   return (
-    <AppShell subtitle="La tua libreria" title="Film">
+    <AppShell subtitle={t("library.yourLibrary")} title={t("library.moviesTitle")}>
       <Link to="/profile" className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-3 w-3" /> Profilo
+        <ArrowLeft className="h-3 w-3" /> {t("library.backProfile")}
       </Link>
 
       <StatusTabs
@@ -51,9 +52,9 @@ function ProfiloFilmPage() {
         buildTo={id => ({ to: "/profilo/film", search: { tab: id } })}
       />
 
-      <p className="mt-3 text-xs text-muted-foreground">{items.length} titoli</p>
+      <p className="mt-3 text-xs text-muted-foreground">{t("library.titlesCount", { count: items.length })}</p>
 
-      <LibraryGrid items={items} emptyEmoji="🎬" emptyText={EMPTY[tab]} />
+      <LibraryGrid items={items} emptyEmoji="🎬" emptyText={emptyLabels[tab]!} />
     </AppShell>
   );
 }

@@ -24,6 +24,7 @@ import { useUserStore } from "@/lib/user-store";
 import { NERDACOLO, QUEST } from "@/lib/brand";
 import { useMemo, useState } from "react";
 import { toast } from "@/lib/toast";
+import { useI18n } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/dubbio")({
   head: () => ({ meta: [{ title: `${QUEST.name} — Nerdubbio` }] }),
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/_authenticated/dubbio")({
 });
 
 function DubbioPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
   const { state } = useUserStore();
@@ -60,7 +62,7 @@ function DubbioPage() {
         if (!pool.length) throw new Error("empty");
       } catch {
         pool = CATALOG;
-        toast.error("TMDB non disponibile — catalogo locale di backup");
+        toast.error(t("dubbio.tmdbFallback"));
       }
 
       saveDubbioPool(pool);
@@ -74,9 +76,9 @@ function DubbioPage() {
       setSession(started.sessionState);
       setCurrentQuestion(started.firstQuestion);
       setOracleLine(started.oracleLine);
-      toast.success(`${NERDACOLO.short}: ${started.candidatePool.length} candidati in sfera`);
+      toast.success(`${NERDACOLO.short}: ${t("dubbio.candidatesInSphere", { count: started.candidatePool.length })}`);
     } catch (e) {
-      toast.error("Errore avvio Nerdacolo");
+      toast.error(t("dubbio.startError"));
       setMode(null);
     } finally {
       setLoadingPool(false);
@@ -124,7 +126,7 @@ function DubbioPage() {
       setCurrentQuestion(null);
       return;
     }
-    toast("Ricomincia la sessione per cambiare le risposte");
+    toast(t("dubbio.restartToChange"));
     setMode(null);
     setSession(null);
     setCurrentQuestion(null);
@@ -138,15 +140,15 @@ function DubbioPage() {
 
   if (!mode) {
     return (
-      <AppShell subtitle={NERDACOLO.title} title="Cosa cerchi stasera?">
+      <AppShell subtitle={NERDACOLO.title} title={t("dubbio.whatTonight")}>
         <div className="mb-4 flex items-center gap-3">
           <NerdacoloTrigger compact />
           <p className="text-xs text-muted-foreground">
-            Tap su {NERDACOLO.name} per un <span className="text-fuchsia-300">tiro d20</span> veloce.
+            {t("dubbio.d20Hint", { name: NERDACOLO.name })}
           </p>
         </div>
         <p className="mb-4 text-sm text-muted-foreground">
-          {NERDACOLO.name} interroga TMDB e la tua libreria. Ogni domanda restringe i candidati fino al match perfetto.
+          {t("dubbio.intro", { name: NERDACOLO.name })}
         </p>
         <NerdacoloModePicker onSelect={m => void selectMode(m)} />
       </AppShell>
@@ -155,33 +157,33 @@ function DubbioPage() {
 
   if (loadingPool) {
     return (
-      <AppShell title={`${NERDACOLO.name} scansiona TMDB…`}>
-        <NerdacoloLoader title="Raccolgo candidati da trending, discover e watchlist…" />
+      <AppShell title={t("dubbio.scanning", { name: NERDACOLO.name })}>
+        <NerdacoloLoader title={t("dubbio.collectingPool")} />
       </AppShell>
     );
   }
 
   if (consulting) {
     return (
-      <AppShell title="Consultazione…">
-        <NerdacoloConsultingPulse line={oracleLine || "Sto consultando la sfera"} />
+      <AppShell title={t("dubbio.consulting")}>
+        <NerdacoloConsultingPulse line={oracleLine || t("dubbio.consultingSphere")} />
       </AppShell>
     );
   }
 
   if (!session || !currentQuestion) {
     return (
-      <AppShell title="Ops">
-        <p className="text-sm text-muted-foreground">Sessione non valida.</p>
+      <AppShell title={t("auth.oops")}>
+        <p className="text-sm text-muted-foreground">{t("dubbio.invalidSession")}</p>
         <button type="button" className="mt-4 text-accent underline" onClick={goBack}>
-          Ricomincia
+          {t("dubbio.restart")}
         </button>
       </AppShell>
     );
   }
 
   return (
-    <AppShell subtitle={NERDACOLO.title} title={`${NERDACOLO.name} interroga…`}>
+    <AppShell subtitle={NERDACOLO.title} title={t("dubbio.interrogating", { name: NERDACOLO.name })}>
       <NerdacoloQuizView
         question={currentQuestion}
         session={session}
