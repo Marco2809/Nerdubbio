@@ -14,7 +14,7 @@ import { applyResolvedTvStatuses } from "@/lib/resolve-show-statuses";
 import type { UserMediaEntry } from "@/lib/user-store";
 import type { QueryClient } from "@tanstack/react-query";
 
-export type TvTimeImportMode = "replace" | "merge";
+export type TvTimeImportMode = "replace" | "merge" | "repair";
 
 export type TvTimeMatchRow = {
   row: ParsedRow;
@@ -87,10 +87,12 @@ export async function executeTvTimeImport(opts: {
   queryClient: QueryClient;
   initialState: LibraryState;
   onProgress?: (stage: string, pct: number) => void;
-}): Promise<{ next: LibraryState; matched: number; unmatched: number }> {
+}): Promise<{ next: LibraryState; matched: number; unmatched: number; removed: number }> {
   const { entries, mode, queryClient, initialState, onProgress } = opts;
   const mergeImport = mode === "merge";
-  const replaceEpisodes = mode === "replace";
+  // repair = replace (con preservazione server-side dei visti post-import)
+  // + pulizia finale delle serie fantasma del vecchio import.
+  const replaceEpisodes = mode === "replace" || mode === "repair";
 
   onProgress?.("Verifica serie concluse…", 5);
   await applyResolvedTvStatuses(entries, (done, total) => {
@@ -117,5 +119,16 @@ export async function executeTvTimeImport(opts: {
     queryClient.setQueryData(LIBRARY_QUERY_KEY, next);
   }
 
-  return { next, matched: entries.length, unmatched: 0 };
+  let removed = 0;
+  if (mode === "repair") {
+    // Pulizia con la lista COMPLETA degli id corretti (non per chunk).
+    onProgress?.("Rimozione serie fantasma…", 98);
+    const keepIds = entries.map(e => e.id).filter(id => id.startsWith("tv-"));
+    const res = await libraryApi.repairCleanup(keepIds);
+    removed = res.repairRemoved ?? 0;
+    next = res;
+    queryClient.setQueryData(LIBRARY_QUERY_KEY, next);
+  }
+
+  return { next, matched: entries.length, unmatched: 0, removed };
 }

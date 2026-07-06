@@ -29,12 +29,17 @@ export function matchQueryFromRow(row: ParsedRow): {
   title: string;
   year?: number;
   type?: "movie" | "tv";
+  tvdbId?: number;
 } {
   const cleaned = cleanTitleForMatch(row.title);
+  // Il tv_show_id dell'export GDPR è l'id TVDB: permette il match TMDB
+  // esatto via /find, senza indovinare per titolo.
+  const tvdbId = row.tvShowId ? Number(row.tvShowId) : undefined;
   return {
     title: cleaned.title,
     year: row.year ?? cleaned.year,
     type: row.type,
+    tvdbId: Number.isFinite(tvdbId) && (tvdbId as number) > 0 ? tvdbId : undefined,
   };
 }
 

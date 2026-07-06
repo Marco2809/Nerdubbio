@@ -670,6 +670,11 @@ export default {
     confirmMergeHint: "Mode merge : épisodes et rewatch s'additionnent ou se corrigent. Pas de doublons.",
     updating: "Mise à jour…",
     confirmAction: "Mettre à jour",
+    repairHint: "Réparation : reconstruit les données de l'import avec des correspondances exactes (id TVDB), supprime les séries mal associées jamais touchées et conserve tout ce que tu as marqué sur Nerdubbio ensuite.",
+    repairAction: "Réparer l'import",
+    repairing: "Réparation…",
+    repairSuccessTitle: "Import réparé",
+    repairRemoved: "{{count}} séries fantômes supprimées",
   },
   localMigration: {
     title: "Déplace tes données dans le cloud",

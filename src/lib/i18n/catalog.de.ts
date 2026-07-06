@@ -670,6 +670,11 @@ export default {
     confirmMergeHint: "Merge-Modus: Episoden und Rewatches werden addiert oder auf den höchsten Wert korrigiert.",
     updating: "Aktualisierung…",
     confirmAction: "Bibliothek aktualisieren",
+    repairHint: "Reparatur: baut die Import-Daten mit exakten Treffern (TVDB-ID) neu auf, entfernt falsch zugeordnete Serien, die nie angefasst wurden, und erhält alles, was du danach auf Nerdubbio markiert hast.",
+    repairAction: "Import reparieren",
+    repairing: "Reparatur…",
+    repairSuccessTitle: "Import repariert",
+    repairRemoved: "{{count}} Phantom-Serien entfernt",
   },
   localMigration: {
     title: "Daten in die Cloud übertragen",

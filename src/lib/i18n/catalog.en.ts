@@ -670,6 +670,11 @@ export default {
     confirmMergeHint: "Merge mode: episodes and rewatches add up or fix to the highest value. No duplicates, manual statuses stay intact.",
     updating: "Updating…",
     confirmAction: "Update library",
+    repairHint: "Repair: rebuilds the import data with exact matches (TVDB id), removes wrongly matched shows never touched after the import, and keeps everything you marked on Nerdubbio afterwards.",
+    repairAction: "Repair import",
+    repairing: "Repairing…",
+    repairSuccessTitle: "Import repaired",
+    repairRemoved: "{{count}} phantom shows removed",
   },
   localMigration: {
     title: "Move your data to the cloud",

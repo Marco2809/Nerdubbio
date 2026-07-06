@@ -126,6 +126,15 @@ export const libraryApi = {
     });
   },
 
+  /** Rimuove le serie fantasma di un vecchio import TV Time (match sbagliati mai toccati dopo). */
+  repairCleanup(keepIds: string[]): Promise<LibraryState & { repairRemoved?: number }> {
+    return api<LibraryState & { repairRemoved?: number }>(
+      '/api/library.php?action=repair_cleanup',
+      'POST',
+      { keepIds },
+    );
+  },
+
   importLocal(localState: LibraryState): Promise<LibraryState> {
     return api<LibraryState>('/api/library.php?action=import_local', 'POST', localState);
   },

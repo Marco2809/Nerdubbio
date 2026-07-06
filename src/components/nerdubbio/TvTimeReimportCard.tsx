@@ -70,7 +70,7 @@ export function TvTimeReimportCard() {
     }
   };
 
-  const runMerge = async () => {
+  const runUpdate = async (mode: "merge" | "repair") => {
     if (!pendingFile || !preview) return;
     setBusy(true);
     try {
@@ -88,9 +88,9 @@ export function TvTimeReimportCard() {
         0,
       );
 
-      await executeTvTimeImport({
+      const { removed } = await executeTvTimeImport({
         entries,
-        mode: "merge",
+        mode,
         queryClient,
         initialState: state,
         onProgress: (stage, pct) => setProgress(`${stage} ${pct}%`),
@@ -104,10 +104,11 @@ export function TvTimeReimportCard() {
       );
       const addedEps = Math.max(0, afterEps - beforeEps);
 
-      toast.success(t("reimport.successTitle"), {
+      toast.success(mode === "repair" ? t("reimport.repairSuccessTitle") : t("reimport.successTitle"), {
         description: [
           t("reimport.successProcessed", { count: preview.matched }),
           newTitles > 0 ? t("reimport.successNew", { count: newTitles }) : null,
+          mode === "repair" && removed > 0 ? t("reimport.repairRemoved", { count: removed }) : null,
           addedEps > 0 ? t("reimport.successEpisodes", { count: addedEps }) : t("reimport.successRewatches"),
         ]
           .filter(Boolean)
@@ -196,16 +197,30 @@ export function TvTimeReimportCard() {
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                   {t("reimport.confirmMergeHint")}
                 </p>
+                <p className="flex items-start gap-2 rounded-xl border border-neon/30 bg-neon/10 p-3 text-xs text-foreground">
+                  <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-neon" />
+                  {t("reimport.repairHint")}
+                </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
             <AlertDialogCancel disabled={busy}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={busy}
               onClick={(e) => {
                 e.preventDefault();
-                void runMerge();
+                void runUpdate("repair");
+              }}
+              className="border border-neon/40 bg-surface-2 text-foreground hover:bg-neon/15"
+            >
+              {busy ? t("reimport.repairing") : t("reimport.repairAction")}
+            </AlertDialogAction>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault();
+                void runUpdate("merge");
               }}
               className="bg-hero text-primary-foreground hover:opacity-90"
             >

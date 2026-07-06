@@ -121,6 +121,14 @@ if ($action === 'bulk_import') {
     json_out(library_bulk_import($pdo, $userId, $entries, $withXp, $importPending, $replaceEpisodes, $mergeImport));
 }
 
+if ($action === 'repair_cleanup') {
+    $keepIds = is_array($body['keepIds'] ?? null) ? $body['keepIds'] : [];
+    $removed = library_repair_cleanup($pdo, $userId, $keepIds);
+    $state = library_fetch_state($pdo, $userId);
+    $state['repairRemoved'] = $removed;
+    json_out($state);
+}
+
 if ($action === 'import_local') {
     json_out(library_import_local($pdo, $userId, $body));
 }

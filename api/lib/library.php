@@ -651,6 +651,56 @@ function library_set_reaction(PDO $pdo, string $userId, string $id, int $season,
     return library_fetch_state($pdo, $userId);
 }
 
+/**
+ * Episodi segnati in-app DOPO l'import originale (watched_at > added_at + 10').
+ * Il margine di 10 minuti copre gli import vecchi che scrivevano watched_at
+ * qualche secondo dopo added_at; i nuovi import usano le date storiche TV Time.
+ */
+function library_post_import_episode_keys(PDO $pdo, string $userId, string $mediaKey): array {
+    $stmt = $pdo->prepare(
+        'SELECT ue.season, ue.episode
+         FROM user_episodes ue
+         JOIN user_media um ON um.user_id = ue.user_id AND um.media_key = ue.media_key
+         WHERE ue.user_id = ? AND ue.media_key = ?
+           AND ue.watched_at > DATE_ADD(um.added_at, INTERVAL 10 MINUTE)'
+    );
+    $stmt->execute([$userId, $mediaKey]);
+    $keys = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $keys[] = library_episode_key((int) $r['season'], (int) $r['episode']);
+    }
+    return $keys;
+}
+
+/**
+ * Rimuove le serie "fantasma" di un vecchio import TV Time (match sbagliati):
+ * source tvtime, non presenti nel re-import corretto, mai toccate dopo
+ * l'import (nessun episodio post-import, entry mai aggiornata). Solo serie TV.
+ */
+function library_repair_cleanup(PDO $pdo, string $userId, array $keepIds): int {
+    $stmt = $pdo->prepare(
+        "SELECT media_key FROM user_media
+         WHERE user_id = ? AND source = 'tvtime' AND media_key LIKE 'tv-%'
+           AND updated_at < DATE_ADD(added_at, INTERVAL 10 MINUTE)
+           AND NOT EXISTS (
+             SELECT 1 FROM user_episodes ue
+             WHERE ue.user_id = user_media.user_id AND ue.media_key = user_media.media_key
+               AND ue.watched_at > DATE_ADD(user_media.added_at, INTERVAL 10 MINUTE)
+           )"
+    );
+    $stmt->execute([$userId]);
+    $keep = array_fill_keys(array_map('strval', $keepIds), true);
+    $removed = 0;
+    foreach ($stmt->fetchAll() as $r) {
+        $key = (string) $r['media_key'];
+        if (isset($keep[$key])) continue;
+        $pdo->prepare('DELETE FROM user_episodes WHERE user_id = ? AND media_key = ?')->execute([$userId, $key]);
+        $pdo->prepare('DELETE FROM user_media WHERE user_id = ? AND media_key = ?')->execute([$userId, $key]);
+        $removed++;
+    }
+    return $removed;
+}
+
 function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $withXp, ?array $importPending = null, bool $replaceEpisodes = false, bool $mergeImport = false): array {
     $added = 0;
     foreach ($entries as $e) {
@@ -690,7 +740,10 @@ function library_bulk_import(PDO $pdo, string $userId, array $entries, bool $wit
             if ($replaceEpisodes && ($e['source'] ?? '') === 'tvtime') {
                 $isTv = ($e['type'] ?? '') === 'tv' || str_starts_with((string) $e['id'], 'tv-');
                 if ($isTv) {
-                    $merged['watchedEpisodes'] = array_values(array_unique($wNew));
+                    // Sostituisci i dati del vecchio import ma conserva SEMPRE
+                    // gli episodi segnati manualmente dopo l'import.
+                    $manual = library_post_import_episode_keys($pdo, $userId, (string) $e['id']);
+                    $merged['watchedEpisodes'] = array_values(array_unique(array_merge($wNew, $manual)));
                     $countsNew = is_array($e['episodeWatchCounts'] ?? null) ? $e['episodeWatchCounts'] : [];
                     $merged['episodeWatchCounts'] = $countsNew ?: null;
                 }

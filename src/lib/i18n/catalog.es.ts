@@ -670,6 +670,11 @@ export default {
     confirmMergeHint: "Modo merge: episodios y revisiones se suman o corrigen al valor más alto. Sin duplicados.",
     updating: "Actualizando…",
     confirmAction: "Actualizar biblioteca",
+    repairHint: "Reparación: reconstruye los datos de la importación con coincidencias exactas (id TVDB), elimina series mal asociadas nunca tocadas y conserva todo lo que marcaste en Nerdubbio después.",
+    repairAction: "Reparar importación",
+    repairing: "Reparando…",
+    repairSuccessTitle: "Importación reparada",
+    repairRemoved: "{{count}} series fantasma eliminadas",
   },
   localMigration: {
     title: "Lleva tus datos a la nube",

@@ -155,17 +155,35 @@ function rankMatches(mapped: TmdbItem[], q: { title: string; year?: number }): T
   });
 }
 
-/** Match "best guess" per titolo — usato dall'import CSV TV Time. */
+/** Match esatto via id TVDB (export GDPR TV Time) — niente ambiguità di titolo. */
+async function matchByTvdbId(tvdbId: number): Promise<TmdbItem | null> {
+  try {
+    const found = await tmdb<any>(`/find/${tvdbId}`, { external_source: "tvdb_id" });
+    const tv = (found.tv_results ?? [])[0];
+    if (!tv) return null;
+    return await enrichDiscoverRow(tv, "tv");
+  } catch {
+    return null;
+  }
+}
+
+/** Match per titolo (best guess) con priorità all'id TVDB quando disponibile. */
 export const tmdbMatchTitles = createServerFn({ method: "POST" })
   .inputValidator((data) => z.object({
     items: z.array(z.object({
       title: z.string().min(1),
       year: z.number().int().optional(),
       type: z.enum(["movie", "tv"]).optional(),
+      tvdbId: z.number().int().positive().optional(),
     })).max(80),
   }).parse(data))
   .handler(async ({ data }) => {
     const results = await Promise.all(data.items.map(async (raw) => {
+      // Id TVDB presente → match esatto, la ricerca per titolo è solo fallback.
+      if (raw.tvdbId && raw.type !== "movie") {
+        const exact = await matchByTvdbId(raw.tvdbId);
+        if (exact) return { query: raw, match: exact, suggestions: [exact] };
+      }
       const cleaned = cleanMatchTitle(raw.title);
       const q = {
         title: cleaned.title,
