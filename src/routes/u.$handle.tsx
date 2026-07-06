@@ -5,15 +5,12 @@ import { ArrowLeft, Flame, Star, User } from "lucide-react";
 import { Wordmark } from "@/components/nerdubbio/Wordmark";
 import { socialApi } from "@/lib/php/social-client";
 import { useAuthUser } from "@/hooks/use-auth-user";
-import { I18nProvider, normalizeLocale, useI18n } from "@/lib/i18n";
+import { I18nProvider, normalizeLocale, useI18n, pageTitle, useDocumentTitle } from "@/lib/i18n";
 import { useUserStore } from "@/lib/user-store";
 
 export const Route = createFileRoute("/u/$handle")({
   head: ({ params }) => ({
-    meta: [
-      { title: `@${params.handle} — Nerdubbio` },
-      { name: "description", content: `Profilo pubblico @${params.handle} su Nerdubbio` },
-    ],
+    meta: [{ title: pageTitle("publicProfile", "it", { handle: params.handle }) }],
   }),
   component: PublicProfilePageWrapper,
 });
@@ -42,6 +39,7 @@ function PublicProfilePageWrapper() {
 function PublicProfilePage() {
   const { t } = useI18n();
   const { handle } = Route.useParams();
+  useDocumentTitle(t("meta.publicProfile", { handle }));
   const { profile: me } = useAuthUser();
   const { data, isLoading, error } = useQuery({
     queryKey: ["public-profile", handle],

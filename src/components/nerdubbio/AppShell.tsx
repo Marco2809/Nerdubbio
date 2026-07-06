@@ -6,7 +6,7 @@ import { scheduleAllReminders } from "@/lib/reminders";
 import { BottomNav } from "./BottomNav";
 import { Wordmark } from "./Wordmark";
 import { useAuthUser } from "@/hooks/use-auth-user";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, useDocumentTitle } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/lib/toast";
@@ -15,6 +15,7 @@ export function AppShell({ children, title, subtitle, right }: {
   children: ReactNode; title?: string; subtitle?: string; right?: ReactNode;
 }) {
   const { t } = useI18n();
+  useDocumentTitle(title);
   useEffect(() => { scheduleAllReminders(); }, []);
   return (
     <div className="min-h-screen pb-32">

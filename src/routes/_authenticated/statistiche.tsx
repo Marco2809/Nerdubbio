@@ -4,10 +4,10 @@ import { useUserStore, computeStats } from "@/lib/user-store";
 import { libraryApi, type WatchStats } from "@/lib/php/library-client";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3, Clock, Flame, Star, Tv, TrendingUp } from "lucide-react";
-import { useI18n, localeToBcp47 } from "@/lib/i18n";
+import { useI18n, localeToBcp47, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/statistiche")({
-  head: () => ({ meta: [{ title: "Statistiche — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: pageTitle("stats") }] }),
   component: StatistichePage,
 });
 

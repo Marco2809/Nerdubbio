@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { Crown, Check, ArrowLeft } from "lucide-react";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/premium")({
-  head: () => ({ meta: [{ title: "Premium — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: pageTitle("premium") }] }),
   component: Premium,
 });
 

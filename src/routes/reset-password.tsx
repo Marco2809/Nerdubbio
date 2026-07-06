@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "@/lib/toast";
 import { auth as phpAuth } from "@/lib/php/client";
 import { z } from "zod";
-import { I18nProvider, normalizeLocale, useI18n } from "@/lib/i18n";
+import { I18nProvider, normalizeLocale, useI18n, pageTitle } from "@/lib/i18n";
 import { useUserStore } from "@/lib/user-store";
 
 const searchSchema = z.object({
@@ -12,7 +12,7 @@ const searchSchema = z.object({
 });
 
 export const Route = createFileRoute("/reset-password")({
-  head: () => ({ meta: [{ title: "Reset password — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: pageTitle("resetPassword") }] }),
   validateSearch: searchSchema,
   component: ResetPasswordPageWrapper,
 });
@@ -66,7 +66,7 @@ function ResetPasswordPage() {
       toast.success(t("resetPassword.updated"));
       navigate({ to: "/app" });
     } catch (err) {
-      toast.error("Errore", { description: err instanceof Error ? err.message : "Riprova." });
+      toast.error(t("common.error"), { description: err instanceof Error ? err.message : t("common.retry") });
     } finally {
       setLoading(false);
     }

@@ -7,11 +7,11 @@ import { buildStatusPatches } from "@/lib/resolve-show-statuses";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "@/lib/toast";
-import { LOCALES, LOCALE_LABELS, useI18n, type Locale } from "@/lib/i18n";
+import { LOCALES, LOCALE_LABELS, useI18n, pageTitle, type Locale } from "@/lib/i18n";
 import { ArrowLeft, Globe, Shield, Trash2, Download, Sparkles, PlayCircle, Popcorn, CheckCircle2, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
-  head: () => ({ meta: [{ title: "Impostazioni — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: pageTitle("settings") }] }),
   component: Settings,
 });
 

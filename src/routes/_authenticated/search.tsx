@@ -10,10 +10,10 @@ import { Star } from "lucide-react";
 import { useUserStore } from "@/lib/user-store";
 import { isMediaAlreadyWatched } from "@/lib/library-display";
 import { useReturnPath } from "@/lib/media-nav";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/search")({
-  head: () => ({ meta: [{ title: "Cerca — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: pageTitle("search") }] }),
   component: SearchPage,
 });
 

@@ -7,7 +7,7 @@ import { toast } from "@/lib/toast";
 import { useAuth } from "@/lib/auth";
 import { auth as phpAuth } from "@/lib/php/client";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
-import { I18nProvider, normalizeLocale, useI18n } from "@/lib/i18n";
+import { I18nProvider, normalizeLocale, useI18n, pageTitle, translate } from "@/lib/i18n";
 import { useUserStore } from "@/lib/user-store";
 
 const searchSchema = z.object({
@@ -17,8 +17,8 @@ const searchSchema = z.object({
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Accedi — Nerdubbio" },
-      { name: "description", content: "Accedi a Nerdubbio con Google o email." },
+      { title: pageTitle("auth") },
+      { name: "description", content: translate("it", "meta.authDesc") },
     ],
   }),
   validateSearch: searchSchema,

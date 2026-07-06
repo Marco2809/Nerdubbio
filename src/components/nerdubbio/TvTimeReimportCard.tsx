@@ -10,6 +10,7 @@ import {
   executeTvTimeImport,
 } from "@/lib/tvtime-import-run";
 import { toast } from "@/lib/toast";
+import { useI18n } from "@/lib/i18n";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +32,7 @@ type Preview = {
 };
 
 export function TvTimeReimportCard() {
+  const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { state } = useUserStore();
@@ -41,16 +43,16 @@ export function TvTimeReimportCard() {
 
   const handleFile = async (file: File) => {
     setBusy(true);
-    setProgress("Lettura export…");
+    setProgress(t("reimport.progressRead"));
     try {
       const summary = await parseTvTimeFile(file);
       if (summary.rows.length === 0) {
-        toast.error("Nessuna serie o film trovato nel file.");
+        toast.error(t("reimport.noMedia"));
         return;
       }
-      setProgress("Matching TMDB…");
+      setProgress(t("reimport.progressMatch"));
       const matches = await matchTvTimeRows(summary.rows);
-      const matched = matches.filter(m => m.match).length;
+      const matched = matches.filter((m) => m.match).length;
       setPendingFile(file);
       setPreview({
         fileName: file.name,
@@ -61,7 +63,7 @@ export function TvTimeReimportCard() {
         total: matches.length,
       });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Impossibile leggere il file.");
+      toast.error(e instanceof Error ? e.message : t("reimport.fileReadError"));
     } finally {
       setBusy(false);
       setProgress(null);
@@ -76,7 +78,7 @@ export function TvTimeReimportCard() {
       const matches = await matchTvTimeRows(summary.rows);
       const entries = buildEntriesFromMatches(matches);
       if (entries.length === 0) {
-        toast.error("Nessun titolo abbinato a TMDB.");
+        toast.error(t("reimport.noMatches"));
         return;
       }
 
@@ -95,24 +97,26 @@ export function TvTimeReimportCard() {
       });
 
       const after = queryClient.getQueryData<typeof state>(LIBRARY_QUERY_KEY) ?? state;
-      const newTitles = entries.filter(e => !beforeIds.has(e.id)).length;
+      const newTitles = entries.filter((e) => !beforeIds.has(e.id)).length;
       const afterEps = Object.values(after.media).reduce(
         (n, m) => n + (m.watchedEpisodes?.length ?? 0),
         0,
       );
       const addedEps = Math.max(0, afterEps - beforeEps);
 
-      toast.success("Libreria aggiornata da TV Time", {
+      toast.success(t("reimport.successTitle"), {
         description: [
-          `${preview.matched} titoli elaborati`,
-          newTitles > 0 ? `${newTitles} nuovi in libreria` : null,
-          addedEps > 0 ? `${addedEps} episodi aggiunti/corretti` : "conteggi rivisioni aggiornati",
-        ].filter(Boolean).join(" · "),
+          t("reimport.successProcessed", { count: preview.matched }),
+          newTitles > 0 ? t("reimport.successNew", { count: newTitles }) : null,
+          addedEps > 0 ? t("reimport.successEpisodes", { count: addedEps }) : t("reimport.successRewatches"),
+        ]
+          .filter(Boolean)
+          .join(" · "),
       });
       setPreview(null);
       setPendingFile(null);
     } catch (e) {
-      toast.error("Errore durante l'aggiornamento.", {
+      toast.error(t("reimport.updateError"), {
         description: e instanceof Error ? e.message : undefined,
       });
     } finally {
@@ -129,17 +133,14 @@ export function TvTimeReimportCard() {
             <RefreshCw className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">Re-import TV Time</p>
-            <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
-              Carica di nuovo il tuo export per correggere episodi mancanti o conteggi rivisioni.
-              Unisce i dati senza duplicare titoli già in libreria.
-            </p>
+            <p className="text-sm font-semibold">{t("reimport.title")}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">{t("reimport.hint")}</p>
             <input
               ref={inputRef}
               type="file"
               accept=".zip,.csv"
               className="hidden"
-              onChange={e => {
+              onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) void handleFile(f);
                 e.target.value = "";
@@ -151,50 +152,64 @@ export function TvTimeReimportCard() {
               onClick={() => inputRef.current?.click()}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface/60 py-2.5 text-xs font-semibold transition hover:border-accent disabled:opacity-60"
             >
-              {busy ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4" />
-              )}
-              {busy ? (progress ?? "Elaborazione…") : "Seleziona zip/csv TV Time"}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {busy ? (progress ?? t("reimport.processing")) : t("reimport.selectFile")}
             </button>
           </div>
         </div>
       </div>
 
-      <AlertDialog open={!!preview} onOpenChange={open => { if (!open && !busy) { setPreview(null); setPendingFile(null); } }}>
+      <AlertDialog
+        open={!!preview}
+        onOpenChange={(open) => {
+          if (!open && !busy) {
+            setPreview(null);
+            setPendingFile(null);
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Aggiornare la libreria?</AlertDialogTitle>
+            <AlertDialogTitle>{t("reimport.confirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
                 <p>
-                  File: <strong className="text-foreground">{preview?.fileName}</strong>
+                  {t("reimport.confirmFile")}{" "}
+                  <strong className="text-foreground">{preview?.fileName}</strong>
                 </p>
                 <ul className="list-inside list-disc space-y-1">
-                  <li>{preview?.matched} titoli riconosciuti su TMDB (su {preview?.total})</li>
-                  <li>{preview?.shows} serie · {preview?.movies} film</li>
-                  <li>{preview?.episodes} episodi nel file (inclusi rivisti)</li>
+                  <li>
+                    {t("reimport.confirmMatched", {
+                      matched: preview?.matched ?? 0,
+                      total: preview?.total ?? 0,
+                    })}
+                  </li>
+                  <li>
+                    {t("reimport.confirmStats", {
+                      shows: preview?.shows ?? 0,
+                      movies: preview?.movies ?? 0,
+                    })}
+                  </li>
+                  <li>{t("reimport.confirmEpisodes", { episodes: preview?.episodes ?? 0 })}</li>
                 </ul>
                 <p className="flex items-start gap-2 rounded-xl border border-accent/30 bg-accent/10 p-3 text-xs text-foreground">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                  Modalità merge: episodi e rivisioni si sommano o si correggono al valore più alto.
-                  Nessun titolo duplicato, stati manuali (preferiti, in pausa) restano intatti.
+                  {t("reimport.confirmMergeHint")}
                 </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={busy}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={busy}
-              onClick={e => {
+              onClick={(e) => {
                 e.preventDefault();
                 void runMerge();
               }}
               className="bg-hero text-primary-foreground hover:opacity-90"
             >
-              {busy ? "Aggiornamento…" : "Aggiorna libreria"}
+              {busy ? t("reimport.updating") : t("reimport.confirmAction")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

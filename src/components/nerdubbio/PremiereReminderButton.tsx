@@ -9,23 +9,32 @@ import {
   requestNotificationPermission,
   type Reminder,
 } from "@/lib/reminders";
+import { useI18n } from "@/lib/i18n";
 
 type Props = {
-  id: string;         // stable reminder id
+  id: string;
   tmdbId: number;
-  title: string;      // series title
-  label: string;      // e.g. "S3 · E1 — Premiere di stagione"
-  airDate: string;    // YYYY-MM-DD (must be today or future)
+  title: string;
+  label: string;
+  airDate: string;
   href: string;
 };
 
 export function PremiereReminderButton({ id, tmdbId, title, label, airDate, href }: Props) {
+  const { t } = useI18n();
   const [active, setActive] = useState(false);
 
-  useEffect(() => { setActive(hasReminder(id)); }, [id]);
+  useEffect(() => {
+    setActive(hasReminder(id));
+  }, [id]);
 
   const build = (): Reminder => ({
-    id, tmdbId, title, label, airDate, href,
+    id,
+    tmdbId,
+    title,
+    label,
+    airDate,
+    href,
     createdAt: new Date().toISOString(),
   });
 
@@ -35,22 +44,24 @@ export function PremiereReminderButton({ id, tmdbId, title, label, airDate, href
     if (active) {
       removeReminder(id);
       setActive(false);
-      toast.message("Promemoria rimosso", { description: `${title} — ${label}` });
+      toast.message(t("reminder.removed"), { description: `${title} — ${label}` });
       return;
     }
     const perm = await requestNotificationPermission();
     addReminder(build());
     setActive(true);
-    const desc = `Ti avviso il ${airDate}`;
+    const dateLabel = t("reminder.notifyOn", { date: airDate });
     if (perm === "granted") {
-      toast.success("Promemoria attivo 🔔", { description: `${desc} con notifica.` });
+      toast.success(t("reminder.active"), {
+        description: t("reminder.activeWithNotify", { date: airDate }),
+      });
     } else if (perm === "denied") {
-      toast.success("Promemoria salvato", {
-        description: `${desc}. Notifiche disattivate: aggiungilo al calendario per non dimenticarlo.`,
-        action: { label: "Calendario", onClick: () => downloadIcs(build()) },
+      toast.success(t("reminder.saved"), {
+        description: t("reminder.savedNoNotify", { date: airDate }),
+        action: { label: t("reminder.calendar"), onClick: () => downloadIcs(build()) },
       });
     } else {
-      toast.success("Promemoria salvato", { description: desc });
+      toast.success(t("reminder.saved"), { description: dateLabel });
     }
   }
 
@@ -72,16 +83,23 @@ export function PremiereReminderButton({ id, tmdbId, title, label, airDate, href
             : "inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold text-foreground/90 hover:bg-white/[0.08]"
         }
       >
-        {active ? <><Check className="h-3.5 w-3.5" /> <BellRing className="h-3.5 w-3.5" /> Ti ricordo</>
-                : <><Bell className="h-3.5 w-3.5" /> Ricordamelo</>}
+        {active ? (
+          <>
+            <Check className="h-3.5 w-3.5" /> <BellRing className="h-3.5 w-3.5" /> {t("reminder.activeLabel")}
+          </>
+        ) : (
+          <>
+            <Bell className="h-3.5 w-3.5" /> {t("reminder.remindMe")}
+          </>
+        )}
       </button>
       <button
         type="button"
         onClick={ics}
         className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold text-foreground/80 hover:bg-white/[0.08]"
-        aria-label="Aggiungi al calendario (.ics)"
+        aria-label={t("reminder.calendarAria")}
       >
-        <CalendarPlus className="h-3.5 w-3.5" /> Calendario
+        <CalendarPlus className="h-3.5 w-3.5" /> {t("reminder.calendar")}
       </button>
     </div>
   );

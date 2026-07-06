@@ -9,12 +9,12 @@ import {
 } from "@/lib/library-display";
 import { useUserStore } from "@/lib/user-store";
 import { ArrowLeft } from "lucide-react";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, pageTitle } from "@/lib/i18n";
 
 const tabSchema = z.enum(["da_vedere", "visti"]).default("da_vedere");
 
 export const Route = createFileRoute("/_authenticated/profilo/film")({
-  head: () => ({ meta: [{ title: "I tuoi film — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: pageTitle("libraryMovies") }] }),
   validateSearch: (s) => ({ tab: tabSchema.parse(s.tab ?? "da_vedere") }),
   component: ProfiloFilmPage,
 });

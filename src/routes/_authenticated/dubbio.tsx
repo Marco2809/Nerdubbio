@@ -24,10 +24,10 @@ import { useUserStore } from "@/lib/user-store";
 import { NERDACOLO, QUEST } from "@/lib/brand";
 import { useMemo, useState } from "react";
 import { toast } from "@/lib/toast";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/dubbio")({
-  head: () => ({ meta: [{ title: `${QUEST.name} — Nerdubbio` }] }),
+  head: () => ({ meta: [{ title: pageTitle("dubbio", "it", { name: QUEST.name }) }] }),
   component: DubbioPage,
 });
 

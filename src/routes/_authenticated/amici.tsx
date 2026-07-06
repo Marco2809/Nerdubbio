@@ -10,10 +10,10 @@ import {
   type FriendsData,
   type PublicUser,
 } from '@/lib/php/social-client';
-import { useI18n } from '@/lib/i18n';
+import { useI18n, pageTitle } from '@/lib/i18n';
 
 export const Route = createFileRoute('/_authenticated/amici')({
-  head: () => ({ meta: [{ title: 'Amici — Nerdubbio' }] }),
+  head: () => ({ meta: [{ title: pageTitle('friends') }] }),
   component: AmiciPage,
 });
 

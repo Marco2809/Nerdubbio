@@ -25,10 +25,10 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "@/lib/toast";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/dubbio/risultato")({
-  head: () => ({ meta: [{ title: `Risultato ${QUEST.name} — Nerdubbio` }] }),
+  head: () => ({ meta: [{ title: pageTitle("dubbioResult", "it", { name: QUEST.name }) }] }),
   component: ResultPage,
 });
 

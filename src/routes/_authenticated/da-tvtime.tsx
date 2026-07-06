@@ -9,16 +9,11 @@ import { applyResolvedTvStatuses } from "@/lib/resolve-show-statuses";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { UploadCloud, CheckCircle2, AlertTriangle, Loader2, Sparkles, ShieldCheck, Rocket, Import, Search, Check } from "lucide-react";
 import { toast } from "@/lib/toast";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/da-tvtime")({
   head: () => ({
-    meta: [
-      { title: "Da TV Time a Nerdubbio — importa la tua libreria" },
-      { name: "description", content: "TV Time chiude il 15 luglio 2026. Importa il tuo export CSV in Nerdubbio in 30 secondi: watchlist, serie in corso, film già visti." },
-      { property: "og:title", content: "Migra da TV Time a Nerdubbio in 30 secondi" },
-      { property: "og:description", content: "Non perdere anni di episodi tracciati. Importa il tuo CSV TV Time in Nerdubbio, senza account, senza abbonamento." },
-    ],
+    meta: [{ title: pageTitle("tvtime") }],
   }),
   component: DaTvTimePage,
 });
@@ -77,10 +72,17 @@ function DaTvTimePage() {
         if (res.rows.length === 0) { toast.error(t("tvtime.toastZipEmpty")); return; }
         setRows(res.rows);
         setSummary(res.counts);
-        toast.success(`Export TV Time letto: ${res.counts.shows} serie, ${res.counts.movies} film`, {
+        toast.success(t("tvtime.toastZipRead", { shows: res.counts.shows, movies: res.counts.movies }), {
           description: res.counts.movies === 0
-            ? `${res.counts.favorites} preferiti · ${res.counts.episodes} episodi · nessun film nel file (export JSON/CSV film?)`
-            : `${res.counts.favorites} preferiti · ${res.counts.forLater} da vedere · ${res.counts.episodes} episodi`,
+            ? t("tvtime.toastZipReadDescNoMovies", {
+                favorites: res.counts.favorites,
+                episodes: res.counts.episodes,
+              })
+            : t("tvtime.toastZipReadDesc", {
+                favorites: res.counts.favorites,
+                forLater: res.counts.forLater,
+                episodes: res.counts.episodes,
+              }),
         });
         if (res.filesFound.length) {
           console.info("[tvtime-import] file riconosciuti:", res.filesFound);
@@ -106,7 +108,7 @@ function DaTvTimePage() {
       if (res.rows.length > 0) {
         setRows(res.rows);
         setSummary(res.counts);
-        toast.success(`Letto ${file.name}: ${res.rows.length} titoli`);
+        toast.success(t("tvtime.toastFileRead", { file: file.name, count: res.rows.length }));
         return;
       }
     }
@@ -137,7 +139,7 @@ function DaTvTimePage() {
       }
       setMatches(all);
       const found = all.filter(m => m.match).length;
-      toast(`Trovati ${found} su ${all.length} titoli su TMDB`);
+      toast.success(t("tvtime.toastMatchFound", { found, total: all.length }));
     } catch (e) {
       toast.error(t("tvtime.toastMatchError"));
     } finally {
@@ -175,7 +177,7 @@ function DaTvTimePage() {
       setParseProgress({ stage: t("tvtime.stageVerify"), pct: 5 });
       const statusStats = await applyResolvedTvStatuses(entries, (done, total) => {
         setParseProgress({
-          stage: `Serie concluse (${done}/${total})…`,
+          stage: t("tvtime.stageCompletedShows", { done, total }),
           pct: 5 + Math.round((done / Math.max(total, 1)) * 25),
         });
       });
@@ -194,7 +196,7 @@ function DaTvTimePage() {
         const isLast = i + IMPORT_CHUNK >= entries.length;
         const chunkNum = Math.floor(i / IMPORT_CHUNK) + 1;
         setParseProgress({
-          stage: `Import libreria (${chunkNum}/${totalChunks})…`,
+          stage: t("tvtime.stageLibraryImport", { current: chunkNum, total: totalChunks }),
           pct: Math.round((chunkNum / totalChunks) * 100),
         });
         next = await libraryApi.bulkImport(
@@ -206,10 +208,10 @@ function DaTvTimePage() {
       }
 
       const epCount = entries.reduce((n, e) => n + (e.watchedEpisodes?.length ?? 0), 0);
-      toast.success(`Importati ${entries.length} titoli (${epCount} episodi)`, {
+      toast.success(t("tvtime.toastImportSuccess", { count: entries.length, episodes: epCount }), {
         description: [
-          statusStats.completed ? `${statusStats.completed} serie segnate concluse` : null,
-          importPending.length ? `${importPending.length} titoli senza match salvati per correzione` : null,
+          statusStats.completed ? t("tvtime.toastImportCompletedShows", { count: statusStats.completed }) : null,
+          importPending.length ? t("tvtime.toastImportPendingSaved", { count: importPending.length }) : null,
         ].filter(Boolean).join(" · ") || undefined,
       });
       setMatches(null);
@@ -217,7 +219,7 @@ function DaTvTimePage() {
       setFileName(null);
       setSummary(null);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Errore sconosciuto";
+      const msg = e instanceof Error ? e.message : t("common.unknownError");
       toast.error(t("tvtime.toastImportError"), { description: msg });
     } finally {
       setBusy("idle");

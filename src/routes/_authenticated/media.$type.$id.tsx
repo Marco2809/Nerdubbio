@@ -10,7 +10,7 @@ import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, tmdbWatchProviders, ty
 import { useReturnPath, useSmartBack } from "@/lib/media-nav";
 import { applyShowProgressAfterWatch, formatSeriesStatusLabel } from "@/lib/check-show-after-watch";
 import { toast } from "@/lib/toast";
-import { useI18n, localeToBcp47 } from "@/lib/i18n";
+import { useI18n, localeToBcp47, pageTitle } from "@/lib/i18n";
 import { MediaCommentsSection } from "@/components/nerdubbio/MediaCommentsSection";
 import { MediaRatingsSection } from "@/components/nerdubbio/MediaRatingsSection";
 import {
@@ -22,7 +22,7 @@ import {
 const EPISODES_PER_SEASON = 10;
 
 export const Route = createFileRoute("/_authenticated/media/$type/$id")({
-  head: () => ({ meta: [{ title: "Dettaglio — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: pageTitle("media") }] }),
   component: MediaDetail,
   notFoundComponent: MediaNotFound,
 });

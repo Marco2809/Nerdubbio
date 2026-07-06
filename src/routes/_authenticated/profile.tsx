@@ -6,10 +6,10 @@ import { useFriendRequestCount } from "@/hooks/use-friend-requests-count";
 import { Trophy, Flame, Star, Settings2, Crown, Users, Download, ExternalLink, BarChart3, Tv, Clapperboard } from "lucide-react";
 import { countAllMovies, countAllSeries } from "@/lib/library-display";
 import { TvTimeReimportCard } from "@/components/nerdubbio/TvTimeReimportCard";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/profile")({
-  head: () => ({ meta: [{ title: "Profilo — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: pageTitle("profile") }] }),
   component: Profile,
 });
 

@@ -12,10 +12,10 @@ import { useReturnPath } from "@/lib/media-nav";
 import { NerdacoloTrigger } from "@/components/nerdubbio/NerdacoloTrigger";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { useEffect } from "react";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/app")({
-  head: () => ({ meta: [{ title: "Home — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: pageTitle("home") }] }),
   component: HomeDashboard,
 });
 

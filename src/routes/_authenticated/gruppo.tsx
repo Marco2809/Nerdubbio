@@ -5,10 +5,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "@/lib/toast";
 import { SOCIAL_GROUPS_KEY, socialApi, type Group } from "@/lib/php/social-client";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/gruppo")({
-  head: () => ({ meta: [{ title: "Quest di gruppo — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: pageTitle("gruppo") }] }),
   component: Gruppo,
 });
 

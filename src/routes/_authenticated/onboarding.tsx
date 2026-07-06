@@ -8,7 +8,7 @@ import { CATALOG, type CatalogItem } from "@/lib/mock-catalog";
 import { Wordmark } from "@/components/nerdubbio/Wordmark";
 import { NERDACOLO, QUEST } from "@/lib/brand";
 import { libraryApi, LIBRARY_QUERY_KEY } from "@/lib/php/library-client";
-import { LOCALES, LOCALE_LABELS, I18nProvider, useI18n, type Locale } from "@/lib/i18n";
+import { LOCALES, LOCALE_LABELS, I18nProvider, useI18n, useDocumentTitle, pageTitle, type Locale } from "@/lib/i18n";
 import { getOnboardingDubbio } from "@/lib/onboarding-dubbio";
 
 function catalogToTmdb(c: CatalogItem): TmdbItem {
@@ -32,7 +32,7 @@ function catalogToTmdb(c: CatalogItem): TmdbItem {
 const ONBOARDING_FALLBACK = CATALOG.slice(0, 12).map(catalogToTmdb);
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
-  head: () => ({ meta: [{ title: "Onboarding — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: pageTitle("onboarding") }] }),
   component: Onboarding,
 });
 
@@ -57,6 +57,7 @@ function Onboarding() {
 
 function OnboardingInner({ lang, setLang }: { lang: Locale; setLang: (l: Locale) => void }) {
   const { t } = useI18n();
+  useDocumentTitle(t("meta.onboarding"));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { state, loading } = useUserStore();

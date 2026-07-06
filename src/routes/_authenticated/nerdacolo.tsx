@@ -19,9 +19,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Dices, Loader2, Plus, RotateCcw, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/lib/toast";
+import { pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/nerdacolo")({
-  head: () => ({ meta: [{ title: `Tiro d20 — ${NERDACOLO.name}` }] }),
+  head: () => ({ meta: [{ title: pageTitle("nerdacoloRoll", "it", { name: NERDACOLO.name }) }] }),
   component: NerdacoloRollPage,
 });
 

@@ -5,10 +5,10 @@ import { Loader2, Calendar, MapPin } from "lucide-react";
 import { useState } from "react";
 import { OverlayBackButton } from "@/components/nerdubbio/OverlayBackButton";
 import { useReturnPath, useSmartBack } from "@/lib/media-nav";
-import { localeToBcp47, useI18n } from "@/lib/i18n";
+import { localeToBcp47, useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/person/$id")({
-  head: () => ({ meta: [{ title: "Cast — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: pageTitle("person") }] }),
   component: PersonPage,
 });
 

@@ -5,10 +5,10 @@ import { useUserStore, type UserStatus, type UserMediaEntry } from "@/lib/user-s
 import { findById, type CatalogItem } from "@/lib/mock-catalog";
 import { useState, useMemo } from "react";
 import { ArrowDownUp } from "lucide-react";
-import { useI18n, useStatusLabel } from "@/lib/i18n";
+import { useI18n, useStatusLabel, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/watchlist")({
-  head: () => ({ meta: [{ title: "Watchlist — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: pageTitle("watchlist") }] }),
   component: WatchlistPage,
 });
 

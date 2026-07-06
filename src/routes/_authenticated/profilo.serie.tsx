@@ -9,12 +9,12 @@ import {
 } from "@/lib/library-display";
 import { useUserStore } from "@/lib/user-store";
 import { ArrowLeft } from "lucide-react";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, pageTitle } from "@/lib/i18n";
 
 const tabSchema = z.enum(["in_corso", "da_vedere", "viste"]).default("in_corso");
 
 export const Route = createFileRoute("/_authenticated/profilo/serie")({
-  head: () => ({ meta: [{ title: "Le tue serie — Nerdubbio" }] }),
+  head: () => ({ meta: [{ title: pageTitle("librarySeries") }] }),
   validateSearch: (s) => ({ tab: tabSchema.parse(s.tab ?? "in_corso") }),
   component: ProfiloSeriePage,
 });
