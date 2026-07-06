@@ -42,7 +42,7 @@ type I18nContextValue = {
   t: (key: string, vars?: TranslateVars) => string;
 };
 
-const I18nContext = createContext<I18nContextValue>({
+export const I18nContext = createContext<I18nContextValue>({
   locale: "it",
   t: (key, vars) => translate("it", key, vars),
 });
