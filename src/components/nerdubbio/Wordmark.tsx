@@ -1,4 +1,4 @@
-import { I18nContext, normalizeLocale, translate, type Locale } from "@/lib/i18n/context";
+import { I18nContext, translate, normalizeLocale, type Locale } from "@/lib/i18n";
 import { useContext } from "react";
 import { cn } from "@/lib/utils";
 import { BRAND } from "@/lib/brand";
