@@ -9,6 +9,7 @@ import { applyResolvedTvStatuses } from "@/lib/resolve-show-statuses";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { UploadCloud, CheckCircle2, AlertTriangle, Loader2, Sparkles, ShieldCheck, Rocket, Import, Search, Check } from "lucide-react";
 import { toast } from "@/lib/toast";
+import { useI18n } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/da-tvtime")({
   head: () => ({
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/_authenticated/da-tvtime")({
 type MatchRow = { row: ParsedRow; match: TmdbItem | null; accept: boolean; suggestions: TmdbItem[] };
 
 function DaTvTimePage() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const { state } = useUserStore();
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -49,7 +51,7 @@ function DaTvTimePage() {
     cleanedPendingRef.current = true;
     void libraryApi.patchSettings({ importPending: clean }).then(next => {
       queryClient.setQueryData(LIBRARY_QUERY_KEY, next);
-      toast.info("Rimossi voci spurie dal salvataggio TV Time (impostazioni app, non titoli).");
+      toast.info(t("tvtime.toastCleaned"));
     }).catch(() => {
       cleanedPendingRef.current = false;
     });
@@ -64,15 +66,15 @@ function DaTvTimePage() {
     // ZIP GDPR TV Time completo
     if (file.name.toLowerCase().endsWith(".zip")) {
       try {
-        setParseProgress({ stage: "Lettura archivio…", pct: 0 });
+        setParseProgress({ stage: t("tvtime.stageReading"), pct: 0 });
         const files = await readTvTimeZip(file, (loaded, total) => {
-          setParseProgress({ stage: "Lettura archivio…", pct: Math.round((loaded / total) * 60) });
+          setParseProgress({ stage: t("tvtime.stageReading"), pct: Math.round((loaded / total) * 60) });
         });
-        setParseProgress({ stage: "Analisi CSV…", pct: 65 });
+        setParseProgress({ stage: t("tvtime.stageParsing"), pct: 65 });
         await new Promise(r => setTimeout(r, 0));
         const res = parseTvTimeExport(files);
-        setParseProgress({ stage: "Fatto", pct: 100 });
-        if (res.rows.length === 0) { toast.error("Zip letto ma nessuna serie/film trovato."); return; }
+        setParseProgress({ stage: t("tvtime.stageDone"), pct: 100 });
+        if (res.rows.length === 0) { toast.error(t("tvtime.toastZipEmpty")); return; }
         setRows(res.rows);
         setSummary(res.counts);
         toast.success(`Export TV Time letto: ${res.counts.shows} serie, ${res.counts.movies} film`, {
@@ -84,7 +86,7 @@ function DaTvTimePage() {
           console.info("[tvtime-import] file riconosciuti:", res.filesFound);
         }
       } catch (e) {
-        toast.error("Impossibile leggere lo zip. Estrai i CSV e caricali singolarmente.");
+        toast.error(t("tvtime.toastZipError"));
       } finally {
         setTimeout(() => setParseProgress(null), 400);
       }
@@ -94,7 +96,7 @@ function DaTvTimePage() {
     // CSV singolo
     const text = await file.text();
     const raw = parseCSV(text);
-    if (raw.length === 0) { toast.error("CSV vuoto o non valido."); return; }
+    if (raw.length === 0) { toast.error(t("tvtime.toastCsvEmpty")); return; }
 
     // Se sembra un file GDPR noto (contiene tv_show_id o simili), usa il parser dedicato
     const first = raw[0] ?? {};
@@ -111,7 +113,7 @@ function DaTvTimePage() {
 
     const parsed = toParsedRows(raw, kindOverride === "auto" ? undefined : kindOverride)
       .filter(r => isLikelyMediaTitle(r.title));
-    if (parsed.length === 0) { toast.error("Nessuna riga con un titolo riconoscibile."); return; }
+    if (parsed.length === 0) { toast.error(t("tvtime.toastNoRows")); return; }
     setRows(parsed);
   };
 
@@ -137,7 +139,7 @@ function DaTvTimePage() {
       const found = all.filter(m => m.match).length;
       toast(`Trovati ${found} su ${all.length} titoli su TMDB`);
     } catch (e) {
-      toast.error("Errore durante il matching. Riprova tra un attimo.");
+      toast.error(t("tvtime.toastMatchError"));
     } finally {
       setBusy("idle");
     }
@@ -170,7 +172,7 @@ function DaTvTimePage() {
         };
       });
 
-      setParseProgress({ stage: "Verifica serie concluse…", pct: 5 });
+      setParseProgress({ stage: t("tvtime.stageVerify"), pct: 5 });
       const statusStats = await applyResolvedTvStatuses(entries, (done, total) => {
         setParseProgress({
           stage: `Serie concluse (${done}/${total})…`,
@@ -216,7 +218,7 @@ function DaTvTimePage() {
       setSummary(null);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Errore sconosciuto";
-      toast.error("Errore durante l'import. Riprova.", { description: msg });
+      toast.error(t("tvtime.toastImportError"), { description: msg });
     } finally {
       setBusy("idle");
       setTimeout(() => setParseProgress(null), 400);
@@ -248,8 +250,8 @@ function DaTvTimePage() {
   const unresolvedCount = matches?.filter(m => !m.match).length ?? 0;
 
   return (
-    <AppShell subtitle="Migrazione" title="Da TV Time"
-      right={<span className="rounded-full bg-hero px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary-foreground">Beta</span>}>
+    <AppShell subtitle={t("tvtime.subtitle")} title={t("tvtime.title")}
+      right={<span className="rounded-full bg-hero px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary-foreground">{t("tvtime.beta")}</span>}>
 
       {/* Hero */}
       <div className="glass overflow-hidden rounded-3xl p-5 shadow-glow">
@@ -258,49 +260,47 @@ function DaTvTimePage() {
             <Rocket className="h-6 w-6 text-primary-foreground" />
           </span>
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-widest text-accent">TV Time chiude il 15 luglio 2026</p>
-            <h2 className="mt-1 text-lg font-extrabold leading-tight">Non perdere anni di episodi tracciati.</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Nerdubbio è l'alternativa italiana: dark, senza pubblicità, con provider RaiPlay / NOW / TIMvision, la&nbsp;Main&nbsp;Quest come consigliere di serata e XP per ogni episodio.
-            </p>
+            <p className="text-[10px] uppercase tracking-widest text-accent">{t("tvtime.closing")}</p>
+            <h2 className="mt-1 text-lg font-extrabold leading-tight">{t("tvtime.heroTitle")}</h2>
+            <p className="mt-1 text-xs text-muted-foreground">{t("tvtime.heroLead")}</p>
           </div>
         </div>
 
         <ul className="mt-4 grid gap-2 text-xs">
-          <Bullet icon={<ShieldCheck className="h-3.5 w-3.5" />} text="I tuoi dati restano sul tuo dispositivo. Nessun data broker." />
-          <Bullet icon={<Sparkles className="h-3.5 w-3.5" />} text="Provider streaming italiani (RaiPlay, Mediaset, TIMvision, NOW, MUBI)." />
-          <Bullet icon={<CheckCircle2 className="h-3.5 w-3.5" />} text="Le tue liste importate mantengono lo stato (Da vedere / In corso / Visto)." />
+          <Bullet icon={<ShieldCheck className="h-3.5 w-3.5" />} text={t("tvtime.bulletPrivacy")} />
+          <Bullet icon={<Sparkles className="h-3.5 w-3.5" />} text={t("tvtime.bulletProviders")} />
+          <Bullet icon={<CheckCircle2 className="h-3.5 w-3.5" />} text={t("tvtime.bulletStatus")} />
         </ul>
       </div>
 
       {/* Step 1 — Come esportare */}
       <section className="mt-6">
-        <h3 className="mb-2 text-sm font-bold uppercase tracking-wider">1 · Esporta da TV Time</h3>
+        <h3 className="mb-2 text-sm font-bold uppercase tracking-wider">{t("tvtime.step1")}</h3>
         <ol className="glass space-y-1.5 rounded-2xl p-4 text-xs text-foreground/85">
-          <li>Apri TV Time → <b>Impostazioni</b> → <b>Account</b> → <b>Scarica i tuoi dati</b> (GDPR).</li>
-          <li>Ti arriva una mail con un archivio <code className="rounded bg-surface-2 px-1">.zip</code>.</li>
-          <li>Carica lo zip qui sotto <b>così com&apos;è</b>: leggo serie (CSV/JSON) e film (<code>tracking-prod-records</code>, <code>user_movie_data</code>, JSON con <code>meta.name</code>).</li>
+          <li>{t("tvtime.step1a")}</li>
+          <li>{t("tvtime.step1b")}</li>
+          <li>{t("tvtime.step1c")}</li>
         </ol>
       </section>
 
       {/* Step 2 — Upload */}
       <section className="mt-6">
-        <h3 className="mb-2 text-sm font-bold uppercase tracking-wider">2 · Carica lo zip o un CSV</h3>
+        <h3 className="mb-2 text-sm font-bold uppercase tracking-wider">{t("tvtime.step2")}</h3>
         <div className="mb-2 flex gap-2">
           {(["auto", "tv", "movie"] as const).map(k => (
             <button key={k} onClick={() => setKindOverride(k)}
               className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${kindOverride === k ? "bg-hero text-primary-foreground shadow-glow" : "bg-surface-2 text-muted-foreground"}`}>
-              {k === "auto" ? "Auto" : k === "tv" ? "Solo serie" : "Solo film"}
+              {k === "auto" ? t("tvtime.kindAuto") : k === "tv" ? t("tvtime.kindTv") : t("tvtime.kindMovie")}
             </button>
           ))}
-          <span className="ml-1 self-center text-[10px] text-muted-foreground">(override solo per CSV generici)</span>
+          <span className="ml-1 self-center text-[10px] text-muted-foreground">{t("tvtime.kindHint")}</span>
         </div>
         <label className="glass flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-border p-4 transition hover:border-accent">
           <UploadCloud className="h-6 w-6 text-accent" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">{fileName ?? "Trascina o seleziona il .zip TV Time (o un .csv)"}</p>
+            <p className="text-sm font-semibold">{fileName ?? t("tvtime.uploadDefault")}</p>
             <p className="text-[11px] text-muted-foreground">
-              {rows.length > 0 ? `${rows.length} titoli pronti per il match TMDB` : "Tutto resta sul tuo dispositivo, nessun upload sui nostri server."}
+              {rows.length > 0 ? t("tvtime.uploadReady", { count: rows.length }) : t("tvtime.uploadHint")}
             </p>
           </div>
           <input type="file" accept=".zip,.csv,text/csv,application/zip,application/x-zip-compressed" className="hidden"
@@ -321,11 +321,11 @@ function DaTvTimePage() {
 
         {summary && (
           <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-5">
-            <Stat label="Serie" value={summary.shows} />
-            <Stat label="Film" value={summary.movies} />
-            <Stat label="Preferite" value={summary.favorites} />
-            <Stat label="Da vedere" value={summary.forLater} />
-            <Stat label="Episodi" value={summary.episodes} />
+            <Stat label={t("tvtime.statShows")} value={summary.shows} />
+            <Stat label={t("tvtime.statMovies")} value={summary.movies} />
+            <Stat label={t("tvtime.statFavorites")} value={summary.favorites} />
+            <Stat label={t("tvtime.statForLater")} value={summary.forLater} />
+            <Stat label={t("tvtime.statEpisodes")} value={summary.episodes} />
           </div>
         )}
 
@@ -333,7 +333,7 @@ function DaTvTimePage() {
           <button onClick={runMatch} disabled={busy !== "idle"}
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-hero py-3 text-sm font-bold text-primary-foreground shadow-glow-pink disabled:opacity-60">
             {busy === "matching" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Import className="h-4 w-4" />}
-            {busy === "matching" ? "Cerco su TMDB…" : `Trova su TMDB (${rows.length})`}
+            {busy === "matching" ? t("tvtime.matching") : t("tvtime.findTmdb", { count: rows.length })}
           </button>
         )}
       </section>
@@ -343,7 +343,7 @@ function DaTvTimePage() {
       {matches && (
         <section className="mt-6">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-bold uppercase tracking-wider">3 · Rivedi & importa</h3>
+            <h3 className="text-sm font-bold uppercase tracking-wider">{t("tvtime.step3")}</h3>
             <span className="text-xs text-muted-foreground">{acceptedCount}/{matches.length}</span>
           </div>
 
@@ -352,11 +352,11 @@ function DaTvTimePage() {
               <div className="mb-2 flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-destructive" />
                 <h4 className="text-xs font-bold uppercase tracking-wider text-destructive">
-                  Da risolvere ({unresolvedCount})
+                  {t("tvtime.toResolve", { count: unresolvedCount })}
                 </h4>
               </div>
               <p className="mb-3 text-[11px] text-muted-foreground">
-                Scegli un suggerimento TMDB o cerca manualmente il titolo giusto prima di importare.
+                {t("tvtime.resolveHint")}
               </p>
               <div className="space-y-3">
                 {unmatchedIndices.map(i => (
@@ -374,7 +374,7 @@ function DaTvTimePage() {
             <div>
               {unresolvedCount > 0 && (
                 <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Pronti all&apos;import ({matchedIndices.length})
+                  {t("tvtime.readyImport", { count: matchedIndices.length })}
                 </h4>
               )}
               <div className="space-y-2">
@@ -388,8 +388,8 @@ function DaTvTimePage() {
           <button onClick={runImport} disabled={busy !== "idle" || acceptedCount === 0}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-neon py-3 text-sm font-bold text-primary-foreground shadow-glow disabled:opacity-60">
             {busy === "importing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-            Importa {acceptedCount} titoli
-            {unresolvedCount > 0 ? ` · ${unresolvedCount} restano in sospeso` : ""}
+            {t("tvtime.importBtn", { count: acceptedCount })}
+            {unresolvedCount > 0 ? t("tvtime.importPending", { count: unresolvedCount }) : ""}
           </button>
         </section>
       )}
@@ -399,21 +399,22 @@ function DaTvTimePage() {
       )}
 
       <Link to="/app" className="mt-8 block text-center text-xs text-muted-foreground underline">
-        Salta e vai alla home
+        {t("tvtime.skipHome")}
       </Link>
     </AppShell>
   );
 }
 
 function RowMeta({ row }: { row: ParsedRow }) {
+  const { t } = useI18n();
   return (
     <>
       {row.status && <p className="text-[10px] uppercase tracking-widest text-accent">{row.status.replace(/_/g, " ")}</p>}
       {(row.watchedEpisodes?.length ?? row.episodesSeen) ? (
         <p className="text-[10px] text-muted-foreground">
           {row.watchedEpisodes?.length
-            ? `${row.watchedEpisodes.length} episodi nel CSV`
-            : `${row.episodesSeen} episodi (solo conteggio)`}
+            ? t("tvtime.episodesInCsv", { count: row.watchedEpisodes.length })
+            : t("tvtime.episodesCountOnly", { count: row.episodesSeen ?? 0 })}
         </p>
       ) : null}
     </>
@@ -421,6 +422,7 @@ function RowMeta({ row }: { row: ParsedRow }) {
 }
 
 function TmdbPickGrid({ items, onPick }: { items: TmdbItem[]; onPick: (item: TmdbItem) => void }) {
+  const { t } = useI18n();
   if (!items.length) return null;
   return (
     <div className="grid gap-2 sm:grid-cols-2">
@@ -436,7 +438,7 @@ function TmdbPickGrid({ items, onPick }: { items: TmdbItem[]; onPick: (item: Tmd
             : <div className="grid h-12 w-8 shrink-0 place-items-center rounded bg-surface-2 text-[10px] text-muted-foreground">?</div>}
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold">{item.title}</p>
-            <p className="text-[10px] text-muted-foreground">{item.type === "tv" ? "Serie" : "Film"} · {item.year || "?"}</p>
+            <p className="text-[10px] text-muted-foreground">{item.type === "tv" ? t("person.typeTv") : t("person.typeMovie")} · {item.year || "?"}</p>
           </div>
           <Check className="h-3.5 w-3.5 shrink-0 text-accent opacity-70" />
         </button>
@@ -454,6 +456,7 @@ function TmdbSearchPicker({
   typeFilter?: "movie" | "tv";
   onPick: (item: TmdbItem) => void;
 }) {
+  const { t } = useI18n();
   const [q, setQ] = useState(defaultQuery);
   const [debouncedQ, setDebouncedQ] = useState(defaultQuery);
 
@@ -478,13 +481,13 @@ function TmdbSearchPicker({
         <input
           value={q}
           onChange={e => setQ(e.target.value)}
-          placeholder="Cerca su TMDB…"
+          placeholder={t("tvtime.searchTmdb")}
           className="w-full rounded-xl border border-border bg-background py-2 pl-9 pr-3 text-xs outline-none focus:border-accent"
         />
       </div>
-      {searchQ.isFetching && <p className="mt-2 text-[10px] text-muted-foreground">Cerco…</p>}
+      {searchQ.isFetching && <p className="mt-2 text-[10px] text-muted-foreground">{t("tvtime.searching")}</p>}
       {debouncedQ.length >= 2 && !searchQ.isFetching && results.length === 0 && (
-        <p className="mt-2 text-[10px] text-muted-foreground">Nessun risultato per &quot;{debouncedQ}&quot;</p>
+        <p className="mt-2 text-[10px] text-muted-foreground">{t("tvtime.noResults", { query: debouncedQ })}</p>
       )}
       {results.length > 0 && (
         <div className="mt-2">
@@ -496,6 +499,7 @@ function TmdbSearchPicker({
 }
 
 function UnmatchedCard({ m, onPick }: { m: MatchRow; onPick: (item: TmdbItem) => void }) {
+  const { t } = useI18n();
   const cleaned = cleanTitleForMatch(m.row.title);
   const defaultSearch = cleaned.title;
 
@@ -507,23 +511,23 @@ function UnmatchedCard({ m, onPick }: { m: MatchRow; onPick: (item: TmdbItem) =>
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-xs text-muted-foreground">
-            TV Time: <span className="font-semibold text-foreground">{m.row.title}</span>
+            {t("tvtime.tvTimeLabel")} <span className="font-semibold text-foreground">{m.row.title}</span>
             {m.row.year ?? cleaned.year ? ` · ${m.row.year ?? cleaned.year}` : ""}
           </p>
-          <p className="text-sm font-semibold text-destructive">Nessun match automatico</p>
+          <p className="text-sm font-semibold text-destructive">{t("tvtime.noAutoMatch")}</p>
           <RowMeta row={m.row} />
         </div>
       </div>
 
       {m.suggestions.length > 0 && (
         <div className="mt-3">
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Suggerimenti TMDB</p>
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("tvtime.suggestions")}</p>
           <TmdbPickGrid items={m.suggestions} onPick={onPick} />
         </div>
       )}
 
       <div className="mt-3">
-        <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Oppure cerca manualmente</p>
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("tvtime.searchManual")}</p>
         <TmdbSearchPicker defaultQuery={defaultSearch} typeFilter={m.row.type} onPick={onPick} />
       </div>
     </div>
@@ -531,6 +535,7 @@ function UnmatchedCard({ m, onPick }: { m: MatchRow; onPick: (item: TmdbItem) =>
 }
 
 function MatchedRow({ m, onToggle }: { m: MatchRow; onToggle: () => void }) {
+  const { t } = useI18n();
   return (
     <div className={`glass flex items-center gap-3 rounded-2xl p-2.5 transition ${m.accept ? "" : "opacity-50"}`}>
       {m.match?.posterUrl
@@ -540,7 +545,7 @@ function MatchedRow({ m, onToggle }: { m: MatchRow; onToggle: () => void }) {
           </div>}
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs text-muted-foreground">
-          TV Time: <span className="text-foreground/80">{m.row.title}</span>
+          {t("tvtime.tvTimeLabel")} <span className="text-foreground/80">{m.row.title}</span>
         </p>
         <p className="truncate text-sm font-semibold">
           → {m.match!.title} <span className="text-muted-foreground">· {m.match!.year || "?"}</span>
@@ -549,13 +554,14 @@ function MatchedRow({ m, onToggle }: { m: MatchRow; onToggle: () => void }) {
       </div>
       <button onClick={onToggle}
         className={`rounded-full px-3 py-1 text-[11px] font-bold transition ${m.accept ? "bg-hero text-primary-foreground" : "border border-border text-muted-foreground"}`}>
-        {m.accept ? "Includi" : "Escludi"}
+        {m.accept ? t("tvtime.include") : t("tvtime.exclude")}
       </button>
     </div>
   );
 }
 
 function PendingSection({ pending }: { pending: TvTimePendingItem[] }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const { state } = useUserStore();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -588,9 +594,9 @@ function PendingSection({ pending }: { pending: TvTimePendingItem[] }) {
       const nextPending = (state.importPending ?? []).filter(x => x.id !== p.id);
       const next = await libraryApi.bulkImport([entry], nextPending, { replaceEpisodes: true });
       queryClient.setQueryData(LIBRARY_QUERY_KEY, next);
-      toast.success(`Importato: ${item.title}`);
+      toast.success(t("tvtime.toastImported", { title: item.title }));
     } catch {
-      toast.error("Errore import titolo");
+      toast.error(t("tvtime.toastImportItemError"));
     } finally {
       setBusyId(null);
     }
@@ -600,10 +606,10 @@ function PendingSection({ pending }: { pending: TvTimePendingItem[] }) {
     <section className="mt-8">
       <div className="mb-2 flex items-center gap-2">
         <AlertTriangle className="h-4 w-4 text-destructive" />
-        <h3 className="text-sm font-bold uppercase tracking-wider">Da correggere ({pending.length})</h3>
+        <h3 className="text-sm font-bold uppercase tracking-wider">{t("tvtime.pendingTitle", { count: pending.length })}</h3>
       </div>
       <p className="mb-3 text-xs text-muted-foreground">
-        Titoli salvati senza match. Scegli un suggerimento o cerca il titolo giusto qui sotto.
+        {t("tvtime.pendingHint")}
       </p>
       <div className="space-y-3">
         {pending.slice(0, 20).map(p => (
@@ -617,7 +623,7 @@ function PendingSection({ pending }: { pending: TvTimePendingItem[] }) {
             </div>
             {busyId === p.id ? (
               <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Importo…
+                <Loader2 className="h-4 w-4 animate-spin" /> {t("tvtime.importing")}
               </div>
             ) : (
               <div className="mt-3">
@@ -637,6 +643,7 @@ function PendingSection({ pending }: { pending: TvTimePendingItem[] }) {
 }
 
 function PendingSuggestions({ pending, onPick }: { pending: TvTimePendingItem; onPick: (item: TmdbItem) => void }) {
+  const { t } = useI18n();
   const q = matchQueryFromRow({
     title: pending.title,
     year: pending.year,
@@ -652,12 +659,12 @@ function PendingSuggestions({ pending, onPick }: { pending: TvTimePendingItem; o
     staleTime: 300_000,
   });
 
-  if (isLoading) return <p className="mb-2 text-[10px] text-muted-foreground">Carico suggerimenti…</p>;
+  if (isLoading) return <p className="mb-2 text-[10px] text-muted-foreground">{t("tvtime.loadingSuggestions")}</p>;
   if (!data?.length) return null;
 
   return (
     <div className="mb-2">
-      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Suggerimenti</p>
+      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("tvtime.suggestions")}</p>
       <TmdbPickGrid items={data} onPick={onPick} />
     </div>
   );

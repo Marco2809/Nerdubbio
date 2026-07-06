@@ -8,7 +8,8 @@ import { CATALOG, type CatalogItem } from "@/lib/mock-catalog";
 import { Wordmark } from "@/components/nerdubbio/Wordmark";
 import { NERDACOLO, QUEST } from "@/lib/brand";
 import { libraryApi, LIBRARY_QUERY_KEY } from "@/lib/php/library-client";
-import { LOCALES, LOCALE_LABELS, type Locale } from "@/lib/i18n";
+import { LOCALES, LOCALE_LABELS, I18nProvider, useI18n, type Locale } from "@/lib/i18n";
+import { getOnboardingDubbio } from "@/lib/onboarding-dubbio";
 
 function catalogToTmdb(c: CatalogItem): TmdbItem {
   return {
@@ -40,50 +41,26 @@ const GENRES = [
   "Animation","Romance","Mystery","Crime","Horror","Musical",
 ];
 
-/** Domande "Dubbio nerd" ironiche per profilare mood iniziale. */
-const DUBBIO = [
-  {
-    id: "tone",
-    q: "Stasera vuoi ridere, piangere o sospettare di tutti?",
-    sub: "Nessuna risposta sbagliata. Ci giudichiamo tutti a vicenda.",
-    choices: [
-      { label: "Ridere fino alle lacrime", emoji: "😂", moods: ["funny", "cozy"] },
-      { label: "Piangere in modo elegante", emoji: "😭", moods: ["sad", "romantic"] },
-      { label: "Sospettare di tutti", emoji: "🕵️", moods: ["thriller", "mind-bending"] },
-      { label: "Sentirmi epico", emoji: "⚔️", moods: ["epic", "action"] },
-    ],
-  },
-  {
-    id: "brain",
-    q: "Quanto cervello vuoi usare?",
-    sub: "Nerdacolo ti giudica ma non ti abbandona.",
-    choices: [
-      { label: "Zero. Coperta e patatine.", emoji: "🛋️", moods: ["cozy", "funny"] },
-      { label: "Il giusto per non annoiarmi", emoji: "🧠", moods: ["slow-burn"] },
-      { label: "Voglio una crisi esistenziale", emoji: "🌀", moods: ["mind-bending", "dark"] },
-    ],
-  },
-  {
-    id: "length",
-    q: "Impegno richiesto?",
-    sub: "Serve saperlo prima, poi è tardi.",
-    choices: [
-      { label: "Chiuso in una serata", emoji: "⏱️", moods: ["short"] },
-      { label: "Una mini-serie, 6-10 ore", emoji: "📺", moods: ["short", "binge"] },
-      { label: "Vita nuova, 7 stagioni", emoji: "♾️", moods: ["binge", "epic"] },
-    ],
-  },
-] as const;
+/** Domande "Dubbio nerd" — locale in onboarding-dubbio.ts */
 
 type StepKey = "welcome" | "lang" | "genres" | "dubbio" | "seen" | "done";
 const STEPS: StepKey[] = ["welcome", "lang", "genres", "dubbio", "seen", "done"];
 
 function Onboarding() {
+  const [lang, setLang] = useState<Locale>("it");
+  return (
+    <I18nProvider locale={lang}>
+      <OnboardingInner lang={lang} setLang={setLang} />
+    </I18nProvider>
+  );
+}
+
+function OnboardingInner({ lang, setLang }: { lang: Locale; setLang: (l: Locale) => void }) {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { state, loading } = useUserStore();
   const [stepIdx, setStepIdx] = useState(0);
-  const [lang, setLang] = useState<Locale>("it");
   const [genres, setGenres] = useState<string[]>([]);
   const [seen, setSeen] = useState<TmdbItem[]>([]);
   const [dubbioIdx, setDubbioIdx] = useState(0);
@@ -111,21 +88,22 @@ function Onboarding() {
 
   const step = STEPS[stepIdx];
   const total = STEPS.length;
-  const dubbioQ = DUBBIO[dubbioIdx];
+  const dubbioQuestions = useMemo(() => getOnboardingDubbio(lang), [lang]);
+  const dubbioQ = dubbioQuestions[dubbioIdx];
   const moodProfile = useMemo(() => {
     const s = new Set<string>();
     for (const [qid, idx] of Object.entries(answers)) {
-      const q = DUBBIO.find((d) => d.id === qid);
+      const q = dubbioQuestions.find((d) => d.id === qid);
       q?.choices[idx]?.moods.forEach((m) => s.add(m));
     }
     return [...s];
-  }, [answers]);
+  }, [answers, dubbioQuestions]);
 
   const canAdvance =
     step === "welcome" ||
     (step === "lang" && !!lang) ||
     (step === "genres" && genres.length >= 3) ||
-    (step === "dubbio" && Object.keys(answers).length === DUBBIO.length) ||
+    (step === "dubbio" && Object.keys(answers).length === dubbioQuestions.length) ||
     (step === "seen" && seen.length >= 1) ||
     step === "done";
 
@@ -172,7 +150,7 @@ function Onboarding() {
   const answerDubbio = (idx: number) => {
     setAnswers((a) => ({ ...a, [dubbioQ.id]: idx }));
     setTimeout(() => {
-      if (dubbioIdx < DUBBIO.length - 1) setDubbioIdx((i) => i + 1);
+      if (dubbioIdx < dubbioQuestions.length - 1) setDubbioIdx((i) => i + 1);
       else setStepIdx((i) => i + 1);
     }, 220);
   };
@@ -195,12 +173,12 @@ function Onboarding() {
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-fuchsia-400" />
             <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Onboarding · {stepIdx + 1}/{total}
+              {t("onboarding.progress", { current: stepIdx + 1, total })}
             </span>
           </div>
           {step === "dubbio" && (
             <span className="text-[11px] font-semibold uppercase tracking-widest text-cyan-300">
-              {NERDACOLO.name} {dubbioIdx + 1}/{DUBBIO.length}
+              {NERDACOLO.name} {dubbioIdx + 1}/{dubbioQuestions.length}
             </span>
           )}
         </div>
@@ -231,31 +209,28 @@ function Onboarding() {
                 />
               </div>
               <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-fuchsia-400/30 bg-fuchsia-400/10 px-3 py-1 text-xs font-semibold text-fuchsia-300">
-                <Wand2 className="h-3.5 w-3.5" /> Benvenutə su Nerdubbio
+                <Wand2 className="h-3.5 w-3.5" /> {t("onboarding.welcomeBadge")}
               </div>
               <h1 className="text-4xl font-black leading-tight">
-                Ciao, sono{" "}
-                <span className="bg-gradient-to-r from-fuchsia-400 via-pink-400 to-cyan-300 bg-clip-text text-transparent">
-                  Nerdacolo
-                </span>
-                .
+                {t("onboarding.welcomeTitle")}
               </h1>
               <p className="mt-4 text-base text-muted-foreground">
-                In 4 tap ti assegno la main quest "cosa guardo?" senza scroll infinito, senza
-                pentimenti, senza giudizi. (Ok, un po' di giudizi.)
+                {t("onboarding.welcomeLead")}
               </p>
               <ul className="mt-6 space-y-3 text-sm">
-                {[
-                  "Scegli lingua e generi preferiti",
-                  "Rispondi a 3 domande ironiche",
-                  "Dimmi qualche titolo che hai già visto",
-                  "Entra nell'app con il tuo profilo nerd pronto",
-                ].map((t, i) => (
+                {(
+                  [
+                    t("onboarding.welcomeStep0"),
+                    t("onboarding.welcomeStep1"),
+                    t("onboarding.welcomeStep2"),
+                    t("onboarding.welcomeStep3"),
+                  ] as const
+                ).map((label, i) => (
                   <li key={i} className="flex items-start gap-3 rounded-2xl border border-white/5 bg-white/[0.03] p-3 backdrop-blur">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 to-cyan-500 text-[11px] font-bold text-white">
                       {i + 1}
                     </span>
-                    <span className="text-foreground/90">{t}</span>
+                    <span className="text-foreground/90">{label}</span>
                   </li>
                 ))}
               </ul>
@@ -264,9 +239,9 @@ function Onboarding() {
 
           {step === "lang" && (
             <div className="animate-in fade-in slide-in-from-bottom-4">
-              <h2 className="text-3xl font-black">In che lingua ci sentiamo?</h2>
+              <h2 className="text-3xl font-black">{t("onboarding.langTitle")}</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Puoi cambiarla poi dalle impostazioni. Non ti giudichiamo.
+                {t("onboarding.langHint")}
               </p>
               <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {LOCALES.map((l) => (
@@ -289,10 +264,9 @@ function Onboarding() {
 
           {step === "genres" && (
             <div className="animate-in fade-in slide-in-from-bottom-4">
-              <h2 className="text-3xl font-black">Generi preferiti</h2>
+              <h2 className="text-3xl font-black">{t("onboarding.genresTitle")}</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Scegli almeno <span className="font-semibold text-foreground">3</span>. Nerdacolo
-                prende appunti su un blocchetto immaginario.
+                {t("onboarding.genresHint")}
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
                 {GENRES.map((g) => {
@@ -313,7 +287,7 @@ function Onboarding() {
                 })}
               </div>
               <p className="mt-4 text-xs text-muted-foreground">
-                Selezionati: <span className="font-semibold text-foreground">{genres.length}</span>
+                {t("onboarding.selected", { count: genres.length })}
               </p>
             </div>
           )}
@@ -352,10 +326,9 @@ function Onboarding() {
 
           {step === "seen" && (
             <div className="animate-in fade-in slide-in-from-bottom-4">
-              <h2 className="text-3xl font-black">Titoli che hai già visto</h2>
+              <h2 className="text-3xl font-black">{t("onboarding.seenTitle")}</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Tappa almeno <span className="font-semibold text-foreground">1</span>. Servono al
-                Nerdacolo per non ri-consigliarteli.
+                {t("onboarding.seenHint")}
               </p>
               <div className="mt-6 grid grid-cols-3 gap-2">
                 {trendingQ.isLoading &&
@@ -402,39 +375,39 @@ function Onboarding() {
               </div>
               {usingFallback && (
                 <p className="mt-3 text-xs text-amber-300/90">
-                  TMDB non configurato sul server — titoli di esempio. Aggiungi altri dalla Ricerca dopo.
+                  {t("onboarding.tmdbFallback")}
                 </p>
               )}
               {trendingQ.isError && !usingFallback && (
                 <p className="mt-3 text-xs text-rose-300">
-                  Impossibile caricare i titoli da TMDB. Vai avanti e aggiungili dopo dalla Ricerca.
+                  {t("onboarding.tmdbError")}
                 </p>
               )}
               <p className="mt-4 text-xs text-muted-foreground">
-                Selezionati: <span className="font-semibold text-foreground">{seen.length}</span>
+                {t("onboarding.selected", { count: seen.length })}
               </p>
             </div>
           )}
 
           {step === "done" && (
             <div className="animate-in fade-in zoom-in-95">
-              <h2 className="text-3xl font-black">Profilo pronto.</h2>
+              <h2 className="text-3xl font-black">{t("onboarding.doneTitle")}</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Ecco cosa ha capito Nerdacolo su di te:
+                {t("onboarding.doneHint")}
               </p>
               <div className="mt-6 space-y-3">
-                <SummaryRow label="Lingua" value={LOCALE_LABELS[lang]} />
-                <SummaryRow label="Generi" value={genres.slice(0, 4).join(" · ") || "—"} extra={genres.length > 4 ? `+${genres.length - 4}` : undefined} />
-                <SummaryRow label="Mood serata" value={moodProfile.slice(0, 4).join(" · ") || "—"} extra={moodProfile.length > 4 ? `+${moodProfile.length - 4}` : undefined} />
-                <SummaryRow label="Titoli visti" value={`${seen.length} selezionati`} />
+                <SummaryRow label={t("onboarding.summaryLang")} value={LOCALE_LABELS[lang]} />
+                <SummaryRow label={t("onboarding.summaryGenres")} value={genres.slice(0, 4).join(" · ") || "—"} extra={genres.length > 4 ? `+${genres.length - 4}` : undefined} />
+                <SummaryRow label={t("onboarding.summaryMood")} value={moodProfile.slice(0, 4).join(" · ") || "—"} extra={moodProfile.length > 4 ? `+${moodProfile.length - 4}` : undefined} />
+                <SummaryRow label={t("onboarding.summarySeen")} value={t("onboarding.seenSelected", { count: seen.length })} />
               </div>
               <div className="mt-6 rounded-3xl border border-white/10 bg-gradient-to-br from-fuchsia-500/20 via-pink-500/10 to-cyan-500/20 p-6 backdrop-blur">
                 <p className="text-[11px] uppercase tracking-widest text-fuchsia-200/80">
-                  Il tuo profilo nerd
+                  {t("onboarding.profileTitle")}
                 </p>
-                <p className="mt-1 text-2xl font-black">Livello 1 · 0 XP</p>
+                <p className="mt-1 text-2xl font-black">{t("onboarding.profileLevel")}</p>
                 <p className="mt-1 text-sm text-foreground/80">
-                  Guadagni XP guardando episodi. Sblocchi badge. Ti giudichiamo con affetto.
+                  {t("onboarding.profileHint")}
                 </p>
               </div>
             </div>
@@ -450,7 +423,7 @@ function Onboarding() {
                 className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-3.5 text-sm font-semibold text-foreground/80 hover:bg-white/[0.06]"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Indietro
+                {t("onboarding.back")}
               </button>
             )}
             <button
@@ -458,7 +431,7 @@ function Onboarding() {
               disabled={!canAdvance}
               className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-pink-500 to-cyan-400 py-3.5 text-sm font-bold text-white shadow-[0_10px_40px_-10px_rgba(232,121,249,0.8)] transition-opacity disabled:opacity-40"
             >
-              {step === "done" ? "Entra nell'app" : "Avanti"}
+              {step === "done" ? t("onboarding.enterApp") : t("onboarding.next")}
               <ArrowRight className="h-4 w-4" />
             </button>
           </div>
@@ -471,7 +444,7 @@ function Onboarding() {
               className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              {dubbioIdx > 0 ? "Domanda precedente" : "Indietro"}
+              {dubbioIdx > 0 ? t("onboarding.prevQuestion") : t("onboarding.back")}
             </button>
           </div>
         )}

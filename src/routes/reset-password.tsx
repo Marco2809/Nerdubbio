@@ -1,9 +1,11 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { Sparkles, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "@/lib/toast";
 import { auth as phpAuth } from "@/lib/php/client";
 import { z } from "zod";
+import { I18nProvider, normalizeLocale, useI18n } from "@/lib/i18n";
+import { useUserStore } from "@/lib/user-store";
 
 const searchSchema = z.object({
   token: z.string().optional(),
@@ -12,10 +14,32 @@ const searchSchema = z.object({
 export const Route = createFileRoute("/reset-password")({
   head: () => ({ meta: [{ title: "Reset password — Nerdubbio" }] }),
   validateSearch: searchSchema,
-  component: ResetPasswordPage,
+  component: ResetPasswordPageWrapper,
 });
 
+function ResetPasswordPageWrapper() {
+  const { state } = useUserStore();
+  const [locale, setLocale] = useState(() => normalizeLocale(state.language));
+
+  useEffect(() => {
+    if (state.language) {
+      setLocale(normalizeLocale(state.language));
+      return;
+    }
+    if (typeof navigator !== "undefined") {
+      setLocale(normalizeLocale(navigator.language.slice(0, 2)));
+    }
+  }, [state.language]);
+
+  return (
+    <I18nProvider locale={locale}>
+      <ResetPasswordPage />
+    </I18nProvider>
+  );
+}
+
 function ResetPasswordPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const { token } = Route.useSearch();
   const [password, setPassword] = useState("");
@@ -25,21 +49,21 @@ function ResetPasswordPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!token) {
-      toast.error("Link non valido", { description: "Richiedi un nuovo reset dalla pagina di login." });
+      toast.error(t("resetPassword.invalidLink"), { description: t("resetPassword.invalidLinkHint") });
       return;
     }
     if (password !== confirm) {
-      toast.error("Le password non coincidono");
+      toast.error(t("resetPassword.mismatch"));
       return;
     }
     if (password.length < 6) {
-      toast.error("Minimo 6 caratteri");
+      toast.error(t("resetPassword.minLength"));
       return;
     }
     setLoading(true);
     try {
       await phpAuth.resetPassword(token, password);
-      toast.success("Password aggiornata");
+      toast.success(t("resetPassword.updated"));
       navigate({ to: "/app" });
     } catch (err) {
       toast.error("Errore", { description: err instanceof Error ? err.message : "Riprova." });
@@ -58,13 +82,13 @@ function ResetPasswordPage() {
           <span className="font-bold">Nerdubbio</span>
         </Link>
 
-        <h1 className="text-3xl font-extrabold">Nuova password</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Scegline una che non dimenticherai stavolta.</p>
+        <h1 className="text-3xl font-extrabold">{t("resetPassword.title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("resetPassword.subtitle")}</p>
 
         {!token ? (
           <p className="mt-6 text-sm text-muted-foreground">
-            Link mancante o scaduto. Vai su{" "}
-            <Link to="/auth" className="text-accent underline">login</Link> e richiedi un nuovo reset.
+            {t("resetPassword.invalidLink")}. {t("resetPassword.invalidLinkHint")}{" "}
+            <Link to="/auth" className="text-accent underline">{t("resetPassword.login")}</Link>
           </p>
         ) : (
           <form onSubmit={handleSubmit} className="mt-6 space-y-3">
@@ -72,7 +96,7 @@ function ResetPasswordPage() {
               type="password"
               required
               minLength={6}
-              placeholder="Nuova password"
+              placeholder={t("resetPassword.newPassword")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-2xl border border-border bg-surface/60 px-4 py-3 text-sm outline-none focus:border-accent"
@@ -81,7 +105,7 @@ function ResetPasswordPage() {
               type="password"
               required
               minLength={6}
-              placeholder="Conferma password"
+              placeholder={t("resetPassword.confirmPassword")}
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               className="w-full rounded-2xl border border-border bg-surface/60 px-4 py-3 text-sm outline-none focus:border-accent"
@@ -92,7 +116,7 @@ function ResetPasswordPage() {
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-hero py-3 text-sm font-bold text-primary-foreground shadow-glow-pink disabled:opacity-50"
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Aggiorna password
+              {t("resetPassword.submit")}
             </button>
           </form>
         )}

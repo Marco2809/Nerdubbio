@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "@/lib/toast";
 import { SOCIAL_GROUPS_KEY, socialApi, type Group } from "@/lib/php/social-client";
+import { useI18n } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/gruppo")({
   head: () => ({ meta: [{ title: "Quest di gruppo — Nerdubbio" }] }),
@@ -12,6 +13,7 @@ export const Route = createFileRoute("/_authenticated/gruppo")({
 });
 
 function Gruppo() {
+  const { t } = useI18n();
   const qc = useQueryClient();
   const [newName, setNewName] = useState("");
   const [inviteHandle, setInviteHandle] = useState("");
@@ -48,21 +50,21 @@ function Gruppo() {
       socialApi.groupAddMember(active.id, inviteHandle.trim().replace(/^@/, "")),
     );
     setInviteHandle("");
-    toast.success("Invito inviato");
+    toast.success(t("gruppo.inviteSent"));
   }
 
   return (
     <AppShell>
       <Link to="/profile" className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground">
-        <ArrowLeft className="h-3 w-3" /> Indietro
+        <ArrowLeft className="h-3 w-3" /> {t("gruppo.back")}
       </Link>
       <div className="flex items-center gap-3">
         <span className="grid h-12 w-12 place-items-center rounded-2xl bg-hero text-primary-foreground shadow-glow-pink">
           <Users className="h-6 w-6" />
         </span>
         <div>
-          <h1 className="text-2xl font-extrabold">Quest di gruppo</h1>
-          <p className="text-xs text-muted-foreground">Crea un gruppo e invita gli amici. Il quiz condiviso arriva presto.</p>
+          <h1 className="text-2xl font-extrabold">{t("gruppo.title")}</h1>
+          <p className="text-xs text-muted-foreground">{t("gruppo.subtitle")}</p>
         </div>
       </div>
 
@@ -70,7 +72,7 @@ function Gruppo() {
         <input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder="Nome gruppo (es. Serata nerd)"
+          placeholder={t("gruppo.namePlaceholder")}
           className="flex-1 rounded-2xl border border-border bg-surface/60 px-4 py-3 text-sm outline-none focus:border-accent"
         />
         <button
@@ -83,12 +85,12 @@ function Gruppo() {
       </form>
 
       {isLoading && (
-        <p className="mt-6 text-center text-sm text-muted-foreground animate-pulse">Caricamento gruppi…</p>
+        <p className="mt-6 text-center text-sm text-muted-foreground animate-pulse">{t("gruppo.loading")}</p>
       )}
 
       {groups.length > 0 && (
         <section className="mt-6">
-          <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">I tuoi gruppi</p>
+          <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">{t("gruppo.yourGroups")}</p>
           <div className="flex gap-2 overflow-x-auto pb-1">
             {groups.map((g) => (
               <button
@@ -109,7 +111,7 @@ function Gruppo() {
       {active && (
         <>
           <section className="mt-6">
-            <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">Membri</p>
+            <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">{t("gruppo.members")}</p>
             <div className="grid grid-cols-2 gap-2">
               {active.members.map((m) => (
                 <div key={m.id} className="glass flex items-center gap-2 rounded-2xl p-3">
@@ -123,7 +125,7 @@ function Gruppo() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-semibold">{m.display_name || m.handle}</p>
                     <p className="truncate text-[10px] text-muted-foreground">
-                      {m.role === "owner" ? "Admin" : `@${m.handle}`}
+                      {m.role === "owner" ? t("gruppo.admin") : `@${m.handle}`}
                     </p>
                   </div>
                   {active.is_owner && m.role !== "owner" && (
@@ -146,7 +148,7 @@ function Gruppo() {
             <input
               value={inviteHandle}
               onChange={(e) => setInviteHandle(e.target.value)}
-              placeholder="Invita amico @handle"
+              placeholder={t("gruppo.invitePlaceholder")}
               className="flex-1 rounded-2xl border border-border bg-surface/60 px-4 py-2 text-sm outline-none focus:border-accent"
             />
             <button
@@ -154,13 +156,13 @@ function Gruppo() {
               disabled={mutateGroups.isPending}
               className="rounded-2xl border border-border px-4 text-sm font-semibold disabled:opacity-50"
             >
-              Invita
+              {t("gruppo.invite")}
             </button>
           </form>
 
           <div className="mt-6 rounded-3xl border border-dashed border-border p-5 text-center text-sm text-muted-foreground">
-            <p className="font-semibold text-foreground">Quest di gruppo — in arrivo</p>
-            <p className="mt-1">Il quiz condiviso per decidere cosa guardare stasera sarà lo step successivo.</p>
+            <p className="font-semibold text-foreground">{t("gruppo.comingTitle")}</p>
+            <p className="mt-1">{t("gruppo.comingHint")}</p>
           </div>
 
           {active.is_owner && (
@@ -170,7 +172,7 @@ function Gruppo() {
               onClick={() => mutateGroups.mutate(() => socialApi.groupDelete(active.id))}
               className="mt-4 w-full rounded-2xl py-2 text-sm text-destructive"
             >
-              Elimina gruppo
+              {t("gruppo.deleteGroup")}
             </button>
           )}
         </>
@@ -178,8 +180,8 @@ function Gruppo() {
 
       {!isLoading && groups.length === 0 && (
         <p className="mt-6 glass rounded-2xl p-4 text-sm text-muted-foreground">
-          Crea il tuo primo gruppo e invita gli amici dalla pagina{" "}
-          <Link to="/amici" className="text-accent underline">Amici</Link>.
+          {t("gruppo.empty")}{" "}
+          <Link to="/amici" className="text-accent underline">{t("gruppo.friendsLink")}</Link>
         </p>
       )}
 
