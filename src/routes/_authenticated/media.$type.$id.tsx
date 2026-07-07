@@ -7,6 +7,7 @@ import { Plus, Heart, CheckCircle2, Pause, X, Star, Check, Loader2, PlayCircle, 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, tmdbWatchProviders, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
+import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
 import { useReturnPath, useSmartBack } from "@/lib/media-nav";
 import { applyShowProgressAfterWatch, formatSeriesStatusLabel } from "@/lib/check-show-after-watch";
 import { toast } from "@/lib/toast";
@@ -61,17 +62,18 @@ function MediaDetail() {
   const stripped = id.replace(/^(tv|movie)-/, "");
   const numericId = Number(stripped);
   const shouldFetchTmdb = !mockItem && Number.isFinite(numericId) && numericId > 0;
+  const locale = useTmdbLocale();
 
   const tmdbQuery = useQuery({
-    queryKey: ["tmdb", "detail", type, numericId],
-    queryFn: () => tmdbDetail({ data: { type: type as "movie" | "tv", tmdbId: numericId } }),
+    queryKey: ["tmdb", "detail", type, numericId, locale],
+    queryFn: () => tmdbDetail({ data: { type: type as "movie" | "tv", tmdbId: numericId, locale } }),
     enabled: shouldFetchTmdb,
     staleTime: 1000 * 60 * 60,
   });
 
   const creditsQuery = useQuery({
-    queryKey: ["tmdb", "credits", type, numericId],
-    queryFn: () => tmdbCredits({ data: { type: type as "movie" | "tv", tmdbId: numericId } }),
+    queryKey: ["tmdb", "credits", type, numericId, locale],
+    queryFn: () => tmdbCredits({ data: { type: type as "movie" | "tv", tmdbId: numericId, locale } }),
     enabled: Number.isFinite(numericId) && numericId > 0,
     staleTime: 1000 * 60 * 60,
   });
@@ -599,9 +601,10 @@ function SeasonCard({
   ) => Promise<void>;
 }) {
   const { t } = useI18n();
+  const locale = useTmdbLocale();
   const q = useQuery({
-    queryKey: ["tmdb", "season", tmdbId, seasonNumber],
-    queryFn: () => tmdbSeason({ data: { tmdbId: tmdbId!, seasonNumber } }),
+    queryKey: ["tmdb", "season", tmdbId, seasonNumber, locale],
+    queryFn: () => tmdbSeason({ data: { tmdbId: tmdbId!, seasonNumber, locale } }),
     enabled: open && !!tmdbId,
     staleTime: 1000 * 60 * 60,
   });
@@ -802,11 +805,12 @@ function EpisodeRow({
 function CastSection({ cast, loading, returnPath }: { cast: CastMember[]; loading: boolean; returnPath: string }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
+  const locale = useTmdbLocale();
 
   const prefetchPerson = (personId: number) => {
     void queryClient.prefetchQuery({
-      queryKey: ["tmdb", "person", personId],
-      queryFn: () => tmdbPerson({ data: { personId } }),
+      queryKey: ["tmdb", "person", personId, locale],
+      queryFn: () => tmdbPerson({ data: { personId, locale } }),
       staleTime: 1000 * 60 * 60,
     });
   };

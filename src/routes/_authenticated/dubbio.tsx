@@ -24,7 +24,7 @@ import { useUserStore } from "@/lib/user-store";
 import { NERDACOLO, QUEST } from "@/lib/brand";
 import { useMemo, useState } from "react";
 import { toast } from "@/lib/toast";
-import { useI18n, pageTitle } from "@/lib/i18n";
+import { useI18n, localeToBcp47, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/dubbio")({
   head: () => ({ meta: [{ title: pageTitle("dubbio", "it", { name: QUEST.name }) }] }),
@@ -32,7 +32,8 @@ export const Route = createFileRoute("/_authenticated/dubbio")({
 });
 
 function DubbioPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const tmdbLocale = localeToBcp47(locale);
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
   const { state } = useUserStore();
@@ -58,7 +59,7 @@ function DubbioPage() {
           moodProfile: userContext.moodProfile,
           watchlistIds: userContext.watchlistIds,
           highlyRatedIds: userContext.highlyRatedIds,
-        });
+        }, undefined, tmdbLocale);
         if (!pool.length) throw new Error("empty");
       } catch {
         pool = CATALOG;

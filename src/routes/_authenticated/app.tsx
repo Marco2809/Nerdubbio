@@ -6,6 +6,7 @@ import { isMediaAlreadyWatched } from "@/lib/library-display";
 import { Sparkles, Flame, Trophy, TrendingUp } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { tmdbTrending } from "@/lib/tmdb/tmdb.functions";
+import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
 import { HomeNextEpisodesSection } from "@/components/nerdubbio/HomeNextEpisodesSection";
 import { NERDACOLO } from "@/lib/brand";
 import { useReturnPath } from "@/lib/media-nav";
@@ -62,6 +63,7 @@ function HomeDashboard() {
   const { t } = useI18n();
   const { state, loading } = useUserStore();
   const { user, profile } = useAuthUser();
+  const locale = useTmdbLocale();
   const navigate = useNavigate();
   useEffect(() => {
     if (loading) return;
@@ -77,8 +79,8 @@ function HomeDashboard() {
     .map(entryToCard).filter((c): c is LibCard => !!c);
 
   const trending = useQuery({
-    queryKey: ["tmdb", "trending"],
-    queryFn: () => tmdbTrending({ data: { window: "week" } }),
+    queryKey: ["tmdb", "trending", locale],
+    queryFn: () => tmdbTrending({ data: { window: "week", locale } }),
     staleTime: 1000 * 60 * 30,
   });
 

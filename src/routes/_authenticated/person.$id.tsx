@@ -19,9 +19,10 @@ function PersonPage() {
   const returnPath = useReturnPath();
   const personId = Number(id);
 
+  const tmdbLocale = localeToBcp47(locale);
   const q = useQuery({
-    queryKey: ["tmdb", "person", personId],
-    queryFn: () => tmdbPerson({ data: { personId } }),
+    queryKey: ["tmdb", "person", personId, tmdbLocale],
+    queryFn: () => tmdbPerson({ data: { personId, locale: tmdbLocale } }),
     enabled: Number.isFinite(personId) && personId > 0,
     staleTime: 1000 * 60 * 60,
   });

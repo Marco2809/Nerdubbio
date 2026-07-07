@@ -5,7 +5,7 @@ import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { useUserStore } from "@/lib/user-store";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, localeToBcp47 } from "@/lib/i18n";
 import { findById } from "@/lib/mock-catalog";
 import {
   tmdbUpcomingMovies,
@@ -81,29 +81,31 @@ function ProssimiPage() {
     [...followedTv].sort((a, b) => b.recency - a.recency).map(x => x.media.tmdbId),
   )).slice(0, 30);
 
+  const tmdbLocale = localeToBcp47(locale);
+
   const upcomingQuery = useQuery({
-    queryKey: ["tmdb", "upcoming-it"],
-    queryFn: () => tmdbUpcomingMovies({ data: { region: "IT" } }),
+    queryKey: ["tmdb", "upcoming-it", tmdbLocale],
+    queryFn: () => tmdbUpcomingMovies({ data: { region: "IT", locale: tmdbLocale } }),
     staleTime: 1000 * 60 * 60,
   });
 
   const nextEpQuery = useQuery({
-    queryKey: ["tmdb", "next-eps", uniqueTvIds],
-    queryFn: () => tmdbNextEpisodes({ data: { tvIds: uniqueTvIds, region: "IT" } }),
+    queryKey: ["tmdb", "next-eps", uniqueTvIds, tmdbLocale],
+    queryFn: () => tmdbNextEpisodes({ data: { tvIds: uniqueTvIds, region: "IT", locale: tmdbLocale } }),
     enabled: uniqueTvIds.length > 0,
     staleTime: 1000 * 60 * 30,
   });
 
   const calendarEpQuery = useQuery({
-    queryKey: ["tmdb", "calendar-eps", calendarTvIds],
-    queryFn: () => tmdbNextEpisodes({ data: { tvIds: calendarTvIds, region: "IT" } }),
+    queryKey: ["tmdb", "calendar-eps", calendarTvIds, tmdbLocale],
+    queryFn: () => tmdbNextEpisodes({ data: { tvIds: calendarTvIds, region: "IT", locale: tmdbLocale } }),
     enabled: calendarTvIds.length > 0,
     staleTime: 1000 * 60 * 30,
   });
 
   const upcomingTvQuery = useQuery({
-    queryKey: ["tmdb", "upcoming-tv-it"],
-    queryFn: () => tmdbUpcomingTv({ data: { region: "IT", days: 45 } }),
+    queryKey: ["tmdb", "upcoming-tv-it", tmdbLocale],
+    queryFn: () => tmdbUpcomingTv({ data: { region: "IT", days: 45, locale: tmdbLocale } }),
     staleTime: 1000 * 60 * 60,
   });
 

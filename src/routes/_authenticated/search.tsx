@@ -11,6 +11,7 @@ import { useUserStore } from "@/lib/user-store";
 import { isMediaAlreadyWatched } from "@/lib/library-display";
 import { useReturnPath } from "@/lib/media-nav";
 import { useI18n, pageTitle } from "@/lib/i18n";
+import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
 
 export const Route = createFileRoute("/_authenticated/search")({
   head: () => ({ meta: [{ title: pageTitle("search") }] }),
@@ -81,16 +82,17 @@ function SearchPage() {
   const [genre, setGenre] = useState<string | null>(null);
   const debouncedQ = useDebounced(q.trim(), 400);
   const { state: userState } = useUserStore();
+  const locale = useTmdbLocale();
 
   const trending = useQuery({
-    queryKey: ["tmdb", "trending"],
-    queryFn: () => tmdbTrending({ data: { window: "week" } }),
+    queryKey: ["tmdb", "trending", locale],
+    queryFn: () => tmdbTrending({ data: { window: "week", locale } }),
     staleTime: 1000 * 60 * 30,
   });
 
   const search = useQuery({
-    queryKey: ["tmdb", "search", debouncedQ],
-    queryFn: () => tmdbSearch({ data: { query: debouncedQ } }),
+    queryKey: ["tmdb", "search", debouncedQ, locale],
+    queryFn: () => tmdbSearch({ data: { query: debouncedQ, locale } }),
     enabled: debouncedQ.length > 0,
     staleTime: 1000 * 60 * 10,
   });

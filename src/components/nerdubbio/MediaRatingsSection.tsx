@@ -3,6 +3,7 @@ import { Loader2, Star } from "lucide-react";
 import { lazy, Suspense, useMemo } from "react";
 import type { SeasonSummary } from "@/lib/tmdb/tmdb.functions";
 import { tmdbSeason } from "@/lib/tmdb/tmdb.functions";
+import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
 
 const TvRatingChart = lazy(() =>
   import("@/components/nerdubbio/TvRatingChart").then(m => ({ default: m.TvRatingChart })),
@@ -42,11 +43,12 @@ export function MediaRatingsSection({
   userRating,
 }: Props) {
   const seasons = seasonsInfo ?? [];
+  const locale = useTmdbLocale();
 
   const seasonQueries = useQueries({
     queries: seasons.map(s => ({
-      queryKey: ["tmdb", "season", tmdbId, s.seasonNumber],
-      queryFn: () => tmdbSeason({ data: { tmdbId, seasonNumber: s.seasonNumber } }),
+      queryKey: ["tmdb", "season", tmdbId, s.seasonNumber, locale],
+      queryFn: () => tmdbSeason({ data: { tmdbId, seasonNumber: s.seasonNumber, locale } }),
       enabled: mediaType === "tv" && tmdbId > 0,
       staleTime: 1000 * 60 * 60,
     })),

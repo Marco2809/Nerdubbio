@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { tmdbGenreIds } from "@/lib/recommendation/genre-map";
@@ -31,6 +32,32 @@ export interface TmdbItem {
   seriesStatus?: string;
 }
 
+// Locale per-richiesta: le server function girano sul server, quindi la lingua
+// dell'utente viene passata dal client e propagata a tutte le chiamate TMDB
+// (anche quelle annidate: enrichDiscoverRow, similar, season…) via AsyncLocalStorage,
+// senza dover aggiungere un parametro a ogni funzione interna.
+const localeStore = new AsyncLocalStorage<string>();
+
+const ALLOWED_LOCALES = new Set(["it-IT", "en-US", "es-ES", "fr-FR", "de-DE"]);
+
+function normalizeTmdbLocale(locale?: string): string {
+  if (!locale) return "it-IT";
+  if (ALLOWED_LOCALES.has(locale)) return locale;
+  // Accetta anche codici a 2 lettere ("en" → "en-US").
+  const short = locale.slice(0, 2).toLowerCase();
+  for (const l of ALLOWED_LOCALES) if (l.startsWith(short)) return l;
+  return "it-IT";
+}
+
+function currentTmdbLanguage(): string {
+  return localeStore.getStore() ?? "it-IT";
+}
+
+/** Esegue l'handler con il locale TMDB richiesto attivo per tutta la catena async. */
+function runWithLocale<T>(locale: string | undefined, fn: () => Promise<T>): Promise<T> {
+  return localeStore.run(normalizeTmdbLocale(locale), fn);
+}
+
 async function tmdb<T = any>(path: string, params: Record<string, string | number | undefined> = {}): Promise<T> {
   const bearer = process.env.TMDB_READ_ACCESS_TOKEN;
   const apiKey = process.env.TMDB_API_KEY;
@@ -39,7 +66,7 @@ async function tmdb<T = any>(path: string, params: Record<string, string | numbe
   }
 
   const url = new URL(`${TMDB_BASE}${path}`);
-  url.searchParams.set("language", "it-IT");
+  url.searchParams.set("language", currentTmdbLanguage());
   if (apiKey && !bearer) url.searchParams.set("api_key", apiKey);
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
@@ -123,15 +150,15 @@ function mapDetail(r: any, type: "movie" | "tv"): TmdbItem {
 }
 
 export const tmdbSearch = createServerFn({ method: "GET" })
-  .inputValidator((data) => z.object({ query: z.string().min(1).max(200) }).parse(data))
-  .handler(async ({ data }) => {
+  .inputValidator((data) => z.object({ query: z.string().min(1).max(200), locale: z.string().optional() }).parse(data))
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
     const res = await tmdb<any>(`/search/multi`, { query: data.query, include_adult: "false", page: 1 });
     const items = (res.results ?? [])
       .map(mapMulti)
       .filter((x: TmdbItem | null): x is TmdbItem => x !== null)
       .slice(0, 30);
     return { items };
-  });
+  }));
 
 function cleanMatchTitle(title: string): { title: string; year?: number } {
   const paren = title.match(/^(.+?)\s*\((\d{4})\)\s*$/);
@@ -176,8 +203,9 @@ export const tmdbMatchTitles = createServerFn({ method: "POST" })
       type: z.enum(["movie", "tv"]).optional(),
       tvdbId: z.number().int().positive().optional(),
     })).max(80),
+    locale: z.string().optional(),
   }).parse(data))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
     const results = await Promise.all(data.items.map(async (raw) => {
       // Id TVDB presente → match esatto, la ricerca per titolo è solo fallback.
       if (raw.tvdbId && raw.type !== "movie") {
@@ -205,27 +233,27 @@ export const tmdbMatchTitles = createServerFn({ method: "POST" })
       }
     }));
     return { results };
-  });
+  }));
 
 
 
 export const tmdbTrending = createServerFn({ method: "GET" })
-  .inputValidator((data) => z.object({ window: z.enum(["day", "week"]).default("week") }).parse(data ?? {}))
-  .handler(async ({ data }) => {
+  .inputValidator((data) => z.object({ window: z.enum(["day", "week"]).default("week"), locale: z.string().optional() }).parse(data ?? {}))
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
     const res = await tmdb<any>(`/trending/all/${data.window}`);
     const items = (res.results ?? [])
       .map(mapMulti)
       .filter((x: TmdbItem | null): x is TmdbItem => x !== null)
       .slice(0, 20);
     return { items };
-  });
+  }));
 
 export const tmdbDetail = createServerFn({ method: "GET" })
-  .inputValidator((data) => z.object({ type: z.enum(["movie", "tv"]), tmdbId: z.number().int().positive() }).parse(data))
-  .handler(async ({ data }) => {
+  .inputValidator((data) => z.object({ type: z.enum(["movie", "tv"]), tmdbId: z.number().int().positive(), locale: z.string().optional() }).parse(data))
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
     const res = await tmdb<any>(`/${data.type}/${data.tmdbId}`);
     return { item: mapDetail(res, data.type) };
-  });
+  }));
 
 export interface EpisodeInfo {
   episodeNumber: number;
@@ -241,8 +269,9 @@ export const tmdbSeason = createServerFn({ method: "GET" })
   .inputValidator((data) => z.object({
     tmdbId: z.number().int().positive(),
     seasonNumber: z.number().int().min(0),
+    locale: z.string().optional(),
   }).parse(data))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
     const res = await tmdb<any>(`/tv/${data.tmdbId}/season/${data.seasonNumber}`);
     const episodes: EpisodeInfo[] = (res.episodes ?? []).map((e: any) => ({
       episodeNumber: e.episode_number,
@@ -261,7 +290,7 @@ export const tmdbSeason = createServerFn({ method: "GET" })
       posterUrl: res.poster_path ? `${IMG_BASE}/w342${res.poster_path}` : null,
       episodes,
     };
-  });
+  }));
 
 export interface CastMember {
   id: number;
@@ -271,8 +300,8 @@ export interface CastMember {
   order: number;
 }
 export const tmdbCredits = createServerFn({ method: "GET" })
-  .inputValidator((data) => z.object({ type: z.enum(["movie", "tv"]), tmdbId: z.number().int().positive() }).parse(data))
-  .handler(async ({ data }) => {
+  .inputValidator((data) => z.object({ type: z.enum(["movie", "tv"]), tmdbId: z.number().int().positive(), locale: z.string().optional() }).parse(data))
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
     // Per le serie /credits torna solo il cast dell'ultima stagione:
     // aggregate_credits aggrega tutte le stagioni (i personaggi stanno in roles[]).
     const endpoint = data.type === "tv"
@@ -290,7 +319,7 @@ export const tmdbCredits = createServerFn({ method: "GET" })
         order: c.order ?? 999,
       }));
     return { cast };
-  });
+  }));
 
 export interface PersonCredit {
   id: number;
@@ -313,13 +342,13 @@ export interface PersonDetail {
   credits: PersonCredit[];
 }
 export const tmdbPerson = createServerFn({ method: "GET" })
-  .inputValidator((data) => z.object({ personId: z.number().int().positive() }).parse(data))
-  .handler(async ({ data }) => {
+  .inputValidator((data) => z.object({ personId: z.number().int().positive(), locale: z.string().optional() }).parse(data))
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
     const [p, credits] = await Promise.all([
       tmdb<any>(`/person/${data.personId}`),
       tmdb<any>(`/person/${data.personId}/combined_credits`),
     ]);
-    // Fallback biography EN se manca in italiano
+    // Fallback biography EN se manca nella lingua scelta
     let biography: string = p.biography ?? "";
     if (!biography) {
       try {
@@ -368,7 +397,7 @@ export const tmdbPerson = createServerFn({ method: "GET" })
       credits: dedup.slice(0, 60),
     };
     return { person: detail };
-  });
+  }));
 
 export interface ProviderInfo {
   id: number;
@@ -408,8 +437,8 @@ export interface UpcomingMovie extends TmdbItem {
   providers: ProviderInfo[];
 }
 export const tmdbUpcomingMovies = createServerFn({ method: "GET" })
-  .inputValidator((data) => z.object({ region: z.string().length(2).default("IT") }).parse(data ?? {}))
-  .handler(async ({ data }) => {
+  .inputValidator((data) => z.object({ region: z.string().length(2).default("IT"), locale: z.string().optional() }).parse(data ?? {}))
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
     const now = new Date();
     const in90 = new Date(now.getTime() + 90 * 86400000);
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
@@ -439,7 +468,7 @@ export const tmdbUpcomingMovies = createServerFn({ method: "GET" })
       return a.releaseDate.localeCompare(b.releaseDate);
     });
     return { items: items.slice(0, 20) };
-  });
+  }));
 
 export interface NextEpisodeInfo {
   tmdb_id: number;
@@ -528,8 +557,9 @@ export const tmdbNextEpisodes = createServerFn({ method: "POST" })
   .inputValidator((data) => z.object({
     tvIds: z.array(z.number().int().positive()).max(30),
     region: z.string().length(2).default("IT"),
+    locale: z.string().optional(),
   }).parse(data))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
     const today = new Date().toISOString().slice(0, 10);
     const results = await Promise.all(data.tvIds.map(id => nextEventForTv(id, data.region, today)));
     // Filtra: escludi serie chiuse senza eventi + qualsiasi risultato nullo.
@@ -541,7 +571,7 @@ export const tmdbNextEpisodes = createServerFn({ method: "POST" })
     // Ordine cronologico crescente sulla data reale dell'evento.
     items.sort((a, b) => a.nextEpisode!.airDate.localeCompare(b.nextEpisode!.airDate));
     return { items };
-  });
+  }));
 
 
 /** Serie con episodi in onda nei prossimi N giorni (nuove stagioni, premiere, ecc.). */
@@ -549,8 +579,9 @@ export const tmdbUpcomingTv = createServerFn({ method: "GET" })
   .inputValidator((data) => z.object({
     region: z.string().length(2).default("IT"),
     days: z.number().int().min(1).max(120).default(45),
+    locale: z.string().optional(),
   }).parse(data ?? {}))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
     const now = new Date();
     const later = new Date(now.getTime() + data.days * 86400000);
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
@@ -578,7 +609,7 @@ export const tmdbUpcomingTv = createServerFn({ method: "GET" })
       });
     items.sort((a, b) => a.nextEpisode!.airDate.localeCompare(b.nextEpisode!.airDate));
     return { items: items.slice(0, 20) };
-  });
+  }));
 
 // ============================================================
 // Prossimo episodio "personale" per una serie seguita
@@ -864,15 +895,15 @@ export const tmdbNextUnwatched = createServerFn({ method: "POST" })
     /** Ultimo episodio segnato visto — il prossimo sarà quello immediatamente dopo. */
     lastSeason: z.number().int().positive().optional(),
     lastEpisode: z.number().int().positive().optional(),
+    locale: z.string().optional(),
   }).parse(data))
-  .handler(async ({ data }): Promise<NextUnwatchedInfo | null> => {
-    return findNextUnwatchedEpisode(
+  .handler(async ({ data }): Promise<NextUnwatchedInfo | null> => runWithLocale(data.locale, () =>
+    findNextUnwatchedEpisode(
       data.tmdbId,
       data.watched,
       data.lastSeason,
       data.lastEpisode,
-    );
-  });
+    )));
 
 export const tmdbNextUnwatchedBatch = createServerFn({ method: "POST" })
   .inputValidator((data) => z.object({
@@ -882,8 +913,9 @@ export const tmdbNextUnwatchedBatch = createServerFn({ method: "POST" })
       lastSeason: z.number().int().positive().optional(),
       lastEpisode: z.number().int().positive().optional(),
     })).max(24),
+    locale: z.string().optional(),
   }).parse(data))
-  .handler(async ({ data }): Promise<{ tmdbId: number; next: NextUnwatchedInfo }[]> => {
+  .handler(async ({ data }): Promise<{ tmdbId: number; next: NextUnwatchedInfo }[]> => runWithLocale(data.locale, async () => {
     const results = await Promise.all(
       data.items.map(async (item) => ({
         tmdbId: item.tmdbId,
@@ -896,7 +928,7 @@ export const tmdbNextUnwatchedBatch = createServerFn({ method: "POST" })
       })),
     );
     return results.filter((r): r is { tmdbId: number; next: NextUnwatchedInfo } => !!r.next);
-  });
+  }));
 
 
 // ============================================================
@@ -989,10 +1021,11 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
         watchlistIds: z.array(z.string()).optional(),
         highlyRatedIds: z.array(z.string()).optional(),
         excludeIds: z.array(z.string()).optional(),
+        locale: z.string().optional(),
       })
       .parse(data),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
     const exclude = new Set(data.excludeIds ?? []);
     const genreNames = [...new Set([...(data.favoriteGenres ?? []), ...(data.moodGenres ?? [])])];
 
@@ -1089,6 +1122,6 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
 
     const items = [...byKey.values()].slice(0, 150);
     return { items, count: items.length };
-  });
+  }));
 
 

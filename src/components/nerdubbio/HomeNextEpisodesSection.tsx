@@ -18,6 +18,7 @@ import { applyShowProgressAfterWatch } from "@/lib/check-show-after-watch";
 import { toast } from "@/lib/toast";
 import { CalendarDays, Check, ChevronRight } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
 
 type Props = {
   media: Record<string, UserMediaEntry>;
@@ -27,6 +28,7 @@ type Props = {
 export function HomeNextEpisodesSection({ media, from }: Props) {
   const { t } = useI18n();
   const { toggleEpisode, setStatus } = useUserStore();
+  const locale = useTmdbLocale();
   const [expanded, setExpanded] = useState(false);
   // Ordinate per ultima visione: in cima le serie toccate di recente,
   // mai ripescaggi casuali di anni fa.
@@ -70,11 +72,11 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
     queries: inProgress.map(entry => {
       const payload = buildNextUnwatchedPayload(entry);
       return {
-        queryKey: nextEpisodeQueryKey(entry),
+        queryKey: [...nextEpisodeQueryKey(entry), locale],
         queryFn: async (): Promise<{ entry: UserMediaEntry; next: NextUnwatchedInfo; fromLocal: boolean } | null> => {
           if (!payload) return null;
           try {
-            const next = await tmdbNextUnwatched({ data: payload });
+            const next = await tmdbNextUnwatched({ data: { ...payload, locale } });
             // null = sei in pari con la serie: niente riga, NON inventare episodi.
             return next ? { entry, next, fromLocal: false } : null;
           } catch {
