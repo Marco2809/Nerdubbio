@@ -15,21 +15,24 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UHandleRouteImport } from './routes/u.$handle'
 import { Route as AuthenticatedWatchlistRouteImport } from './routes/_authenticated/watchlist'
+import { Route as AuthenticatedStatisticheRouteImport } from './routes/_authenticated/statistiche'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSearchRouteImport } from './routes/_authenticated/search'
 import { Route as AuthenticatedProssimiRouteImport } from './routes/_authenticated/prossimi'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedPremiumRouteImport } from './routes/_authenticated/premium'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedNerdacoloRouteImport } from './routes/_authenticated/nerdacolo'
 import { Route as AuthenticatedImportRouteImport } from './routes/_authenticated/import'
 import { Route as AuthenticatedGruppoRouteImport } from './routes/_authenticated/gruppo'
 import { Route as AuthenticatedDubbioRouteImport } from './routes/_authenticated/dubbio'
 import { Route as AuthenticatedDaTvtimeRouteImport } from './routes/_authenticated/da-tvtime'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAmiciRouteImport } from './routes/_authenticated/amici'
+import { Route as AuthenticatedProfiloSerieRouteImport } from './routes/_authenticated/profilo.serie'
+import { Route as AuthenticatedProfiloFilmRouteImport } from './routes/_authenticated/profilo.film'
 import { Route as AuthenticatedPersonIdRouteImport } from './routes/_authenticated/person.$id'
 import { Route as AuthenticatedDubbioRisultatoRouteImport } from './routes/_authenticated/dubbio.risultato'
-import { Route as AuthenticatedNerdacoloRouteImport } from './routes/_authenticated/nerdacolo'
 import { Route as AuthenticatedMediaTypeIdRouteImport } from './routes/_authenticated/media.$type.$id'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -61,6 +64,12 @@ const AuthenticatedWatchlistRoute = AuthenticatedWatchlistRouteImport.update({
   path: '/watchlist',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedStatisticheRoute =
+  AuthenticatedStatisticheRouteImport.update({
+    id: '/statistiche',
+    path: '/statistiche',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -89,6 +98,11 @@ const AuthenticatedPremiumRoute = AuthenticatedPremiumRouteImport.update({
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedNerdacoloRoute = AuthenticatedNerdacoloRouteImport.update({
+  id: '/nerdacolo',
+  path: '/nerdacolo',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedImportRoute = AuthenticatedImportRouteImport.update({
@@ -121,6 +135,18 @@ const AuthenticatedAmiciRoute = AuthenticatedAmiciRouteImport.update({
   path: '/amici',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedProfiloSerieRoute =
+  AuthenticatedProfiloSerieRouteImport.update({
+    id: '/profilo/serie',
+    path: '/profilo/serie',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedProfiloFilmRoute =
+  AuthenticatedProfiloFilmRouteImport.update({
+    id: '/profilo/film',
+    path: '/profilo/film',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPersonIdRoute = AuthenticatedPersonIdRouteImport.update({
   id: '/person/$id',
   path: '/person/$id',
@@ -132,11 +158,6 @@ const AuthenticatedDubbioRisultatoRoute =
     path: '/risultato',
     getParentRoute: () => AuthenticatedDubbioRoute,
   } as any)
-const AuthenticatedNerdacoloRoute = AuthenticatedNerdacoloRouteImport.update({
-  id: '/nerdacolo',
-  path: '/nerdacolo',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedMediaTypeIdRoute =
   AuthenticatedMediaTypeIdRouteImport.update({
     id: '/media/$type/$id',
@@ -161,10 +182,13 @@ export interface FileRoutesByFullPath {
   '/prossimi': typeof AuthenticatedProssimiRoute
   '/search': typeof AuthenticatedSearchRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/statistiche': typeof AuthenticatedStatisticheRoute
   '/watchlist': typeof AuthenticatedWatchlistRoute
   '/u/$handle': typeof UHandleRoute
   '/dubbio/risultato': typeof AuthenticatedDubbioRisultatoRoute
   '/person/$id': typeof AuthenticatedPersonIdRoute
+  '/profilo/film': typeof AuthenticatedProfiloFilmRoute
+  '/profilo/serie': typeof AuthenticatedProfiloSerieRoute
   '/media/$type/$id': typeof AuthenticatedMediaTypeIdRoute
 }
 export interface FileRoutesByTo {
@@ -184,10 +208,13 @@ export interface FileRoutesByTo {
   '/prossimi': typeof AuthenticatedProssimiRoute
   '/search': typeof AuthenticatedSearchRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/statistiche': typeof AuthenticatedStatisticheRoute
   '/watchlist': typeof AuthenticatedWatchlistRoute
   '/u/$handle': typeof UHandleRoute
   '/dubbio/risultato': typeof AuthenticatedDubbioRisultatoRoute
   '/person/$id': typeof AuthenticatedPersonIdRoute
+  '/profilo/film': typeof AuthenticatedProfiloFilmRoute
+  '/profilo/serie': typeof AuthenticatedProfiloSerieRoute
   '/media/$type/$id': typeof AuthenticatedMediaTypeIdRoute
 }
 export interface FileRoutesById {
@@ -209,10 +236,13 @@ export interface FileRoutesById {
   '/_authenticated/prossimi': typeof AuthenticatedProssimiRoute
   '/_authenticated/search': typeof AuthenticatedSearchRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/statistiche': typeof AuthenticatedStatisticheRoute
   '/_authenticated/watchlist': typeof AuthenticatedWatchlistRoute
   '/u/$handle': typeof UHandleRoute
   '/_authenticated/dubbio/risultato': typeof AuthenticatedDubbioRisultatoRoute
   '/_authenticated/person/$id': typeof AuthenticatedPersonIdRoute
+  '/_authenticated/profilo/film': typeof AuthenticatedProfiloFilmRoute
+  '/_authenticated/profilo/serie': typeof AuthenticatedProfiloSerieRoute
   '/_authenticated/media/$type/$id': typeof AuthenticatedMediaTypeIdRoute
 }
 export interface FileRouteTypes {
@@ -234,10 +264,13 @@ export interface FileRouteTypes {
     | '/prossimi'
     | '/search'
     | '/settings'
+    | '/statistiche'
     | '/watchlist'
     | '/u/$handle'
     | '/dubbio/risultato'
     | '/person/$id'
+    | '/profilo/film'
+    | '/profilo/serie'
     | '/media/$type/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -257,10 +290,13 @@ export interface FileRouteTypes {
     | '/prossimi'
     | '/search'
     | '/settings'
+    | '/statistiche'
     | '/watchlist'
     | '/u/$handle'
     | '/dubbio/risultato'
     | '/person/$id'
+    | '/profilo/film'
+    | '/profilo/serie'
     | '/media/$type/$id'
   id:
     | '__root__'
@@ -281,10 +317,13 @@ export interface FileRouteTypes {
     | '/_authenticated/prossimi'
     | '/_authenticated/search'
     | '/_authenticated/settings'
+    | '/_authenticated/statistiche'
     | '/_authenticated/watchlist'
     | '/u/$handle'
     | '/_authenticated/dubbio/risultato'
     | '/_authenticated/person/$id'
+    | '/_authenticated/profilo/film'
+    | '/_authenticated/profilo/serie'
     | '/_authenticated/media/$type/$id'
   fileRoutesById: FileRoutesById
 }
@@ -340,6 +379,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWatchlistRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/statistiche': {
+      id: '/_authenticated/statistiche'
+      path: '/statistiche'
+      fullPath: '/statistiche'
+      preLoaderRoute: typeof AuthenticatedStatisticheRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -380,6 +426,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/nerdacolo': {
+      id: '/_authenticated/nerdacolo'
+      path: '/nerdacolo'
+      fullPath: '/nerdacolo'
+      preLoaderRoute: typeof AuthenticatedNerdacoloRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/import': {
@@ -424,6 +477,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAmiciRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/profilo/serie': {
+      id: '/_authenticated/profilo/serie'
+      path: '/profilo/serie'
+      fullPath: '/profilo/serie'
+      preLoaderRoute: typeof AuthenticatedProfiloSerieRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/profilo/film': {
+      id: '/_authenticated/profilo/film'
+      path: '/profilo/film'
+      fullPath: '/profilo/film'
+      preLoaderRoute: typeof AuthenticatedProfiloFilmRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/person/$id': {
       id: '/_authenticated/person/$id'
       path: '/person/$id'
@@ -437,13 +504,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/dubbio/risultato'
       preLoaderRoute: typeof AuthenticatedDubbioRisultatoRouteImport
       parentRoute: typeof AuthenticatedDubbioRoute
-    }
-    '/_authenticated/nerdacolo': {
-      id: '/_authenticated/nerdacolo'
-      path: '/nerdacolo'
-      fullPath: '/nerdacolo'
-      preLoaderRoute: typeof AuthenticatedNerdacoloRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/media/$type/$id': {
       id: '/_authenticated/media/$type/$id'
@@ -480,8 +540,11 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedProssimiRoute: typeof AuthenticatedProssimiRoute
   AuthenticatedSearchRoute: typeof AuthenticatedSearchRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedStatisticheRoute: typeof AuthenticatedStatisticheRoute
   AuthenticatedWatchlistRoute: typeof AuthenticatedWatchlistRoute
   AuthenticatedPersonIdRoute: typeof AuthenticatedPersonIdRoute
+  AuthenticatedProfiloFilmRoute: typeof AuthenticatedProfiloFilmRoute
+  AuthenticatedProfiloSerieRoute: typeof AuthenticatedProfiloSerieRoute
   AuthenticatedMediaTypeIdRoute: typeof AuthenticatedMediaTypeIdRoute
 }
 
@@ -499,8 +562,11 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProssimiRoute: AuthenticatedProssimiRoute,
   AuthenticatedSearchRoute: AuthenticatedSearchRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedStatisticheRoute: AuthenticatedStatisticheRoute,
   AuthenticatedWatchlistRoute: AuthenticatedWatchlistRoute,
   AuthenticatedPersonIdRoute: AuthenticatedPersonIdRoute,
+  AuthenticatedProfiloFilmRoute: AuthenticatedProfiloFilmRoute,
+  AuthenticatedProfiloSerieRoute: AuthenticatedProfiloSerieRoute,
   AuthenticatedMediaTypeIdRoute: AuthenticatedMediaTypeIdRoute,
 }
 
@@ -517,13 +583,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

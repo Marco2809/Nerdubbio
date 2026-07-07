@@ -139,7 +139,7 @@ export function TvRatingChart({ seasons }: { seasons: SeasonChartData[] }) {
                 multi={chartData.length > 1}
               />
             )}
-            activeDot={(props) => (
+            activeDot={(props: { cx?: number; cy?: number }) => (
               <NormalEpisodeDot cx={props.cx} cy={props.cy} large />
             )}
           />

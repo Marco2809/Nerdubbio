@@ -883,6 +883,7 @@ export function deriveEpisodeProgress(row: ParsedRow): {
   episodeWatchCounts?: Record<string, number>;
   currentSeason?: number;
   currentEpisode?: number;
+  episodesSeen?: number;
 } {
   if (row.watchedEpisodes?.length) {
     const { season, episode } = maxWatchedEpisode(row.watchedEpisodes);

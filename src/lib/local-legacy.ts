@@ -14,6 +14,7 @@ const initial: LibraryState = {
   favoriteGenres: [],
   upcomingFilters: { newSeries: true, seasonPremieres: true, includeMovies: true },
   localMigrated: false,
+  importPending: [],
 };
 
 /** Legge eventuali dati legacy da localStorage (una tantum). */

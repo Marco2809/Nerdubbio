@@ -5,7 +5,7 @@ import { useUserStore, type UserStatus, type UserMediaEntry } from "@/lib/user-s
 import { findById, type CatalogItem } from "@/lib/mock-catalog";
 import { useState, useMemo } from "react";
 import { ArrowDownUp } from "lucide-react";
-import { useI18n, useStatusLabel, pageTitle } from "@/lib/i18n";
+import { useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/watchlist")({
   head: () => ({ meta: [{ title: pageTitle("watchlist") }] }),
@@ -16,7 +16,11 @@ type SortKey = "recent" | "added" | "title" | "rating" | "mine";
 
 function WatchlistPage() {
   const { t } = useI18n();
-  const statusLabel = useStatusLabel();
+  const statusLabel = (s: string) => {
+    const key = `status.${s}`;
+    const label = t(key);
+    return label === key ? s : label;
+  };
   const { state } = useUserStore();
   const [tab, setTab] = useState<UserStatus | "all" | "favorite">("all");
   const [sort, setSort] = useState<SortKey>("recent");
@@ -31,7 +35,8 @@ function WatchlistPage() {
       { s: "paused", label: t("watchlist.tabCourage") },
       { s: "dropped", label: statusLabel("dropped") },
     ],
-    [t, statusLabel],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t],
   );
 
   const sorts: { k: SortKey; label: string }[] = useMemo(

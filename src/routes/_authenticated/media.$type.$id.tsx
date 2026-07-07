@@ -425,7 +425,7 @@ function MediaDetail() {
           <SeasonsTracker
             item={item}
             tmdbId={item.tmdb_id ?? numericId}
-            totalSeasons={item.seasons}
+            totalSeasons={item.seasons ?? 0}
             watched={entry?.watchedEpisodes ?? []}
             entry={entry}
             onToggle={async (s, e, epsInSeason, opts) => {

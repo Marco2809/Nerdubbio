@@ -480,7 +480,7 @@ function TmdbSearchPicker({
     staleTime: 60_000,
   });
 
-  const results = (searchQ.data?.items ?? []).filter(i => !typeFilter || i.type === typeFilter).slice(0, 8);
+  const results = (searchQ.data?.items ?? []).filter((i: TmdbItem) => !typeFilter || i.type === typeFilter).slice(0, 8);
 
   return (
     <div className="mt-2">

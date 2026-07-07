@@ -1,4 +1,5 @@
 import type { Locale } from "@/lib/i18n";
+import type { CatalogItem } from "@/lib/mock-catalog";
 
 /** Modalità sessione Nerdacolo. */
 export type NerdacoloMode = "movie" | "tv" | "surprise";

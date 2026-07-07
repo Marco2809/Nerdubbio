@@ -68,7 +68,7 @@ export function useUserStore() {
     staleTime: 15_000,
   });
 
-  const mutationQueue = useRef(Promise.resolve());
+  const mutationQueue = useRef<Promise<unknown>>(Promise.resolve());
 
   const apply = useCallback(
     async (fn: () => Promise<LibraryState>) => {
