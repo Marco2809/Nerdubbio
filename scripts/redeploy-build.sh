@@ -99,6 +99,9 @@ backup_secrets
 
 echo "==> git pull ($BRANCH)"
 cd "$APP"
+# File generati/auto-modificati dalla build: scartali per evitare che il pull
+# si blocchi con "local changes would be overwritten". Vengono rigenerati.
+git checkout -- src/routeTree.gen.ts package-lock.json 2>/dev/null || true
 git pull origin "$BRANCH"
 
 restore_secrets
