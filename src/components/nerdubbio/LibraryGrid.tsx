@@ -49,7 +49,7 @@ export function LibraryGrid({
                   {item.entry.rating}/10
                 </span>
               )}
-              {item.entry.status === "favorite" && (
+              {item.entry.favorite && (
                 <span className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-accent">
                   <Heart className="h-3.5 w-3.5 fill-current" />
                 </span>

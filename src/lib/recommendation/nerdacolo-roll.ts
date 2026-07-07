@@ -55,7 +55,7 @@ function unwatchedFromLibrary(state: LibraryState): CatalogItem[] {
   ]);
 
   return Object.entries(state.media)
-    .filter(([id, m]) => !exclude.has(id) && ["plan_to_watch", "watching", "favorite"].includes(m.status))
+    .filter(([id, m]) => !exclude.has(id) && (m.favorite || ["plan_to_watch", "watching"].includes(m.status)))
     .map(([id, m]) => entryToCatalogItem(id, m))
     .filter((c): c is CatalogItem => !!c);
 }

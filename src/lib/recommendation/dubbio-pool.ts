@@ -41,7 +41,7 @@ export function buildDubbioProfile(state: LibraryState): UserProfile {
     .map(([k]) => k);
 
   const watchlistIds = Object.entries(state.media)
-    .filter(([, m]) => m.status === "plan_to_watch" || m.status === "watching" || m.status === "favorite")
+    .filter(([, m]) => m.favorite || m.status === "plan_to_watch" || m.status === "watching")
     .map(([k]) => k);
 
   const highlyRatedIds = Object.entries(state.media)

@@ -47,6 +47,10 @@ export const libraryApi = {
     return api<LibraryState>('/api/library.php?action=set_status', 'POST', { id, status, meta });
   },
 
+  setFavorite(id: string, favorite: boolean, meta?: MediaMeta): Promise<LibraryState> {
+    return api<LibraryState>('/api/library.php?action=set_favorite', 'POST', { id, favorite, meta });
+  },
+
   removeFromList(id: string): Promise<LibraryState> {
     return api<LibraryState>('/api/library.php?action=remove_from_list', 'POST', { id });
   },

@@ -14,6 +14,8 @@ export type UserStatus = 'watching' | 'completed' | 'plan_to_watch' | 'paused' |
 export interface UserMediaEntry {
   id: string;
   status: UserStatus;
+  /** Preferito: flag indipendente dallo stato (una serie vista può essere anche preferita). */
+  favorite?: boolean;
   rating?: number;
   currentSeason?: number;
   currentEpisode?: number;
@@ -100,6 +102,12 @@ export function useUserStore() {
   const setStatus = useCallback(
     (id: string, status: UserStatus, meta?: MediaMeta) =>
       apply(() => libraryApi.setStatus(id, status, meta)),
+    [apply],
+  );
+
+  const setFavorite = useCallback(
+    (id: string, favorite: boolean, meta?: MediaMeta) =>
+      apply(() => libraryApi.setFavorite(id, favorite, meta)),
     [apply],
   );
 
@@ -210,6 +218,7 @@ export function useUserStore() {
     update,
     addToList,
     setStatus,
+    setFavorite,
     removeFromList,
     dismiss,
     toggleEpisode,
@@ -249,7 +258,7 @@ export function computeStats(state: LibraryState) {
   const watching = list.filter(m => m.status === 'watching').length;
   const completed = list.filter(m => m.status === 'completed').length;
   const planned = list.filter(m => m.status === 'plan_to_watch').length;
-  const favorites = list.filter(m => m.status === 'favorite').length;
+  const favorites = list.filter(m => m.favorite).length;
   const series = active.filter(m => inferType(m) === 'tv').length;
   const movies = active.filter(m => inferType(m) === 'movie').length;
   const episodes = list.reduce((n, m) => {

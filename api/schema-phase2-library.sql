@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS user_media (
   backdrop_url      VARCHAR(1000) DEFAULT NULL,
   year              SMALLINT      DEFAULT NULL,
   source            VARCHAR(20)   DEFAULT 'manual',
+  is_favorite       TINYINT(1)    NOT NULL DEFAULT 0,
   added_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_watched_at   DATETIME      DEFAULT NULL,
   watch_count       INT           NOT NULL DEFAULT 0,

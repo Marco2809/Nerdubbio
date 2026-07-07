@@ -118,6 +118,7 @@ function library_row_to_entry(array $row, array $episodes): array {
     return [
         'id'              => $row['media_key'],
         'status'          => $row['status'],
+        'favorite'        => (int) ($row['is_favorite'] ?? 0) === 1,
         'rating'          => $row['rating'] !== null ? (int) $row['rating'] : null,
         'currentSeason'   => $row['current_season'] !== null ? (int) $row['current_season'] : null,
         'currentEpisode'  => $row['current_episode'] !== null ? (int) $row['current_episode'] : null,
@@ -188,11 +189,17 @@ function library_upsert_media(PDO $pdo, string $userId, string $mediaKey, array 
     $type = $entry['type'] ?? ($parsed['type'] ?? null);
     $tmdbId = $parsed['tmdb_id'] ?? null;
 
+    // is_favorite: aggiornato solo se il chiamante lo passa esplicitamente
+    // (COALESCE preserva il flag durante import/toggle episodio/cambio stato).
+    $favorite = array_key_exists('favorite', $entry) && $entry['favorite'] !== null
+        ? ((int) (bool) $entry['favorite'])
+        : null;
+
     $pdo->prepare(
         'INSERT INTO user_media
          (user_id, media_key, tmdb_id, media_type, status, rating, current_season, current_episode,
-          reactions, notes, title, poster_url, backdrop_url, year, source, added_at, last_watched_at, watch_count)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW()), ?, ?)
+          reactions, notes, title, poster_url, backdrop_url, year, source, is_favorite, added_at, last_watched_at, watch_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 0), COALESCE(?, NOW()), ?, ?)
          ON DUPLICATE KEY UPDATE
            status = VALUES(status),
            rating = COALESCE(VALUES(rating), rating),
@@ -205,6 +212,7 @@ function library_upsert_media(PDO $pdo, string $userId, string $mediaKey, array 
            backdrop_url = COALESCE(VALUES(backdrop_url), backdrop_url),
            year = COALESCE(VALUES(year), year),
            source = COALESCE(VALUES(source), source),
+           is_favorite = COALESCE(?, is_favorite),
            last_watched_at = COALESCE(VALUES(last_watched_at), last_watched_at),
            watch_count = GREATEST(watch_count, VALUES(watch_count)),
            updated_at = NOW()'
@@ -224,9 +232,11 @@ function library_upsert_media(PDO $pdo, string $userId, string $mediaKey, array 
         $entry['backdropUrl'] ?? null,
         $entry['year'] ?? null,
         $entry['source'] ?? 'manual',
+        $favorite,
         normalize_datetime($entry['addedAt'] ?? null),
         isset($entry['lastWatchedAt']) ? normalize_datetime($entry['lastWatchedAt']) : null,
         isset($entry['watchCount']) ? max(0, (int) $entry['watchCount']) : 0,
+        $favorite,
     ]);
 }
 
@@ -442,6 +452,30 @@ function library_set_status(PDO $pdo, string $userId, string $id, string $status
     $pdo->prepare(
         'UPDATE user_media SET ' . implode(', ', $sets) . ' WHERE user_id = ? AND media_key = ?'
     )->execute($vals);
+
+    return library_fetch_state($pdo, $userId);
+}
+
+/** Preferito come flag indipendente: NON tocca lo stato. Crea l'entry se manca. */
+function library_set_favorite(PDO $pdo, string $userId, string $id, bool $favorite, ?array $meta): array {
+    $exists = $pdo->prepare('SELECT 1 FROM user_media WHERE user_id = ? AND media_key = ? LIMIT 1');
+    $exists->execute([$userId, $id]);
+
+    if (!$exists->fetchColumn()) {
+        // Preferito su un titolo non ancora in libreria: entry minima "da vedere".
+        $entry = ['status' => 'plan_to_watch', 'favorite' => $favorite, 'addedAt' => date('c')];
+        if ($meta) {
+            foreach (['title', 'posterUrl', 'backdropUrl', 'type', 'year'] as $k) {
+                if (array_key_exists($k, $meta) && $meta[$k] !== null) $entry[$k] = $meta[$k];
+            }
+        }
+        library_upsert_media($pdo, $userId, $id, $entry);
+        return library_fetch_state($pdo, $userId);
+    }
+
+    $pdo->prepare(
+        'UPDATE user_media SET is_favorite = ?, updated_at = NOW() WHERE user_id = ? AND media_key = ?'
+    )->execute([$favorite ? 1 : 0, $userId, $id]);
 
     return library_fetch_state($pdo, $userId);
 }

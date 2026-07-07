@@ -2,7 +2,9 @@ import type { UserMediaEntry, UserStatus } from "@/lib/user-store";
 import { maxWatchedFrontier } from "@/lib/next-episode";
 import { tmdbResolveShowStatuses } from "@/lib/tmdb/tmdb.functions";
 
-const PRESERVE_STATUSES = new Set<UserStatus>(["favorite", "paused", "dropped"]);
+// "favorite" non è più uno stato: il flag preferito è ortogonale e va preservato
+// a prescindere. Qui restano solo gli stati manuali che il sync non deve toccare.
+const PRESERVE_STATUSES = new Set<UserStatus>(["paused", "dropped"]);
 
 export function isTvEntry(entry: Pick<UserMediaEntry, "id" | "type">): boolean {
   return entry.type === "tv" || entry.id.startsWith("tv-");

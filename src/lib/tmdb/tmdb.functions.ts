@@ -774,7 +774,7 @@ async function analyzeShowProgress(
   lastEpisode?: number,
   currentStatus?: string,
 ): Promise<ShowProgressResult> {
-  const locked = currentStatus === "favorite" || currentStatus === "paused" || currentStatus === "dropped";
+  const locked = currentStatus === "paused" || currentStatus === "dropped";
   const hasProgress = watched.length > 0 || (lastSeason ?? 0) > 0;
 
   let seriesStatus = "";

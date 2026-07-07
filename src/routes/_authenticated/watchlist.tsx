@@ -18,10 +18,10 @@ function WatchlistPage() {
   const { t } = useI18n();
   const statusLabel = useStatusLabel();
   const { state } = useUserStore();
-  const [tab, setTab] = useState<UserStatus | "all">("all");
+  const [tab, setTab] = useState<UserStatus | "all" | "favorite">("all");
   const [sort, setSort] = useState<SortKey>("recent");
 
-  const tabs: { s: UserStatus | "all"; label: string }[] = useMemo(
+  const tabs: { s: UserStatus | "all" | "favorite"; label: string }[] = useMemo(
     () => [
       { s: "all", label: t("watchlist.tabAll") },
       { s: "plan_to_watch", label: statusLabel("plan_to_watch") },
@@ -47,7 +47,7 @@ function WatchlistPage() {
 
   const list = useMemo(() => {
     const arr = Object.values(state.media)
-      .filter((m) => tab === "all" || m.status === tab)
+      .filter((m) => tab === "all" || (tab === "favorite" ? !!m.favorite : m.status === tab))
       .map((m) => ({ entry: m, item: findById(m.id) }))
       .filter((x): x is { entry: UserMediaEntry; item: CatalogItem } => !!x.item);
     const cmp = (a: (typeof arr)[number], b: (typeof arr)[number]) => {

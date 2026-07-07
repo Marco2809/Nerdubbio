@@ -62,8 +62,8 @@ export function listTvShowsForNextEpisode(media: Record<string, UserMediaEntry>)
         || (m.currentSeason ?? 0) > 0
         || (m.currentEpisode ?? 0) > 0;
       if (m.status === "watching" || m.status === "paused" || m.status === "plan_to_watch") return true;
-      // Preferiti o in corso implicito se hai episodi segnati
-      if ((m.status === "favorite" || m.status === "completed") && hasProgress) return true;
+      // Completate o preferite ma con episodi segnati → in corso implicito
+      if ((m.favorite || m.status === "completed") && hasProgress) return true;
       return false;
     })
     .sort((a, b) => {

@@ -5,6 +5,8 @@ export interface ParsedRow {
   year?: number;
   type?: "movie" | "tv";
   status?: "watching" | "completed" | "plan_to_watch" | "favorite" | "paused" | "dropped";
+  /** Preferito TV Time: flag indipendente dallo stato. */
+  favorite?: boolean;
   /** Episodi visti in formato S1E3 (quando disponibili nel CSV). */
   watchedEpisodes?: string[];
   /** Conteggio aggregato TV Time (fallback se mancano i singoli episodi). */
@@ -484,8 +486,19 @@ function mergeParsedRows(prev: ParsedRow, next: ParsedRow): ParsedRow {
     episodeWatchCounts: Object.keys(counts).length ? counts : undefined,
     episodesSeen: episodesSeen > 0 ? episodesSeen : undefined,
     rating: rating && rating > 0 ? rating : undefined,
+    favorite: prev.favorite || next.favorite || undefined,
     status: mergeShowStatus(prev.status, next.status),
   };
+}
+
+/** Normalizza eventuali status "favorite" residui (film/liste) nel flag + stato reale. */
+function normalizeFavoriteRow(r: ParsedRow): ParsedRow {
+  if (r.status !== "favorite") return r;
+  const hasProgress = (r.watchedEpisodes?.length ?? 0) > 0 || (r.episodesSeen ?? 0) > 0;
+  const status: ParsedRow["status"] = r.type === "movie"
+    ? "completed"
+    : hasProgress ? "watching" : "plan_to_watch";
+  return { ...r, favorite: true, status };
 }
 
 /** TV Time usa 0–5 stelle; Nerdubbio 1–10. */
@@ -797,9 +810,8 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
   for (const s of shows.values()) {
     if (!s.followed && !s.forLater && !s.isFavorite && s.episodesSeen === 0 && s.watchedEpisodes.size === 0) continue;
     const watched = [...s.watchedEpisodes].sort();
-    const status: ParsedRow["status"] = s.isFavorite
-      ? "favorite"
-      : s.forLater
+    // "favorite" è un flag, non uno stato: lo stato viene dal progresso.
+    const status: ParsedRow["status"] = s.forLater
       ? "plan_to_watch"
       : watched.length > 0 || s.episodesSeen > 0
       ? "watching"
@@ -810,6 +822,7 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
       title: s.title,
       type: "tv",
       status,
+      favorite: s.isFavorite || undefined,
       tvShowId: s.id,
       rating: s.rating,
       watchedEpisodes: watched.length ? watched : undefined,
@@ -827,7 +840,7 @@ export function parseTvTimeExport(files: Record<string, string>): TvTimeImportSu
     const prev = byKey.get(k);
     byKey.set(k, prev ? mergeParsedRows(prev, r) : r);
   }
-  const unique = [...byKey.values()];
+  const unique = [...byKey.values()].map(normalizeFavoriteRow);
 
   const episodeRows = unique.reduce((n, r) => {
     if (r.episodeWatchCounts) {

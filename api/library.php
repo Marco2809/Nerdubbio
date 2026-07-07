@@ -32,6 +32,18 @@ if ($action === 'set_status') {
     json_out(library_set_status($pdo, $userId, $id, $status, is_array($body['meta'] ?? null) ? $body['meta'] : null));
 }
 
+if ($action === 'set_favorite') {
+    $id = (string) ($body['id'] ?? '');
+    if ($id === '') api_err('missing_id', 400);
+    json_out(library_set_favorite(
+        $pdo,
+        $userId,
+        $id,
+        !empty($body['favorite']),
+        is_array($body['meta'] ?? null) ? $body['meta'] : null,
+    ));
+}
+
 if ($action === 'remove_from_list') {
     $id = (string) ($body['id'] ?? '');
     if ($id === '') api_err('missing_id', 400);

@@ -46,12 +46,12 @@ export function mediaRouteParams(item: Pick<LibraryDisplayItem, "id" | "type">) 
 
 const SERIES_TAB_STATUSES: Record<string, UserStatus[]> = {
   in_corso: ["watching", "paused"],
-  da_vedere: ["plan_to_watch", "favorite"],
+  da_vedere: ["plan_to_watch"],
   viste: ["completed"],
 };
 
 const MOVIE_TAB_STATUSES: Record<string, UserStatus[]> = {
-  da_vedere: ["plan_to_watch", "watching", "favorite", "paused"],
+  da_vedere: ["plan_to_watch", "watching", "paused"],
   visti: ["completed"],
 };
 

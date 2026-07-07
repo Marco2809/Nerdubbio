@@ -85,7 +85,7 @@ function MediaDetail() {
     staleTime: 1000 * 60 * 60 * 24,
   });
 
-  const { state, addToList, setStatus, removeFromList, toggleEpisode, unwatchEpisode, logMovieWatch, setRating, markAllSeriesWatched, clearWatchedEpisodes } = useUserStore();
+  const { state, addToList, setStatus, setFavorite, removeFromList, toggleEpisode, unwatchEpisode, logMovieWatch, setRating, markAllSeriesWatched, clearWatchedEpisodes } = useUserStore();
   const [syncOpen, setSyncOpen] = useState(false);
   const goBack = useSmartBack("/app");
   const returnPath = useReturnPath();
@@ -140,14 +140,33 @@ function MediaDetail() {
     });
   };
 
+  // "favorite" NON è più uno stato: è un flag separato (cuore) gestito sotto.
   const actions: { s: UserStatus; label: string; icon: React.ReactNode }[] = [
     { s: "plan_to_watch", label: t("status.plan_to_watch"), icon: <Plus className="h-4 w-4" /> },
     { s: "watching", label: t("status.watching"), icon: <Star className="h-4 w-4" /> },
     { s: "completed", label: t("status.completed"), icon: <CheckCircle2 className="h-4 w-4" /> },
     { s: "paused", label: t("status.paused"), icon: <Pause className="h-4 w-4" /> },
     { s: "dropped", label: t("status.dropped"), icon: <X className="h-4 w-4" /> },
-    { s: "favorite", label: t("status.favorite"), icon: <Heart className="h-4 w-4" /> },
   ];
+
+  const isFavorite = !!entry?.favorite;
+  const toggleFavorite = () => {
+    const meta = {
+      title: item.title, type: item.type, year: item.year,
+      posterUrl: tmdbQuery.data?.item.posterUrl ?? null,
+      backdropUrl: tmdbQuery.data?.item.backdropUrl ?? null,
+    };
+    const next = !isFavorite;
+    void setFavorite(item.id, next, meta)
+      .then(() => {
+        toast.success(next
+          ? t("media.favoriteAdded", { title: item.title })
+          : t("media.favoriteRemoved", { title: item.title }));
+      })
+      .catch((e: unknown) => {
+        toast.error(t("media.saveStatusError"), { description: e instanceof Error ? e.message : undefined });
+      });
+  };
 
   return (
     <div className="min-h-screen pb-32">
@@ -257,6 +276,21 @@ function MediaDetail() {
               );
             })}
           </div>
+
+          {/* Preferito: flag indipendente — non cambia lo stato */}
+          <button
+            type="button"
+            onClick={toggleFavorite}
+            aria-pressed={isFavorite}
+            className={`mt-2 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+              isFavorite
+                ? "border border-accent bg-accent/15 text-accent"
+                : "glass text-foreground/80 hover:bg-white/10"
+            }`}
+          >
+            <Heart className={`h-4 w-4 ${isFavorite ? "fill-accent" : ""}`} />
+            {isFavorite ? t("media.favoriteOn") : t("status.favorite")}
+          </button>
 
           {entry && item.type === "movie" && entry.status === "completed" && (
             <div className="mt-3 flex items-center justify-between rounded-2xl border border-border bg-surface/40 px-3 py-2">

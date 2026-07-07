@@ -66,6 +66,7 @@ export function buildEntriesFromMatches(matches: TvTimeMatchRow[]): UserMediaEnt
       return {
         id: `${m.match!.type}-${m.match!.tmdb_id}`,
         status: m.row.status ?? "plan_to_watch",
+        favorite: m.row.favorite,
         rating: m.row.rating,
         episodeDates: m.row.episodeDates,
         episodeWatchCounts: m.row.episodeWatchCounts,

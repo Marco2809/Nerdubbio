@@ -78,7 +78,7 @@ export function buildNerdacoloUserContext(
 
   const watchlistIds = Object.entries(state.media)
     .filter(([, m]) =>
-      ["plan_to_watch", "watching", "favorite"].includes(m.status),
+      m.favorite || ["plan_to_watch", "watching"].includes(m.status),
     )
     .map(([k]) => k);
 
