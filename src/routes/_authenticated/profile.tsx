@@ -62,7 +62,7 @@ function Profile() {
       </div>
 
       <div className="mt-4 grid grid-cols-4 gap-2 text-center">
-        <Stat icon={<Star className="h-4 w-4"/>} label={t("profile.watched")} value={stats.completed} />
+        <Stat icon={<Star className="h-4 w-4"/>} label={t("profile.watched")} value={stats.watched} />
         <Stat icon={<Flame className="h-4 w-4"/>} label={t("profile.streak")} value={state.streak} />
         <Stat icon={<Trophy className="h-4 w-4"/>} label={t("profile.badges")} value={state.achievements.length} />
         <Stat icon={<Star className="h-4 w-4"/>} label={t("profile.hours")} value={stats.hours} />

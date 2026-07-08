@@ -252,23 +252,27 @@ export function totalEpisodeWatches(entry: UserMediaEntry | undefined): number {
 
 export function computeStats(state: LibraryState) {
   const list = Object.values(state.media);
-  const active = list.filter(m => m.status !== 'dropped');
   const inferType = (m: UserMediaEntry): 'movie' | 'tv' =>
     m.type ?? (m.id.startsWith('movie-') ? 'movie' : 'tv');
   const watching = list.filter(m => m.status === 'watching').length;
   const completed = list.filter(m => m.status === 'completed').length;
+  // "Abbandonato" è comunque contenuto visto: rientra nel conteggio dei visti
+  // e degli episodi, cambia solo che non ne guarderò altri.
+  const watched = list.filter(m => m.status === 'completed' || m.status === 'dropped').length;
   const planned = list.filter(m => m.status === 'plan_to_watch').length;
   const favorites = list.filter(m => m.favorite).length;
-  const series = active.filter(m => inferType(m) === 'tv').length;
-  const movies = active.filter(m => inferType(m) === 'movie').length;
+  // Serie/film in libreria includono gli abbandonati (fanno parte della cronologia).
+  const series = list.filter(m => inferType(m) === 'tv').length;
+  const movies = list.filter(m => inferType(m) === 'movie').length;
+  let movieWatches = 0;
   const episodes = list.reduce((n, m) => {
     if (inferType(m) === 'movie') {
-      const wc = m.watchCount ?? (m.status === 'completed' ? 1 : 0);
+      const wc = m.watchCount ?? (m.status === 'completed' || m.status === 'dropped' ? 1 : 0);
+      movieWatches += wc;
       return n + wc;
     }
     return n + (m.watchedEpisodes?.reduce((s, k) => s + (m.episodeWatchCounts?.[k] ?? 1), 0) ?? 0);
   }, 0);
-  const completedMovies = active.filter(m => inferType(m) === 'movie' && m.status === 'completed').length;
-  const hours = Math.round((episodes * 45 + completedMovies * 110) / 60);
-  return { watching, completed, planned, favorites, series, movies, episodes, hours, total: list.length };
+  const hours = Math.round((episodes * 45 + movieWatches * 110) / 60);
+  return { watching, completed, watched, planned, favorites, series, movies, episodes, hours, total: list.length };
 }

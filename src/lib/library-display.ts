@@ -15,7 +15,6 @@ export function inferMediaType(entry: UserMediaEntry): "movie" | "tv" {
 }
 
 export function entryToDisplayItem(entry: UserMediaEntry): LibraryDisplayItem | null {
-  if (entry.status === "dropped") return null;
   if (entry.title) {
     return {
       entry,
@@ -44,15 +43,16 @@ export function mediaRouteParams(item: Pick<LibraryDisplayItem, "id" | "type">) 
   return { type: item.type, id: item.id };
 }
 
+// "Abbandonato" = ho finito di guardarlo (non ne vedrò altri): sta con i "Visti".
 const SERIES_TAB_STATUSES: Record<string, UserStatus[]> = {
   in_corso: ["watching", "paused"],
   da_vedere: ["plan_to_watch"],
-  viste: ["completed"],
+  viste: ["completed", "dropped"],
 };
 
 const MOVIE_TAB_STATUSES: Record<string, UserStatus[]> = {
   da_vedere: ["plan_to_watch", "watching", "paused"],
-  visti: ["completed"],
+  visti: ["completed", "dropped"],
 };
 
 export function filterBySeriesTab(
@@ -125,11 +125,11 @@ function sortLibraryItems(a: LibraryDisplayItem, b: LibraryDisplayItem, mode: "r
 }
 
 export function countAllSeries(media: Record<string, UserMediaEntry>): number {
-  return Object.values(media).filter(m => inferMediaType(m) === "tv" && m.status !== "dropped").length;
+  return Object.values(media).filter(m => inferMediaType(m) === "tv").length;
 }
 
 export function countAllMovies(media: Record<string, UserMediaEntry>): number {
-  return Object.values(media).filter(m => inferMediaType(m) === "movie" && m.status !== "dropped").length;
+  return Object.values(media).filter(m => inferMediaType(m) === "movie").length;
 }
 
 /** Già visto/abbandonato — da escludere da trending e suggerimenti discover. */
