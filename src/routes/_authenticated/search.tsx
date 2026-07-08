@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
-import { Search as SearchIcon, Loader2, BookmarkCheck, SlidersHorizontal, X, Star } from "lucide-react";
+import { Search as SearchIcon, Loader2, BookmarkCheck, SlidersHorizontal, X, Star, Plus, Check } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { tmdbSearch, tmdbTrending, tmdbDiscover, type TmdbItem } from "@/lib/tmdb/tmdb.functions";
@@ -10,6 +10,20 @@ import { isMediaAlreadyWatched } from "@/lib/library-display";
 import { useReturnPath } from "@/lib/media-nav";
 import { useI18n, pageTitle } from "@/lib/i18n";
 import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
+import { toast } from "@/lib/toast";
+
+type SearchType = "all" | "movie" | "tv";
+type PersistedSearch = {
+  q: string; type: SearchType; genres: string[]; minRating: number;
+  sort: SortMode; yearPreset: YearPreset; hideWatched: boolean; hideInLibrary: boolean; showFilters: boolean;
+};
+const SEARCH_STATE_KEY = "nerdubbio:search-state:v1";
+
+function loadSearchState(): Partial<PersistedSearch> {
+  if (typeof sessionStorage === "undefined") return {};
+  try { return JSON.parse(sessionStorage.getItem(SEARCH_STATE_KEY) ?? "{}") as Partial<PersistedSearch>; }
+  catch { return {}; }
+}
 
 export const Route = createFileRoute("/_authenticated/search")({
   head: () => ({ meta: [{ title: pageTitle("search") }] }),
@@ -39,10 +53,26 @@ function useDebounced<T>(value: T, delay = 350) {
 
 function TmdbCard({ item }: { item: TmdbItem }) {
   const { t } = useI18n();
-  const { state } = useUserStore();
+  const { state, addToList } = useUserStore();
   const from = useReturnPath();
-  const inLibrary = !!state.media[item.id];
-  const isWatched = isMediaAlreadyWatched(state.media[item.id]);
+  const entry = state.media[item.id];
+  const inLibrary = !!entry;
+  const isWatched = isMediaAlreadyWatched(entry);
+
+  const addToWatchlist = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (inLibrary) return;
+    void addToList(item.id, "plan_to_watch", {
+      title: item.title, type: item.type, year: item.year,
+      posterUrl: item.posterUrl ?? null, backdropUrl: item.backdropUrl ?? null,
+    })
+      .then(() => toast.success(t("search.addedToWatchlist", { title: item.title })))
+      .catch((err: unknown) => toast.error(t("media.saveStatusError"), {
+        description: err instanceof Error ? err.message : undefined,
+      }));
+  };
+
   return (
     <Link
       to="/media/$type/$id"
@@ -62,6 +92,19 @@ function TmdbCard({ item }: { item: TmdbItem }) {
         <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold">
           <Star className="h-3 w-3 fill-accent text-accent" /> {item.rating.toFixed(1)}
         </div>
+
+        {/* + sempre disponibile: aggiunge a "Da vedere" senza aprire il dettaglio */}
+        <button
+          type="button"
+          onClick={addToWatchlist}
+          aria-label={inLibrary ? t("search.inList") : t("search.addToWatchlist")}
+          className={`absolute bottom-2 right-2 z-10 grid h-9 w-9 place-items-center rounded-full shadow-glow-pink transition active:scale-90 ${
+            inLibrary ? "bg-black/70 text-accent" : "bg-hero text-primary-foreground"
+          }`}
+        >
+          {inLibrary ? <Check className="h-4 w-4" /> : <Plus className="h-5 w-5" />}
+        </button>
+
         {inLibrary && !isWatched && (
           <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-hero px-2 py-1 text-[10px] font-bold text-primary-foreground shadow-glow-pink">
             <BookmarkCheck className="h-3 w-3" /> {t("search.inList")}
@@ -72,7 +115,7 @@ function TmdbCard({ item }: { item: TmdbItem }) {
             <BookmarkCheck className="h-3 w-3" /> {t("search.watchedBadge")}
           </div>
         )}
-        <div className="absolute bottom-0 inset-x-0 p-3">
+        <div className="absolute bottom-0 inset-x-0 p-3 pr-12">
           <p className="text-[10px] uppercase tracking-widest text-white/70">
             {item.type === "tv" ? t("home.seriesShort") : t("home.movieShort")}{item.year ? ` · ${item.year}` : ""}
           </p>
@@ -103,16 +146,25 @@ function SearchPage() {
   const { state: userState } = useUserStore();
   const from = useReturnPath();
 
-  const [q, setQ] = useState("");
-  const [type, setType] = useState<"all" | "movie" | "tv">("all");
-  const [genres, setGenres] = useState<string[]>([]);
-  const [minRating, setMinRating] = useState(0);
-  const [sort, setSort] = useState<SortMode>("popularity");
-  const [yearPreset, setYearPreset] = useState<YearPreset>("any");
-  const [hideWatched, setHideWatched] = useState(true);
-  const [hideInLibrary, setHideInLibrary] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  // Stato ripristinato da sessionStorage: tornando dal dettaglio i filtri restano.
+  const saved = useMemo(() => loadSearchState(), []);
+  const [q, setQ] = useState(saved.q ?? "");
+  const [type, setType] = useState<SearchType>(saved.type ?? "all");
+  const [genres, setGenres] = useState<string[]>(saved.genres ?? []);
+  const [minRating, setMinRating] = useState(saved.minRating ?? 0);
+  const [sort, setSort] = useState<SortMode>(saved.sort ?? "popularity");
+  const [yearPreset, setYearPreset] = useState<YearPreset>(saved.yearPreset ?? "any");
+  const [hideWatched, setHideWatched] = useState(saved.hideWatched ?? true);
+  const [hideInLibrary, setHideInLibrary] = useState(saved.hideInLibrary ?? false);
+  const [showFilters, setShowFilters] = useState(saved.showFilters ?? false);
   const [page, setPage] = useState(1);
+
+  // Salva lo stato dei filtri a ogni cambio.
+  useEffect(() => {
+    if (typeof sessionStorage === "undefined") return;
+    const s: PersistedSearch = { q, type, genres, minRating, sort, yearPreset, hideWatched, hideInLibrary, showFilters };
+    sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify(s));
+  }, [q, type, genres, minRating, sort, yearPreset, hideWatched, hideInLibrary, showFilters]);
 
   const debouncedQ = useDebounced(q.trim(), 400);
 

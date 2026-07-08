@@ -456,6 +456,47 @@ export const tmdbCredits = createServerFn({ method: "GET" })
     return { cast };
   }));
 
+export interface TrailerInfo {
+  key: string;   // id YouTube
+  name: string;
+  type: string;  // Trailer | Teaser
+}
+
+/** Trailer YouTube del titolo. Prova nella lingua scelta, poi fallback EN. */
+export const tmdbVideos = createServerFn({ method: "GET" })
+  .inputValidator((data) => z.object({ type: z.enum(["movie", "tv"]), tmdbId: z.number().int().positive(), locale: z.string().optional() }).parse(data))
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
+    const collect = (results: any[]): any[] =>
+      (results ?? []).filter(v => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser"));
+
+    let vids: any[] = [];
+    try { vids = collect((await tmdb<any>(`/${data.type}/${data.tmdbId}/videos`)).results); }
+    catch { /* ignore */ }
+
+    // Se nella lingua scelta non ci sono trailer, prova in inglese.
+    if (!vids.length && currentTmdbLanguage().slice(0, 2) !== "en") {
+      try {
+        const r = await tmdbFetch(`/${data.type}/${data.tmdbId}/videos`, "en-US");
+        if (r.ok) vids = collect((await r.json()).results);
+      } catch { /* ignore */ }
+    }
+
+    // Ordine: Trailer prima dei Teaser, ufficiali prima.
+    vids.sort((a, b) => {
+      const ta = a.type === "Trailer" ? 0 : 1;
+      const tb = b.type === "Trailer" ? 0 : 1;
+      if (ta !== tb) return ta - tb;
+      return (b.official ? 1 : 0) - (a.official ? 1 : 0);
+    });
+
+    const trailers: TrailerInfo[] = vids.slice(0, 3).map(v => ({
+      key: v.key,
+      name: v.name ?? "",
+      type: v.type,
+    }));
+    return { trailers };
+  }));
+
 export interface PersonCredit {
   id: number;
   type: "movie" | "tv";

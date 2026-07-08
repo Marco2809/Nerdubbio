@@ -6,8 +6,9 @@ import { useUserStore, isEpisodeWatched, getEpisodeWatchCount, totalEpisodeWatch
 import { Plus, Heart, CheckCircle2, Pause, X, Star, Check, Loader2, PlayCircle, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, tmdbWatchProviders, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
+import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, tmdbWatchProviders, tmdbVideos, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
 import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
+import { Play } from "lucide-react";
 import { useReturnPath, useSmartBack } from "@/lib/media-nav";
 import { applyShowProgressAfterWatch, formatSeriesStatusLabel } from "@/lib/check-show-after-watch";
 import { toast } from "@/lib/toast";
@@ -82,6 +83,13 @@ function MediaDetail() {
     queryKey: ["tmdb", "providers", type, numericId],
     queryFn: () => tmdbWatchProviders({ data: { type: type as "movie" | "tv", tmdbId: numericId } }),
     enabled: shouldFetchTmdb,
+    staleTime: 1000 * 60 * 60 * 24,
+  });
+
+  const videosQuery = useQuery({
+    queryKey: ["tmdb", "videos", type, numericId, locale],
+    queryFn: () => tmdbVideos({ data: { type: type as "movie" | "tv", tmdbId: numericId, locale } }),
+    enabled: Number.isFinite(numericId) && numericId > 0,
     staleTime: 1000 * 60 * 60 * 24,
   });
 
@@ -201,6 +209,10 @@ function MediaDetail() {
             <p className="mt-1 text-sm font-semibold">{streamingOn.join(" · ")}</p>
           </div>
         ) : null}
+
+        {(videosQuery.data?.trailers.length ?? 0) > 0 && (
+          <TrailerSection trailerKey={videosQuery.data!.trailers[0]!.key} />
+        )}
 
         <div className="mt-6">
           <div className="flex items-center justify-between">
@@ -835,6 +847,43 @@ function EpisodeRow({
   );
 }
 
+
+function TrailerSection({ trailerKey }: { trailerKey: string }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="mt-4">
+      {open ? (
+        <div className="overflow-hidden rounded-2xl border border-border bg-black shadow-glow">
+          <div className="relative w-full" style={{ aspectRatio: "16 / 9" }}>
+            <iframe
+              src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&rel=0`}
+              title={t("media.trailer")}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="absolute inset-0 h-full w-full"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="w-full py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+          >
+            {t("media.hideTrailer")}
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-hero py-3 text-sm font-bold text-primary-foreground shadow-glow-pink"
+        >
+          <Play className="h-4 w-4 fill-current" /> {t("media.watchTrailer")}
+        </button>
+      )}
+    </section>
+  );
+}
 
 function CastSection({ cast, loading, returnPath }: { cast: CastMember[]; loading: boolean; returnPath: string }) {
   const { t } = useI18n();

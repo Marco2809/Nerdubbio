@@ -288,6 +288,9 @@ export default {
     episodeWatchDecrement: "S{{s}}E{{e}} ×{{from}} → ×{{to}}",
     saveEpisodeError: "Episode konnte nicht gespeichert werden",
     rateN: "{{n}}/10 bewerten",
+    trailer: "Trailer",
+    watchTrailer: "Trailer ansehen",
+    hideTrailer: "Trailer ausblenden",
   },
   time: {
     today: "Heute",
@@ -323,6 +326,8 @@ export default {
     browsing: "{{count}} Titel aus dem Katalog",
     resetFilters: "Filter zurücksetzen",
     noDiscover: "Keine Titel mit diesen Filtern. Lockere sie etwas.",
+    addToWatchlist: "Zur Merkliste",
+    addedToWatchlist: "„{{title}}“ zur Merkliste",
   },
   friends: {
     subtitle: "Nerd-Social",

@@ -288,6 +288,9 @@ export default {
     episodeWatchDecrement: "S{{s}}E{{e}} ×{{from}} → ×{{to}}",
     saveEpisodeError: "Impossibile salvare l'episodio",
     rateN: "Vota {{n}}/10",
+    trailer: "Trailer",
+    watchTrailer: "Guarda il trailer",
+    hideTrailer: "Nascondi trailer",
   },
   time: {
     today: "Oggi",
@@ -323,6 +326,8 @@ export default {
     browsing: "{{count}} titoli dal catalogo",
     resetFilters: "Azzera filtri",
     noDiscover: "Nessun titolo con questi filtri. Prova ad allentarli.",
+    addToWatchlist: "Aggiungi a Da vedere",
+    addedToWatchlist: "“{{title}}” in Da vedere",
   },
   friends: {
     subtitle: "Social nerd",

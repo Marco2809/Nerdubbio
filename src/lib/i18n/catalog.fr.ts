@@ -288,6 +288,9 @@ export default {
     episodeWatchDecrement: "S{{s}}E{{e}} ×{{from}} → ×{{to}}",
     saveEpisodeError: "Impossible d'enregistrer l'épisode",
     rateN: "Noter {{n}}/10",
+    trailer: "Bande-annonce",
+    watchTrailer: "Voir la bande-annonce",
+    hideTrailer: "Masquer",
   },
   time: {
     today: "Aujourd'hui",
@@ -323,6 +326,8 @@ export default {
     browsing: "{{count}} titres du catalogue",
     resetFilters: "Réinitialiser",
     noDiscover: "Aucun titre avec ces filtres. Essaie de les assouplir.",
+    addToWatchlist: "Ajouter à À voir",
+    addedToWatchlist: "“{{title}}” dans À voir",
   },
   friends: {
     subtitle: "Social nerd",
