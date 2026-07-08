@@ -252,6 +252,13 @@ export const tmdbDetail = createServerFn({ method: "GET" })
   .inputValidator((data) => z.object({ type: z.enum(["movie", "tv"]), tmdbId: z.number().int().positive(), locale: z.string().optional() }).parse(data))
   .handler(async ({ data }) => runWithLocale(data.locale, async () => {
     const res = await tmdb<any>(`/${data.type}/${data.tmdbId}`);
+    // Fallback EN per la trama se manca nella lingua scelta.
+    if (!res.overview?.trim() && currentTmdbLanguage().slice(0, 2) !== "en") {
+      try {
+        const r = await tmdbFetch(`/${data.type}/${data.tmdbId}`, "en-US");
+        if (r.ok) { const en = await r.json(); if (en.overview?.trim()) res.overview = en.overview; }
+      } catch { /* ignore */ }
+    }
     return { item: mapDetail(res, data.type) };
   }));
 
@@ -360,6 +367,12 @@ export interface EpisodeInfo {
   voteCount: number;
   stillUrl: string | null;
 }
+/** Nome episodio "segnaposto" TMDB (nessuna traduzione reale) in varie lingue. */
+function isGenericEpisodeName(name: string | undefined | null): boolean {
+  if (!name || !name.trim()) return true;
+  return /^(episodio|episode|folge|épisode|episodi|cap[íi]tulo)\s*\d+$/i.test(name.trim());
+}
+
 export const tmdbSeason = createServerFn({ method: "GET" })
   .inputValidator((data) => z.object({
     tmdbId: z.number().int().positive(),
@@ -368,20 +381,47 @@ export const tmdbSeason = createServerFn({ method: "GET" })
   }).parse(data))
   .handler(async ({ data }) => runWithLocale(data.locale, async () => {
     const res = await tmdb<any>(`/tv/${data.tmdbId}/season/${data.seasonNumber}`);
-    const episodes: EpisodeInfo[] = (res.episodes ?? []).map((e: any) => ({
-      episodeNumber: e.episode_number,
-      name: e.name ?? `Episodio ${e.episode_number}`,
-      overview: e.overview ?? "",
-      airDate: e.air_date ?? null,
-      runtime: e.runtime ?? null,
-      voteAverage: Number(e.vote_average ?? 0),
-      voteCount: Number(e.vote_count ?? 0),
-      stillUrl: e.still_path ? `${IMG_BASE}/w300${e.still_path}` : null,
-    }));
+    const localized: any[] = res.episodes ?? [];
+
+    // Fallback EN: se TMDB non ha la traduzione degli episodi nella lingua scelta
+    // (nomi segnaposto "Episodio N" e trame vuote), riempi i buchi con l'inglese.
+    const lang = currentTmdbLanguage();
+    const needsFallback = lang.slice(0, 2) !== "en" && localized.some(
+      e => isGenericEpisodeName(e.name) || !e.overview?.trim(),
+    );
+    let enMap = new Map<number, any>();
+    let enSeason: any = null;
+    if (needsFallback) {
+      try {
+        const r = await tmdbFetch(`/tv/${data.tmdbId}/season/${data.seasonNumber}`, "en-US");
+        if (r.ok) {
+          enSeason = await r.json();
+          for (const e of (enSeason.episodes ?? [])) enMap.set(e.episode_number, e);
+        }
+      } catch { /* fallback non disponibile — teniamo i dati localizzati */ }
+    }
+
+    const episodes: EpisodeInfo[] = localized.map((e: any) => {
+      const en = enMap.get(e.episode_number);
+      const name = !isGenericEpisodeName(e.name)
+        ? e.name
+        : (en?.name && !isGenericEpisodeName(en.name) ? en.name : (e.name ?? `Episodio ${e.episode_number}`));
+      const overview = e.overview?.trim() ? e.overview : (en?.overview ?? "");
+      return {
+        episodeNumber: e.episode_number,
+        name,
+        overview,
+        airDate: e.air_date ?? null,
+        runtime: e.runtime ?? null,
+        voteAverage: Number(e.vote_average ?? 0),
+        voteCount: Number(e.vote_count ?? 0),
+        stillUrl: e.still_path ? `${IMG_BASE}/w300${e.still_path}` : null,
+      };
+    });
     return {
       seasonNumber: res.season_number,
       name: res.name ?? `Stagione ${res.season_number}`,
-      overview: res.overview ?? "",
+      overview: res.overview?.trim() ? res.overview : (enSeason?.overview ?? ""),
       posterUrl: res.poster_path ? `${IMG_BASE}/w342${res.poster_path}` : null,
       episodes,
     };
