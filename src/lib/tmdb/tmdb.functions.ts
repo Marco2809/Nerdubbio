@@ -255,6 +255,101 @@ export const tmdbDetail = createServerFn({ method: "GET" })
     return { item: mapDetail(res, data.type) };
   }));
 
+// ============================================================
+// Ricerca avanzata / esplora catalogo (sezione Cerca)
+// ============================================================
+
+/** Un tipo per pagina di /discover, con i filtri applicati. */
+async function discoverTypePage(
+  type: "movie" | "tv",
+  opts: {
+    genreIds: number[];
+    minRating: number;
+    minVotes: number;
+    yearFrom?: number;
+    yearTo?: number;
+    sort: "popularity" | "rating" | "recent";
+    page: number;
+  },
+): Promise<TmdbItem[]> {
+  const sortBy = opts.sort === "rating"
+    ? "vote_average.desc"
+    : opts.sort === "recent"
+      ? (type === "movie" ? "primary_release_date.desc" : "first_air_date.desc")
+      : "popularity.desc";
+
+  // Ordinando per voto serve una soglia di voti alta, altrimenti TMDB pesca
+  // titoli oscuri con pochissimi voti a 10/10.
+  const minVotes = opts.sort === "rating" ? Math.max(opts.minVotes, 300) : opts.minVotes;
+  const params: Record<string, string | number> = {
+    sort_by: sortBy,
+    include_adult: "false",
+    "vote_count.gte": minVotes,
+    page: opts.page,
+  };
+  if (opts.minRating > 0) params["vote_average.gte"] = opts.minRating;
+  if (opts.genreIds.length) params.with_genres = opts.genreIds.slice(0, 5).join("|");
+  if (type === "movie") {
+    params.region = "IT";
+    if (opts.yearFrom) params["primary_release_date.gte"] = `${opts.yearFrom}-01-01`;
+    if (opts.yearTo) params["primary_release_date.lte"] = `${opts.yearTo}-12-31`;
+    // Ordinando per data serve un tetto per non pescare uscite future senza voti.
+    if (opts.sort === "recent") params["primary_release_date.lte"] = new Date().toISOString().slice(0, 10);
+  } else {
+    params.watch_region = "IT";
+    if (opts.yearFrom) params["first_air_date.gte"] = `${opts.yearFrom}-01-01`;
+    if (opts.yearTo) params["first_air_date.lte"] = `${opts.yearTo}-12-31`;
+    if (opts.sort === "recent") params["first_air_date.lte"] = new Date().toISOString().slice(0, 10);
+  }
+
+  const res = await tmdb<any>(type === "movie" ? "/discover/movie" : "/discover/tv", params);
+  return (res.results ?? [])
+    .map((r: any) => mapMulti({ ...r, media_type: type }))
+    .filter((x: TmdbItem | null): x is TmdbItem => x !== null);
+}
+
+/** Esplora l'intero catalogo TMDB con filtri avanzati (senza query testuale). */
+export const tmdbDiscover = createServerFn({ method: "GET" })
+  .inputValidator((data) => z.object({
+    type: z.enum(["all", "movie", "tv"]).default("all"),
+    genres: z.array(z.string()).default([]),
+    minRating: z.number().min(0).max(10).default(0),
+    minVotes: z.number().int().min(0).default(50),
+    yearFrom: z.number().int().optional(),
+    yearTo: z.number().int().optional(),
+    sort: z.enum(["popularity", "rating", "recent"]).default("popularity"),
+    page: z.number().int().min(1).max(20).default(1),
+    locale: z.string().optional(),
+  }).parse(data ?? {}))
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
+    const types: ("movie" | "tv")[] = data.type === "all" ? ["movie", "tv"] : [data.type];
+    const perType = await Promise.all(types.map(t => discoverTypePage(t, {
+      genreIds: tmdbGenreIds(data.genres, t),
+      minRating: data.minRating,
+      minVotes: data.minVotes,
+      yearFrom: data.yearFrom,
+      yearTo: data.yearTo,
+      sort: data.sort,
+      page: data.page,
+    }).catch(() => [] as TmdbItem[])));
+
+    // Merge dei due tipi mantenendo l'ordine richiesto (interleave per non
+    // mettere tutti i film prima di tutte le serie in modalità "all").
+    let items: TmdbItem[];
+    if (perType.length === 2) {
+      const [a, b] = perType;
+      const merged: TmdbItem[] = [];
+      for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        if (a[i]) merged.push(a[i]!);
+        if (b[i]) merged.push(b[i]!);
+      }
+      items = merged;
+    } else {
+      items = perType[0] ?? [];
+    }
+    return { items, page: data.page };
+  }));
+
 export interface EpisodeInfo {
   episodeNumber: number;
   name: string;

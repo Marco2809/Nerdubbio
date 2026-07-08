@@ -1,12 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
-import { CATALOG } from "@/lib/mock-catalog";
-import { Search as SearchIcon, Loader2, BookmarkCheck } from "lucide-react";
+import { Search as SearchIcon, Loader2, BookmarkCheck, SlidersHorizontal, X, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { tmdbSearch, tmdbTrending, type TmdbItem } from "@/lib/tmdb/tmdb.functions";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { tmdbSearch, tmdbTrending, tmdbDiscover, type TmdbItem } from "@/lib/tmdb/tmdb.functions";
 import { Link } from "@tanstack/react-router";
-import { Star } from "lucide-react";
 import { useUserStore } from "@/lib/user-store";
 import { isMediaAlreadyWatched } from "@/lib/library-display";
 import { useReturnPath } from "@/lib/media-nav";
@@ -18,7 +16,17 @@ export const Route = createFileRoute("/_authenticated/search")({
   component: SearchPage,
 });
 
-const GENRES = ["Sci-Fi","Drama","Comedy","Fantasy","Thriller","Action","Animation","Romance","Mystery","Crime"];
+const GENRES = ["Sci-Fi","Drama","Comedy","Fantasy","Thriller","Action","Animation","Romance","Mystery","Crime","Horror"];
+type SortMode = "popularity" | "rating" | "recent";
+type YearPreset = "any" | "2020" | "2010" | "2000" | "classic";
+
+const YEAR_RANGES: Record<YearPreset, { from?: number; to?: number }> = {
+  any: {},
+  "2020": { from: 2020 },
+  "2010": { from: 2010, to: 2019 },
+  "2000": { from: 2000, to: 2009 },
+  classic: { to: 1999 },
+};
 
 function useDebounced<T>(value: T, delay = 350) {
   const [v, setV] = useState(value);
@@ -75,39 +83,126 @@ function TmdbCard({ item }: { item: TmdbItem }) {
   );
 }
 
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold transition ${
+        active ? "border-accent bg-accent/20 text-accent" : "border-border text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 function SearchPage() {
   const { t } = useI18n();
-  const [q, setQ] = useState("");
-  const [type, setType] = useState<"all"|"movie"|"tv">("all");
-  const [genre, setGenre] = useState<string | null>(null);
-  const debouncedQ = useDebounced(q.trim(), 400);
-  const { state: userState } = useUserStore();
   const locale = useTmdbLocale();
+  const { state: userState } = useUserStore();
+  const from = useReturnPath();
+
+  const [q, setQ] = useState("");
+  const [type, setType] = useState<"all" | "movie" | "tv">("all");
+  const [genres, setGenres] = useState<string[]>([]);
+  const [minRating, setMinRating] = useState(0);
+  const [sort, setSort] = useState<SortMode>("popularity");
+  const [yearPreset, setYearPreset] = useState<YearPreset>("any");
+  const [hideWatched, setHideWatched] = useState(true);
+  const [hideInLibrary, setHideInLibrary] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(1);
+
+  const debouncedQ = useDebounced(q.trim(), 400);
+
+  // Un filtro è "attivo" se restringe il catalogo → modalità discover.
+  const filtersActive =
+    genres.length > 0 || minRating > 0 || yearPreset !== "any" || sort !== "popularity" || type !== "all";
+
+  const mode: "search" | "discover" | "trending" = debouncedQ
+    ? "search"
+    : filtersActive
+      ? "discover"
+      : "trending";
+
+  // Reset paginazione quando cambiano query o filtri.
+  useEffect(() => { setPage(1); }, [debouncedQ, type, genres, minRating, sort, yearPreset, mode]);
 
   const trending = useQuery({
     queryKey: ["tmdb", "trending", locale],
     queryFn: () => tmdbTrending({ data: { window: "week", locale } }),
     staleTime: 1000 * 60 * 30,
+    enabled: mode === "trending",
   });
 
   const search = useQuery({
     queryKey: ["tmdb", "search", debouncedQ, locale],
     queryFn: () => tmdbSearch({ data: { query: debouncedQ, locale } }),
-    enabled: debouncedQ.length > 0,
+    enabled: mode === "search",
     staleTime: 1000 * 60 * 10,
   });
 
-  const raw: TmdbItem[] = debouncedQ ? (search.data?.items ?? []) : (trending.data?.items ?? []);
-  const results = useMemo(
-    () => raw
-      .filter(it => type === "all" || it.type === type)
-      .filter(it => debouncedQ ? true : !isMediaAlreadyWatched(userState.media[it.id])),
-    [raw, type, debouncedQ, userState.media]
-  );
+  const yr = YEAR_RANGES[yearPreset];
+  const discover = useQuery({
+    queryKey: ["tmdb", "discover", type, [...genres].sort(), minRating, sort, yearPreset, page, locale],
+    queryFn: () => tmdbDiscover({
+      data: { type, genres, minRating, sort, yearFrom: yr.from, yearTo: yr.to, page, locale },
+    }),
+    enabled: mode === "discover",
+    placeholderData: keepPreviousData,
+    staleTime: 1000 * 60 * 10,
+  });
 
-  const showMockFallback = !debouncedQ && trending.isLoading;
-  const mockFallback = useMemo(() => CATALOG.slice(0, 8), []);
-  const loading = search.isFetching || trending.isFetching;
+  // Pool grezzo secondo la modalità, con accumulo pagine in discover.
+  const [discoverAcc, setDiscoverAcc] = useState<TmdbItem[]>([]);
+  useEffect(() => {
+    if (mode !== "discover" || !discover.data) return;
+    setDiscoverAcc(prev => {
+      if (discover.data.page === 1) return discover.data.items;
+      const seen = new Set(prev.map(i => i.id));
+      return [...prev, ...discover.data.items.filter(i => !seen.has(i.id))];
+    });
+  }, [discover.data, mode]);
+
+  const raw: TmdbItem[] =
+    mode === "search" ? (search.data?.items ?? [])
+    : mode === "discover" ? discoverAcc
+    : (trending.data?.items ?? []);
+
+  const results = useMemo(() => {
+    return raw
+      .filter(it => type === "all" || it.type === type)
+      .filter(it => minRating <= 0 || it.rating >= minRating)
+      .filter(it => {
+        const entry = userState.media[it.id];
+        if (hideWatched && isMediaAlreadyWatched(entry)) return false;
+        if (hideInLibrary && !!entry) return false;
+        // In trending, di default nascondi comunque i già visti (come prima).
+        if (mode === "trending" && !hideWatched && isMediaAlreadyWatched(entry)) return false;
+        return true;
+      });
+  }, [raw, type, minRating, hideWatched, hideInLibrary, mode, userState.media]);
+
+  const loading = search.isFetching || trending.isFetching || discover.isFetching;
+  const activeError = search.error || trending.error || discover.error;
+
+  const resetFilters = () => {
+    setGenres([]); setMinRating(0); setSort("popularity"); setYearPreset("any"); setType("all");
+  };
+  const toggleGenre = (g: string) =>
+    setGenres(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]);
+
+  const ratingChips = [6, 7, 8, 9];
+  const sortOptions: SortMode[] = ["popularity", "rating", "recent"];
+  const yearOptions: YearPreset[] = ["any", "2020", "2010", "2000", "classic"];
+  const yearLabel: Record<YearPreset, string> = {
+    any: t("search.yearAny"), "2020": t("search.year2020"), "2010": t("search.year2010"),
+    "2000": t("search.year2000"), classic: t("search.yearClassic"),
+  };
+  const sortLabel: Record<SortMode, string> = {
+    popularity: t("search.sortPopularity"), rating: t("search.sortRating"), recent: t("search.sortRecent"),
+  };
 
   return (
     <AppShell subtitle={t("search.subtitle")} title={t("search.title")}>
@@ -121,35 +216,87 @@ function SearchPage() {
         {loading && <Loader2 className="h-4 w-4 animate-spin text-accent" />}
       </div>
 
-      <div className="mt-3 flex gap-2">
+      {/* Tipo */}
+      <div className="mt-3 flex items-center gap-2">
         {(["all","movie","tv"] as const).map(tab => (
           <button key={tab} onClick={() => setType(tab)}
             className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${type===tab ? "bg-hero text-primary-foreground shadow-glow" : "bg-surface-2 text-muted-foreground"}`}>
             {tab === "all" ? t("common.all") : tab === "movie" ? t("home.movieShort") : t("home.seriesShort")}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setShowFilters(v => !v)}
+          className={`ml-auto flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+            showFilters || filtersActive ? "bg-accent/20 text-accent" : "bg-surface-2 text-muted-foreground"
+          }`}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" /> {t("search.filters")}
+        </button>
       </div>
 
+      {/* Generi */}
       <div className="mt-3 -mx-4 overflow-x-auto">
         <div className="flex gap-2 px-4 pb-1">
           {GENRES.map(g => (
-            <button key={g} onClick={() => setGenre(genre === g ? null : g)}
-              className={`whitespace-nowrap rounded-full border px-3 py-1 text-xs transition ${genre === g ? "border-accent bg-accent/20 text-accent" : "border-border text-muted-foreground"}`}>
-              {g}
-            </button>
+            <Chip key={g} active={genres.includes(g)} onClick={() => toggleGenre(g)}>{g}</Chip>
           ))}
         </div>
       </div>
 
+      {/* Pannello filtri avanzati */}
+      {showFilters && (
+        <div className="mt-3 space-y-3 rounded-2xl border border-border bg-surface/50 p-3">
+          <div>
+            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("search.minRating")}</p>
+            <div className="flex gap-2">
+              <Chip active={minRating === 0} onClick={() => setMinRating(0)}>{t("search.yearAny")}</Chip>
+              {ratingChips.map(r => (
+                <Chip key={r} active={minRating === r} onClick={() => setMinRating(minRating === r ? 0 : r)}>
+                  <span className="inline-flex items-center gap-0.5"><Star className="h-3 w-3 fill-current" />{r}+</span>
+                </Chip>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("search.sortBy")}</p>
+            <div className="flex gap-2">
+              {sortOptions.map(s => <Chip key={s} active={sort === s} onClick={() => setSort(s)}>{sortLabel[s]}</Chip>)}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("search.years")}</p>
+            <div className="flex flex-wrap gap-2">
+              {yearOptions.map(y => <Chip key={y} active={yearPreset === y} onClick={() => setYearPreset(y)}>{yearLabel[y]}</Chip>)}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Chip active={hideWatched} onClick={() => setHideWatched(v => !v)}>{t("search.hideWatched")}</Chip>
+            <Chip active={hideInLibrary} onClick={() => setHideInLibrary(v => !v)}>{t("search.hideInLibrary")}</Chip>
+            {filtersActive && (
+              <button type="button" onClick={resetFilters}
+                className="ml-auto flex items-center gap-1 rounded-full bg-surface-2 px-3 py-1 text-xs font-semibold text-muted-foreground">
+                <X className="h-3 w-3" /> {t("search.resetFilters")}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <p className="mt-4 text-xs text-muted-foreground">
-        {debouncedQ
+        {mode === "search"
           ? t("search.resultsFor", { count: results.length, query: debouncedQ })
-          : t("search.trendingNow", { count: results.length })}
+          : mode === "discover"
+            ? t("search.browsing", { count: results.length })
+            : t("search.trendingNow", { count: results.length })}
       </p>
 
-      {(search.error || trending.error) && (
+      {activeError && (
         <p className="mt-2 text-xs text-destructive">
-          {t("search.tmdbError", { message: (search.error ?? trending.error)?.message ?? "" })}
+          {t("search.tmdbError", { message: activeError.message ?? "" })}
         </p>
       )}
 
@@ -157,17 +304,26 @@ function SearchPage() {
         {results.map(it => <TmdbCard key={it.id} item={it} />)}
       </div>
 
-      {showMockFallback && (
-        <p className="mt-4 text-center text-xs text-muted-foreground">{t("search.loadingTrending")}</p>
+      {/* Carica altri (solo discover) */}
+      {mode === "discover" && results.length > 0 && (discover.data?.items.length ?? 0) > 0 && (
+        <button
+          type="button"
+          disabled={discover.isFetching}
+          onClick={() => setPage(p => p + 1)}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-surface/60 py-3 text-sm font-semibold disabled:opacity-60"
+        >
+          {discover.isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {t("search.loadMore")}
+        </button>
       )}
 
-      {!loading && results.length === 0 && debouncedQ && (
-        <div className="mt-10 text-center text-sm text-muted-foreground">
-          {t("search.noResults")}
-        </div>
+      {!loading && results.length === 0 && mode === "search" && (
+        <div className="mt-10 text-center text-sm text-muted-foreground">{t("search.noResults")}</div>
       )}
-
-      <span className="hidden">{mockFallback.length}</span>
+      {!loading && results.length === 0 && mode === "discover" && (
+        <div className="mt-10 text-center text-sm text-muted-foreground">{t("search.noDiscover")}</div>
+      )}
+      <span className="hidden">{from}</span>
     </AppShell>
   );
 }
