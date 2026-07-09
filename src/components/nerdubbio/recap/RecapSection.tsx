@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Clapperboard, Loader2, Sparkles } from "lucide-react";
+import { Loader2, Play } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "@/lib/toast";
 import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
@@ -94,54 +94,75 @@ export function RecapSection({
     }
   };
 
+  const tileTitle = isTv
+    ? effective != null
+      ? t("recap.tileSeason", { n: effective })
+      : t("recap.tileSeries")
+    : t("recap.tileMovie");
+
   return (
     <div className="mt-6">
-      <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">{t("recap.title")}</p>
-
-      {isTv && realSeasons.length > 1 && (
-        <div className="-mx-1 mb-2 flex gap-1.5 overflow-x-auto px-1 pb-1">
-          {realSeasons.map((s) => {
-            const active = s.seasonNumber === effective;
-            return (
-              <button
-                key={s.seasonNumber}
-                onClick={() => setSelected(s.seasonNumber)}
-                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition ${
-                  active
-                    ? "bg-accent text-accent-foreground"
-                    : "border border-border text-muted-foreground active:bg-surface-2"
-                }`}
+      <div className="flex flex-col gap-2.5 rounded-2xl border border-border bg-surface-2 p-3">
+        <button
+          onClick={run}
+          disabled={loading}
+          aria-label={tileTitle}
+          className="flex items-center gap-4 text-left transition active:opacity-80 disabled:opacity-90"
+        >
+          <div
+            className="relative grid h-32 w-[72px] shrink-0 place-items-center overflow-hidden rounded-xl"
+            style={{
+              background: "#15140f",
+              backgroundImage: "radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px)",
+              backgroundSize: "4px 4px",
+            }}
+          >
+            {loading ? (
+              <Loader2 className="h-5 w-5 animate-spin" style={{ color: "#e0a52e" }} />
+            ) : (
+              <span className="grid h-9 w-9 place-items-center rounded-full" style={{ background: "#e0a52e" }}>
+                <Play className="h-4 w-4" style={{ color: "#20241b", fill: "#20241b" }} />
+              </span>
+            )}
+            {isTv && effective != null && !loading && (
+              <span
+                className="absolute bottom-1.5 left-1.5 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-semibold"
+                style={{ color: "#e8e2d0" }}
               >
-                {t("recap.season", { n: s.seasonNumber })}
-              </button>
-            );
-          })}
-        </div>
-      )}
+                S{effective}
+              </span>
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: "#c98f14" }}>
+              {t("recap.title")}
+            </p>
+            <p className="mt-1 text-sm font-semibold leading-snug text-foreground">
+              {loading ? t("recap.generating") : tileTitle}
+            </p>
+          </div>
+        </button>
 
-      <button
-        onClick={run}
-        disabled={loading}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-hero px-4 py-3 text-sm font-bold text-primary-foreground shadow-glow-pink transition active:scale-[.98] disabled:opacity-70"
-      >
-        {loading ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {t("recap.generating")}
-          </>
-        ) : scenes ? (
-          <>
-            <Clapperboard className="h-4 w-4" />
-            {t("recap.watch")}
-          </>
-        ) : (
-          <>
-            <Sparkles className="h-4 w-4" />
-            {t("recap.generate")}
-          </>
+        {isTv && realSeasons.length > 1 && (
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1">
+            {realSeasons.map((s) => {
+              const active = s.seasonNumber === effective;
+              return (
+                <button
+                  key={s.seasonNumber}
+                  onClick={() => setSelected(s.seasonNumber)}
+                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition ${
+                    active ? "" : "border border-border text-muted-foreground active:bg-surface-1"
+                  }`}
+                  style={active ? { background: "#e0a52e", color: "#20241b" } : undefined}
+                >
+                  {t("recap.season", { n: s.seasonNumber })}
+                </button>
+              );
+            })}
+          </div>
         )}
-      </button>
-      <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">{t("recap.hint")}</p>
+      </div>
 
       {scenes && (
         <RecapReel
