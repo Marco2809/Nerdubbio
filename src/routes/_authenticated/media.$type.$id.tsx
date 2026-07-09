@@ -183,9 +183,11 @@ function MediaDetail() {
         <OverlayBackButton onClick={goBack} />
       </div>
 
-      <div className="mx-auto -mt-14 max-w-md px-safe">
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">{item.type === "tv" ? t("media.series") : t("media.movie")} · {item.year}</p>
-        <h1 className="mt-1 text-3xl font-extrabold">{item.title}</h1>
+      {/* relative z-10: l'hero è posizionato e coprirebbe le righe alte di un
+          titolo lungo (che salgono nell'area -mt-14). Così il testo sta sopra. */}
+      <div className="relative z-10 mx-auto -mt-14 max-w-md px-safe">
+        <p className="text-xs uppercase tracking-widest text-white/80 [text-shadow:0_1px_8px_rgb(0_0_0_/_0.7)]">{item.type === "tv" ? t("media.series") : t("media.movie")} · {item.year}</p>
+        <h1 className="mt-1 text-3xl font-extrabold [text-shadow:0_2px_12px_rgb(0_0_0_/_0.7)]">{item.title}</h1>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1"><Star className="h-3 w-3 fill-accent text-accent" /> {item.rating.toFixed(1)}</span>
           <span>·</span>
