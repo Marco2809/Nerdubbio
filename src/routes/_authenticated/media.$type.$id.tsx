@@ -15,6 +15,7 @@ import { toast } from "@/lib/toast";
 import { useI18n, localeToBcp47, pageTitle } from "@/lib/i18n";
 import { MediaCommentsSection } from "@/components/nerdubbio/MediaCommentsSection";
 import { MediaRatingsSection } from "@/components/nerdubbio/MediaRatingsSection";
+import { RecapSection } from "@/components/nerdubbio/recap/RecapSection";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -215,6 +216,16 @@ function MediaDetail() {
         {(videosQuery.data?.trailers.length ?? 0) > 0 && (
           <TrailerSection trailerKey={videosQuery.data!.trailers[0]!.key} />
         )}
+
+        <RecapSection
+          type={item.type as "movie" | "tv"}
+          tmdbId={numericId}
+          title={item.title}
+          year={item.year}
+          genres={item.genres}
+          overview={item.overview}
+          seasons={tmdbQuery.data?.item.seasonsInfo}
+        />
 
         <div className="mt-6">
           <div className="flex items-center justify-between">

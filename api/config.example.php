@@ -27,4 +27,9 @@ return [
     // Traduzione commenti (DeepL free/pro — opzionale; senza chiave usa MyMemory)
     'deepl_auth_key' => '',
     'deepl_pro'      => false,
+
+    // Video-recap AI (opzionale). Senza chiave il pulsante "Genera recap" resta
+    // inattivo. Chiave da console.anthropic.com. recap_model opzionale.
+    'anthropic_api_key' => '',
+    'recap_model'       => 'claude-sonnet-5',
 ];
