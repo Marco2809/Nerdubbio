@@ -42,12 +42,39 @@ export function moodFromGenres(genres: string[] | undefined): Mood {
 
 const freq = (root: number, semi: number) => root * Math.pow(2, semi / 12);
 
+/** WAV muto: serve solo a spostare la sessione audio iOS su "playback". */
+function makeSilentWavUrl(): string {
+  const sampleRate = 8000;
+  const numSamples = sampleRate; // 1s di silenzio, in loop
+  const buffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(buffer);
+  const writeStr = (o: number, s: string) => {
+    for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i));
+  };
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + numSamples * 2, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, "data");
+  view.setUint32(40, numSamples * 2, true);
+  return URL.createObjectURL(new Blob([buffer], { type: "audio/wav" }));
+}
+
 export class RecapMusic {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private nodes: AudioScheduledSourceNode[] = [];
   private timer: number | null = null;
   private muted = false;
+  private silentEl: HTMLAudioElement | null = null;
+  private silentUrl: string | null = null;
   private readonly preset: Preset;
 
   constructor(mood: Mood) {
@@ -62,6 +89,22 @@ export class RecapMusic {
     const ctx = new AC();
     this.ctx = ctx;
     void ctx.resume();
+
+    // iOS: un <audio> in riproduzione porta la sessione audio in "playback",
+    // così il Web Audio non viene silenziato dall'interruttore muto.
+    try {
+      const url = makeSilentWavUrl();
+      const el = document.createElement("audio");
+      el.loop = true;
+      el.setAttribute("playsinline", "");
+      el.volume = 0.001;
+      el.src = url;
+      void el.play().catch(() => undefined);
+      this.silentEl = el;
+      this.silentUrl = url;
+    } catch {
+      /* nessun unlock disponibile */
+    }
 
     const master = ctx.createGain();
     master.gain.value = this.muted ? 0 : 0.16;
@@ -149,6 +192,19 @@ export class RecapMusic {
       }
     }
     this.nodes = [];
+    if (this.silentEl) {
+      try {
+        this.silentEl.pause();
+      } catch {
+        /* già fermo */
+      }
+      this.silentEl.src = "";
+      this.silentEl = null;
+    }
+    if (this.silentUrl) {
+      URL.revokeObjectURL(this.silentUrl);
+      this.silentUrl = null;
+    }
     if (this.ctx) {
       void this.ctx.close();
       this.ctx = null;
