@@ -29,7 +29,14 @@ export interface RecoSendInput {
   message?: string;
 }
 
+export interface RecoSent {
+  id: string;
+  to: { handle: string; display_name: string | null; avatar_url: string | null };
+  media: { key: string; type: 'tv' | 'movie' | null; title: string; posterUrl: string | null; year: number | null };
+}
+
 export const RECO_RECEIVED_KEY = ['recommendations', 'received'] as const;
+export const RECO_SENT_KEY = ['recommendations', 'sent-feedback'] as const;
 
 export const recommendApi = {
   friendsFor(mediaKey: string): Promise<{ friends: RecoFriend[] }> {
@@ -43,7 +50,13 @@ export const recommendApi = {
   received(): Promise<{ received: RecoReceived[] }> {
     return api<{ received: RecoReceived[] }>('/api/recommend.php?action=received');
   },
-  act(id: string, action: 'add' | 'dismiss'): Promise<{ received: RecoReceived[] }> {
+  act(id: string, action: 'add' | 'dismiss' | 'restore'): Promise<{ received: RecoReceived[] }> {
     return api<{ received: RecoReceived[] }>('/api/recommend.php?action=act', 'POST', { id, action });
+  },
+  sentFeedback(): Promise<{ feedback: RecoSent[] }> {
+    return api<{ feedback: RecoSent[] }>('/api/recommend.php?action=sent_feedback');
+  },
+  sentAck(id?: string): Promise<{ feedback: RecoSent[] }> {
+    return api<{ feedback: RecoSent[] }>('/api/recommend.php?action=sent_ack', 'POST', { id });
   },
 };

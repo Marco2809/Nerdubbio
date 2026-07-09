@@ -26,9 +26,18 @@ if ($action === 'received') {
 
 if ($action === 'act') {
     $id = (string) ($body['id'] ?? '');
-    $act = ($body['action'] ?? '') === 'add' ? 'add' : 'dismiss';
+    $act = in_array($body['action'] ?? '', ['add', 'dismiss', 'restore'], true) ? (string) $body['action'] : 'dismiss';
     if ($id === '') api_err('missing_id', 400);
     json_out(recommend_act($pdo, $userId, $id, $act));
+}
+
+if ($action === 'sent_feedback') {
+    json_out(recommend_sent_feedback($pdo, $userId));
+}
+
+if ($action === 'sent_ack') {
+    $id = (string) ($body['id'] ?? '');
+    json_out(recommend_sent_ack($pdo, $userId, $id !== '' ? $id : null));
 }
 
 api_err('invalid_action', 400);

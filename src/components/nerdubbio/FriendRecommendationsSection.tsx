@@ -25,6 +25,15 @@ export function FriendRecommendationsSection({ from }: { from: string }) {
   const items = q.data?.received ?? [];
   if (items.length === 0) return null;
 
+  const restore = async (id: string) => {
+    try {
+      const res = await recommendApi.act(id, "restore");
+      qc.setQueryData(RECO_RECEIVED_KEY, res);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
   const act = async (r: RecoReceived, action: "add" | "dismiss") => {
     if (action === "add") {
       addToList(r.media.key, "plan_to_watch", {
@@ -39,6 +48,11 @@ export function FriendRecommendationsSection({ from }: { from: string }) {
     try {
       const res = await recommendApi.act(r.id, action);
       qc.setQueryData(RECO_RECEIVED_KEY, res);
+      if (action === "dismiss") {
+        toast(t("recommend.ignored"), {
+          action: { label: t("recommend.undo"), onClick: () => void restore(r.id) },
+        });
+      }
     } catch (e) {
       toast.error((e as Error).message);
     }

@@ -142,8 +142,62 @@ function recommend_received(PDO $pdo, string $userId): array {
 }
 
 function recommend_act(PDO $pdo, string $userId, string $id, string $action): array {
-    $status = $action === 'add' ? 'added' : 'dismissed';
-    $pdo->prepare('UPDATE recommendations SET status = ? WHERE id = ? AND to_user = ?')
-        ->execute([$status, $id, $userId]);
+    $status = match ($action) {
+        'add'     => 'added',
+        'restore' => 'pending',
+        default   => 'dismissed',
+    };
+    if ($status === 'added') {
+        // Reset dell'ack: il mittente deve poter vedere il nuovo "aggiunto".
+        $pdo->prepare('UPDATE recommendations SET status = ?, ack_by_sender = 0 WHERE id = ? AND to_user = ?')
+            ->execute([$status, $id, $userId]);
+    } else {
+        $pdo->prepare('UPDATE recommendations SET status = ? WHERE id = ? AND to_user = ?')
+            ->execute([$status, $id, $userId]);
+    }
     return recommend_received($pdo, $userId);
+}
+
+/** Consigli inviati dall'utente che sono stati aggiunti e non ancora "letti". */
+function recommend_sent_feedback(PDO $pdo, string $userId): array {
+    $stmt = $pdo->prepare(
+        "SELECT r.id, r.media_key, r.media_type, r.title, r.poster_url, r.year,
+                p.handle, p.display_name, p.avatar_url
+         FROM recommendations r
+         JOIN profiles p ON p.id = r.to_user
+         WHERE r.from_user = ? AND r.status = 'added' AND r.ack_by_sender = 0
+         ORDER BY r.created_at DESC
+         LIMIT 30"
+    );
+    $stmt->execute([$userId]);
+    $out = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $out[] = [
+            'id'    => $r['id'],
+            'to'    => [
+                'handle'       => $r['handle'],
+                'display_name' => $r['display_name'],
+                'avatar_url'   => $r['avatar_url'],
+            ],
+            'media' => [
+                'key'       => $r['media_key'],
+                'type'      => $r['media_type'],
+                'title'     => $r['title'],
+                'posterUrl' => $r['poster_url'],
+                'year'      => $r['year'] !== null ? (int) $r['year'] : null,
+            ],
+        ];
+    }
+    return ['feedback' => $out];
+}
+
+function recommend_sent_ack(PDO $pdo, string $userId, ?string $id): array {
+    if ($id !== null && $id !== '') {
+        $pdo->prepare('UPDATE recommendations SET ack_by_sender = 1 WHERE from_user = ? AND id = ?')
+            ->execute([$userId, $id]);
+    } else {
+        $pdo->prepare("UPDATE recommendations SET ack_by_sender = 1 WHERE from_user = ? AND status = 'added'")
+            ->execute([$userId]);
+    }
+    return recommend_sent_feedback($pdo, $userId);
 }

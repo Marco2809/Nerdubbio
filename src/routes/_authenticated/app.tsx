@@ -9,6 +9,7 @@ import { tmdbTrending } from "@/lib/tmdb/tmdb.functions";
 import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
 import { HomeNextEpisodesSection } from "@/components/nerdubbio/HomeNextEpisodesSection";
 import { FriendRecommendationsSection } from "@/components/nerdubbio/FriendRecommendationsSection";
+import { SentRecommendationsNotice } from "@/components/nerdubbio/SentRecommendationsNotice";
 import { NERDACOLO } from "@/lib/brand";
 import { useReturnPath } from "@/lib/media-nav";
 import { useAuthUser } from "@/hooks/use-auth-user";
@@ -132,6 +133,7 @@ function HomeDashboard() {
 
       {/* Consigli degli amici — sopra ai badge */}
       <FriendRecommendationsSection from={from} />
+      <SentRecommendationsNotice />
 
       {/* Level card */}
       <div className="mt-4 grid grid-cols-3 gap-2">

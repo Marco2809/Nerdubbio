@@ -42,6 +42,9 @@ export default {
     add: "Hinzufügen",
     ignore: "Verwerfen",
     added: "{{title}} zur Liste hinzugefügt",
+    undo: "Rückgängig",
+    ignored: "Empfehlung verworfen",
+    friendAdded: "{{name}} hat «{{title}}» hinzugefügt, das du empfohlen hast",
   },
   common: {
     close: "Schließen",

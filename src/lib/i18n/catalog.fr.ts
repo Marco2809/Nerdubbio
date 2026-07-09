@@ -42,6 +42,9 @@ export default {
     add: "Ajouter",
     ignore: "Ignorer",
     added: "{{title}} ajouté à ta liste",
+    undo: "Annuler",
+    ignored: "Recommandation ignorée",
+    friendAdded: "{{name}} a ajouté «{{title}}» que tu as recommandé",
   },
   common: {
     close: "Fermer",
