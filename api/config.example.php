@@ -31,5 +31,5 @@ return [
     // Video-recap AI (opzionale). Senza chiave il pulsante "Genera recap" resta
     // inattivo. Chiave da console.anthropic.com. recap_model opzionale.
     'anthropic_api_key' => '',
-    'recap_model'       => 'claude-sonnet-5',
+    'recap_model'       => 'claude-opus-4-8',
 ];

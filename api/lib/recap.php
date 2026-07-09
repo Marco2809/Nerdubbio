@@ -4,7 +4,7 @@
 // L'unico costo AI e' una singola chiamata di testo per serie+stagione+lingua:
 // il rendering del video e' codice deterministico lato client. Vedi RecapReel.tsx.
 
-const RECAP_MODEL_DEFAULT = 'claude-sonnet-5';
+const RECAP_MODEL_DEFAULT = 'claude-opus-4-8';
 const RECAP_MIN_SCENES = 5;
 const RECAP_MAX_SCENES = 12;
 const RECAP_DUR_MIN = 3200;
@@ -17,6 +17,8 @@ const RECAP_MAX_EPISODES = 30;
 const RECAP_MOTIFS = [
     'person', 'duo', 'group', 'home', 'city', 'journey', 'money', 'crown',
     'love', 'betrayal', 'danger', 'mystery', 'illness', 'fall', 'secret', 'chem',
+    'fight', 'arrest', 'message', 'deal', 'explosion', 'car', 'justice',
+    'union', 'time', 'monster',
 ];
 
 function recap_lang_name(string $lang): string {
@@ -47,6 +49,16 @@ function recap_system_prompt(): string {
 - fall: downfall, collapse, losing everything
 - secret: a double life, a hidden identity, deception
 - chem: science, a lab, an experiment, a craft
+- fight: a fight, a confrontation, a violent clash between characters
+- arrest: an arrest, prison, being captured, the law closing in
+- message: a phone call, a letter, a text, a piece of news or a reveal
+- deal: a pact, a contract, an agreement, an alliance struck
+- explosion: an explosion, an attack, sudden destruction
+- car: a car, a chase, a getaway, travel by vehicle
+- justice: a trial, a verdict, the law, justice
+- union: a wedding, a marriage, a union
+- time: a deadline, time running out, a countdown
+- monster: a creature, a monster, a supernatural or inhuman threat
 TXT;
 
     return <<<SYS
@@ -55,10 +67,10 @@ You are the storyboard writer for Nerdubbio, a TV/movie tracking app. You produc
 Motif vocabulary (use ONLY these motif ids):
 $motifs
 
-You are given the plot and, when available, a numbered list of episode synopses. Ground the recap in THOSE synopses — do not invent events, and do not stay vague.
+You are given the plot and, when available, a numbered list of episode synopses. Use them as the source of truth. You SHOULD ALSO draw on your own knowledge of this specific title to add precise, accurate details the synopses omit — real character names, who dies, who betrays whom, key twists and the season cliffhanger. Never contradict the provided synopses. If you do not actually know this title, rely only on the provided data and stay accurate rather than inventing.
 
 Rules:
-- Be SPECIFIC. Each caption must state a concrete thing that happened: name the key characters, cite pivotal events, turning points, deaths, betrayals, reveals, alliances, and the cliffhanger. Prefer "Rick uccide Shane per proteggere il gruppo" over "un personaggio prende una decisione difficile".
+- Be SPECIFIC and CONCRETE. Every caption must name real characters and state exactly what happened — a death, a betrayal, a reveal, an alliance, a confrontation. Prefer "Rick uccide Shane per proteggere il gruppo" over "un personaggio prende una decisione difficile". Never write vague filler like "affrontano nuove sfide" or "la situazione precipita".
 - Follow the episodes in chronological order and cover the beats that matter for continuity into the next season.
 - Produce between 6 and 12 scenes (more for longer seasons). Do not merge unrelated events into one caption.
 - Each scene: pick the single motif that best fits that specific beat. Prefer variety, but repeat a motif if it genuinely fits.

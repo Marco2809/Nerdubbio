@@ -39,6 +39,10 @@ const REEL_CSS = `
 @keyframes rb-spin{to{transform:rotate(360deg)}}
 @keyframes rb-fall{0%{transform:translateY(0) rotate(0);opacity:1}100%{transform:translateY(90px) rotate(60deg);opacity:0}}
 @keyframes rb-sweep{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
+@keyframes rb-shake{0%,100%{transform:translateX(-3px)}50%{transform:translateX(3px)}}
+@keyframes rb-flash{0%,100%{opacity:1}50%{opacity:.28}}
+@keyframes rb-slide{from{transform:translateX(-130px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes rb-swing{0%,100%{transform:rotate(-9deg)}50%{transform:rotate(9deg)}}
 `;
 
 type Phase = "gate" | "playing" | "outro";
