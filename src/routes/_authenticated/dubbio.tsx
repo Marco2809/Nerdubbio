@@ -142,13 +142,8 @@ function DubbioPage() {
   if (!mode) {
     return (
       <AppShell subtitle={NERDACOLO.title} title={t("dubbio.whatTonight")}>
-        <div className="mb-4 flex items-center gap-3">
-          <NerdacoloTrigger compact />
-          <p className="text-xs text-muted-foreground">
-            {t("dubbio.d20Hint", { name: NERDACOLO.name })}
-          </p>
-        </div>
-        <p className="mb-4 text-sm text-muted-foreground">
+        <NerdacoloTrigger />
+        <p className="mb-4 mt-3 text-sm text-muted-foreground">
           {t("dubbio.intro", { name: NERDACOLO.name })}
         </p>
         <NerdacoloModePicker onSelect={m => void selectMode(m)} />

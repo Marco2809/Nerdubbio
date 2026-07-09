@@ -11,7 +11,6 @@ import { HomeNextEpisodesSection } from "@/components/nerdubbio/HomeNextEpisodes
 import { FriendRecommendationsSection } from "@/components/nerdubbio/FriendRecommendationsSection";
 import { NERDACOLO } from "@/lib/brand";
 import { useReturnPath } from "@/lib/media-nav";
-import { NerdacoloTrigger } from "@/components/nerdubbio/NerdacoloTrigger";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { useEffect } from "react";
 import { useI18n, pageTitle } from "@/lib/i18n";
@@ -78,6 +77,7 @@ function HomeDashboard() {
   const plan = Object.values(state.media)
     .filter(m => m.status === "plan_to_watch")
     .map(entryToCard).filter((c): c is LibCard => !!c);
+  const hasTvTimeImport = Object.values(state.media).some(m => m.source === "tvtime");
 
   const trending = useQuery({
     queryKey: ["tmdb", "trending", locale],
@@ -116,19 +116,22 @@ function HomeDashboard() {
         </div>
       </Link>
 
-      <NerdacoloTrigger />
-
-      {/* Migrazione TV Time */}
-      <Link to="/da-tvtime" className="mt-3 block">
-        <div className="glass flex items-center gap-3 rounded-2xl border border-accent/30 p-3">
-          <span className="text-2xl">🚚</span>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] uppercase tracking-widest text-accent">{t("home.tvTimeClosing")}</p>
-            <p className="truncate text-sm font-bold">{t("home.tvTimeImport")}</p>
+      {/* Migrazione TV Time — solo se non ha ancora importato */}
+      {!hasTvTimeImport && (
+        <Link to="/da-tvtime" className="mt-3 block">
+          <div className="glass flex items-center gap-3 rounded-2xl border border-accent/30 p-3">
+            <span className="text-2xl">🚚</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] uppercase tracking-widest text-accent">{t("home.tvTimeClosing")}</p>
+              <p className="truncate text-sm font-bold">{t("home.tvTimeImport")}</p>
+            </div>
+            <span className="text-xs font-bold text-accent">→</span>
           </div>
-          <span className="text-xs font-bold text-accent">→</span>
-        </div>
-      </Link>
+        </Link>
+      )}
+
+      {/* Consigli degli amici — sopra ai badge */}
+      <FriendRecommendationsSection from={from} />
 
       {/* Level card */}
       <div className="mt-4 grid grid-cols-3 gap-2">
@@ -139,8 +142,6 @@ function HomeDashboard() {
 
       {/* Prossimi episodi — tutte le serie in corso */}
       <HomeNextEpisodesSection media={state.media} from={from} />
-
-      <FriendRecommendationsSection from={from} />
 
       {/* Suggerimento del giorno — TMDB reale */}
       {suggestion && (
