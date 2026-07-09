@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { X, Volume2, VolumeX } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { motifSvg } from "./motifs";
+import { RecapMusic, type Mood } from "./recapMusic";
 import type { RecapScene } from "@/lib/php/recap-client";
 
 const REEL_CSS = `
@@ -10,6 +11,7 @@ const REEL_CSS = `
 .rbx-reel{position:relative;width:min(340px,92vw);aspect-ratio:9/16;max-height:92vh;border-radius:18px;overflow:hidden;background:#0c0e0b;box-shadow:0 20px 70px rgba(0,0,0,.55)}
 .rbx-reel *{box-sizing:border-box}
 .rbx-close{position:absolute;top:8px;right:8px;z-index:20;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.45);color:#f2efe4;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.rbx-mute{position:absolute;top:8px;left:8px;z-index:20;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.45);color:#f2efe4;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .rbx-lb{position:absolute;left:0;right:0;height:6.4%;background:#050604;z-index:6;pointer-events:none}
 .rbx-content{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .32s ease;z-index:3}
 .rbx-motif{width:78%;aspect-ratio:1/1;margin-top:-8%;display:flex;align-items:center;justify-content:center}
@@ -50,11 +52,13 @@ type Phase = "gate" | "playing" | "outro";
 export function RecapReel({
   scenes,
   title,
+  mood,
   open,
   onClose,
 }: {
   scenes: RecapScene[];
   title: string;
+  mood: Mood;
   open: boolean;
   onClose: () => void;
 }) {
@@ -62,14 +66,27 @@ export function RecapReel({
   const [phase, setPhase] = useState<Phase>("gate");
   const [idx, setIdx] = useState(0);
   const [shown, setShown] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const musicRef = useRef<RecapMusic | null>(null);
 
   useEffect(() => {
     if (open) {
       setPhase("gate");
       setIdx(0);
       setShown(false);
+    } else if (musicRef.current) {
+      musicRef.current.stop();
+      musicRef.current = null;
     }
   }, [open]);
+
+  useEffect(
+    () => () => {
+      musicRef.current?.stop();
+      musicRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -103,6 +120,17 @@ export function RecapReel({
   const start = () => {
     setIdx(0);
     setPhase("playing");
+    if (!musicRef.current) musicRef.current = new RecapMusic(mood);
+    musicRef.current.setMuted(muted);
+    musicRef.current.start();
+  };
+
+  const toggleMute = () => {
+    setMuted((m) => {
+      const next = !m;
+      musicRef.current?.setMuted(next);
+      return next;
+    });
   };
   const scene = phase === "playing" && idx < scenes.length ? scenes[idx] : null;
   const progress = scenes.length ? ((idx + 1) / scenes.length) * 100 : 0;
@@ -113,6 +141,9 @@ export function RecapReel({
       <div className="rbx-reel" onClick={(e) => e.stopPropagation()}>
         <button className="rbx-close" onClick={onClose} aria-label={t("common.close")}>
           <X className="h-4 w-4" />
+        </button>
+        <button className="rbx-mute" onClick={toggleMute} aria-label={t("recap.sound")}>
+          {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
         </button>
         <div className="rbx-lb" style={{ top: 0 }} />
         <div className="rbx-lb" style={{ bottom: 0 }} />

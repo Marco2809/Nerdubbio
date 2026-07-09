@@ -12,6 +12,7 @@ export default {
     generate: "Generar video-resumen",
     season: "Temporada {{n}}",
     incompleteSeason: "Esta temporada aún no ha terminado: faltan episodios por estrenarse.",
+    sound: "Sonido",
     watch: "Ver el resumen",
     generating: "Generando el resumen…",
     hint: "Un breve resumen animado de la trama, generado una vez y compartido con todos.",

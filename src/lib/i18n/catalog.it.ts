@@ -12,6 +12,7 @@ export default {
     generate: "Genera video-recap",
     season: "Stagione {{n}}",
     incompleteSeason: "Questa stagione non è ancora conclusa: alcuni episodi devono ancora uscire.",
+    sound: "Audio",
     watch: "Rivedi il recap",
     generating: "Sto generando il recap…",
     hint: "Un breve riassunto animato della trama, generato una volta e condiviso con tutti.",

@@ -12,6 +12,7 @@ export default {
     generate: "Video-Recap erstellen",
     season: "Staffel {{n}}",
     incompleteSeason: "Diese Staffel ist noch nicht abgeschlossen – einige Folgen sind noch nicht erschienen.",
+    sound: "Ton",
     watch: "Recap ansehen",
     generating: "Recap wird erstellt…",
     hint: "Eine kurze animierte Zusammenfassung der Handlung, einmal erzeugt und mit allen geteilt.",

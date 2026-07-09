@@ -6,6 +6,7 @@ import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
 import { tmdbSeason, type SeasonSummary } from "@/lib/tmdb/tmdb.functions";
 import { recapApi, type RecapScene, type RecapEpisodeInput } from "@/lib/php/recap-client";
 import { RecapReel } from "./RecapReel";
+import { moodFromGenres } from "./recapMusic";
 
 export function RecapSection({
   type,
@@ -143,7 +144,13 @@ export function RecapSection({
       <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">{t("recap.hint")}</p>
 
       {scenes && (
-        <RecapReel scenes={scenes} title={reelTitle} open={open} onClose={() => setOpen(false)} />
+        <RecapReel
+          scenes={scenes}
+          title={reelTitle}
+          mood={moodFromGenres(genres)}
+          open={open}
+          onClose={() => setOpen(false)}
+        />
       )}
     </div>
   );
