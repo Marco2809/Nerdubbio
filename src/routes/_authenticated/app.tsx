@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { tmdbTrending } from "@/lib/tmdb/tmdb.functions";
 import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
 import { HomeNextEpisodesSection } from "@/components/nerdubbio/HomeNextEpisodesSection";
+import { FriendRecommendationsSection } from "@/components/nerdubbio/FriendRecommendationsSection";
 import { NERDACOLO } from "@/lib/brand";
 import { useReturnPath } from "@/lib/media-nav";
 import { NerdacoloTrigger } from "@/components/nerdubbio/NerdacoloTrigger";
@@ -138,6 +139,8 @@ function HomeDashboard() {
 
       {/* Prossimi episodi — tutte le serie in corso */}
       <HomeNextEpisodesSection media={state.media} from={from} />
+
+      <FriendRecommendationsSection from={from} />
 
       {/* Suggerimento del giorno — TMDB reale */}
       {suggestion && (

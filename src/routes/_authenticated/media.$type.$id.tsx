@@ -16,6 +16,7 @@ import { useI18n, localeToBcp47, pageTitle } from "@/lib/i18n";
 import { MediaCommentsSection } from "@/components/nerdubbio/MediaCommentsSection";
 import { MediaRatingsSection } from "@/components/nerdubbio/MediaRatingsSection";
 import { RecapSection } from "@/components/nerdubbio/recap/RecapSection";
+import { RecommendDialog } from "@/components/nerdubbio/RecommendDialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -236,6 +237,14 @@ function MediaDetail() {
           seasons={tmdbQuery.data?.item.seasonsInfo}
           watchedSeasons={recapWatchedSeasons}
           movieWatched={recapMovieWatched}
+        />
+
+        <RecommendDialog
+          mediaKey={item.id}
+          mediaType={item.type as "movie" | "tv"}
+          title={item.title}
+          posterUrl={tmdbQuery.data?.item.posterUrl}
+          year={item.year}
         />
 
         <div className="mt-6">
