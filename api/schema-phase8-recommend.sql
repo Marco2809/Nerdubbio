@@ -16,4 +16,8 @@ CREATE TABLE IF NOT EXISTS recommendations (
   PRIMARY KEY (id),
   UNIQUE KEY uniq_reco (from_user, to_user, media_key),
   KEY idx_reco_to (to_user, status, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Allinea la collation a profiles/user_media (altrimenti le JOIN su from_user/
+-- to_user danno "Illegal mix of collations"). Idempotente.
+ALTER TABLE recommendations CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
