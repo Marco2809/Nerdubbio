@@ -11,6 +11,7 @@ export default {
     title: "Video recap",
     generate: "Generate video recap",
     season: "Season {{n}}",
+    incompleteSeason: "This season isn't complete yet — some episodes haven't aired.",
     watch: "Watch the recap",
     generating: "Generating the recap…",
     hint: "A short animated summary of the plot, generated once and shared with everyone.",

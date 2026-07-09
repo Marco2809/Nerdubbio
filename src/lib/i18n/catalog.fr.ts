@@ -11,6 +11,7 @@ export default {
     title: "Vidéo-récap",
     generate: "Générer le vidéo-récap",
     season: "Saison {{n}}",
+    incompleteSeason: "Cette saison n'est pas encore terminée : des épisodes ne sont pas encore sortis.",
     watch: "Revoir le récap",
     generating: "Génération du récap…",
     hint: "Un court résumé animé de l'intrigue, généré une fois et partagé avec tous.",

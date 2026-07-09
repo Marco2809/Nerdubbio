@@ -28,8 +28,10 @@ export function RecapSection({
   const tmdbLocale = useTmdbLocale();
 
   const isTv = type === "tv";
+  const today = new Date().toISOString().slice(0, 10);
   const realSeasons = (seasons ?? [])
-    .filter((s) => s.seasonNumber >= 1 && s.episodeCount > 0)
+    // Solo stagioni già iniziate (niente stagioni future non ancora uscite).
+    .filter((s) => s.seasonNumber >= 1 && s.episodeCount > 0 && (!s.airDate || s.airDate <= today))
     .sort((a, b) => a.seasonNumber - b.seasonNumber);
   const lastSeason = realSeasons.length ? realSeasons[realSeasons.length - 1]!.seasonNumber : null;
 
@@ -60,6 +62,13 @@ export function RecapSection({
       if (isTv && effective != null) {
         seasonStr = String(effective);
         const data = await tmdbSeason({ data: { tmdbId, seasonNumber: effective, locale: tmdbLocale } });
+        // Niente recap di una stagione ancora in corso: se un episodio non è
+        // ancora uscito (data futura o assente), blocca.
+        const unaired = data.episodes.filter((e) => !e.airDate || e.airDate > today);
+        if (data.episodes.length === 0 || unaired.length > 0) {
+          toast.warning(t("recap.incompleteSeason"));
+          return;
+        }
         episodes = data.episodes
           .map((e) => ({ n: e.episodeNumber, t: e.name, o: (e.overview || "").slice(0, 600) }))
           .filter((e) => e.o || e.t);
