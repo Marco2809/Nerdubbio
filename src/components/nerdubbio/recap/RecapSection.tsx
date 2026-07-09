@@ -16,6 +16,8 @@ export function RecapSection({
   genres,
   overview,
   seasons,
+  watchedSeasons,
+  movieWatched,
 }: {
   type: "movie" | "tv";
   tmdbId: number;
@@ -24,15 +26,18 @@ export function RecapSection({
   genres?: string[];
   overview?: string;
   seasons?: SeasonSummary[];
+  watchedSeasons?: number[];
+  movieWatched?: boolean;
 }) {
   const { t, locale } = useI18n();
   const tmdbLocale = useTmdbLocale();
 
   const isTv = type === "tv";
   const today = new Date().toISOString().slice(0, 10);
+  const watched = new Set(watchedSeasons ?? []);
   const realSeasons = (seasons ?? [])
-    // Solo stagioni già iniziate (niente stagioni future non ancora uscite).
-    .filter((s) => s.seasonNumber >= 1 && s.episodeCount > 0 && (!s.airDate || s.airDate <= today))
+    // Solo stagioni viste per intero dall'utente (esclude quelle in corso o non viste).
+    .filter((s) => s.seasonNumber >= 1 && watched.has(s.seasonNumber))
     .sort((a, b) => a.seasonNumber - b.seasonNumber);
   const lastSeason = realSeasons.length ? realSeasons[realSeasons.length - 1]!.seasonNumber : null;
 
@@ -44,7 +49,7 @@ export function RecapSection({
   const [open, setOpen] = useState(false);
 
   const plot = (overview ?? "").trim();
-  const canGenerate = plot.length >= 20 || (isTv && realSeasons.length > 0);
+  const canGenerate = isTv ? realSeasons.length > 0 : !!movieWatched && plot.length >= 20;
   if (!canGenerate || !Number.isFinite(tmdbId) || tmdbId <= 0) return null;
 
   const activeKey = isTv && effective != null ? String(effective) : "full";

@@ -130,6 +130,15 @@ function MediaDetail() {
 
   const item: CatalogItem = mockItem ?? tmdbToCatalogItem(tmdbQuery.data!.item);
   const entry = state.media[item.id];
+  // Recap disponibile solo per stagioni/film visti per intero.
+  const recapWatchedSeasons = (tmdbQuery.data?.item.seasonsInfo ?? [])
+    .filter(
+      (s) =>
+        s.episodeCount > 0 &&
+        (entry?.watchedEpisodes?.filter((k) => k.startsWith(`S${s.seasonNumber}E`)).length ?? 0) >= s.episodeCount,
+    )
+    .map((s) => s.seasonNumber);
+  const recapMovieWatched = entry?.status === "completed" || (entry?.watchCount ?? 0) > 0;
   const mediaMeta = {
     title: item.title,
     type: item.type,
@@ -225,6 +234,8 @@ function MediaDetail() {
           genres={item.genres}
           overview={item.overview}
           seasons={tmdbQuery.data?.item.seasonsInfo}
+          watchedSeasons={recapWatchedSeasons}
+          movieWatched={recapMovieWatched}
         />
 
         <div className="mt-6">
