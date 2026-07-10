@@ -118,16 +118,43 @@ function recap_user_message(array $media, string $langName): string {
     return implode("\n", $lines);
 }
 
+// Schema strict per gli structured outputs: JSON garantito valido e "motif"
+// vincolato ai motivi realmente supportati dal renderer.
+function recap_output_schema(): array {
+    return [
+        'type'                 => 'object',
+        'additionalProperties' => false,
+        'properties'           => [
+            'scenes' => [
+                'type'  => 'array',
+                'items' => [
+                    'type'                 => 'object',
+                    'additionalProperties' => false,
+                    'properties'           => [
+                        'motif'   => ['type' => 'string', 'enum' => array_values(RECAP_MOTIFS)],
+                        'label'   => ['type' => 'string'],
+                        'caption' => ['type' => 'string'],
+                        'dur'     => ['type' => 'integer'],
+                    ],
+                    'required' => ['motif', 'label', 'caption', 'dur'],
+                ],
+            ],
+        ],
+        'required' => ['scenes'],
+    ];
+}
+
 function recap_call_claude(string $system, string $user, string $model): ?array {
     $key = app_config('anthropic_api_key');
     if (!$key) return null;
 
     $payload = [
-        'model'      => $model,
-        'max_tokens' => 2500,
-        'thinking'   => ['type' => 'disabled'],
-        'system'     => $system,
-        'messages'   => [['role' => 'user', 'content' => $user]],
+        'model'         => $model,
+        'max_tokens'    => 2500,
+        'thinking'      => ['type' => 'disabled'],
+        'system'        => $system,
+        'messages'      => [['role' => 'user', 'content' => $user]],
+        'output_config' => ['format' => ['type' => 'json_schema', 'schema' => recap_output_schema()]],
     ];
 
     $ch = curl_init('https://api.anthropic.com/v1/messages');
