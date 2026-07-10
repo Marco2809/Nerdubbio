@@ -99,7 +99,15 @@ export default {
     deleteAccount: "Konto löschen",
     privacy: "Datenschutz",
   },
+  episode: {
+    label: "Folge",
+    discussions: "Diskussionen pro Folge",
+    noOverview: "Keine Inhaltsangabe für diese Folge.",
+  },
   comments: {
+    reply: "Antworten",
+    replyPlaceholder: "Schreibe eine Antwort…",
+    rating: "Bewertung",
     title: "Kommentare",
     all: "Alle",
     friends: "Freunde",

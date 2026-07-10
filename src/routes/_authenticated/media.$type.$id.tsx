@@ -17,6 +17,7 @@ import { MediaCommentsSection } from "@/components/nerdubbio/MediaCommentsSectio
 import { MediaRatingsSection } from "@/components/nerdubbio/MediaRatingsSection";
 import { RecapSection } from "@/components/nerdubbio/recap/RecapSection";
 import { RecommendDialog } from "@/components/nerdubbio/RecommendDialog";
+import { EpisodeListSection } from "@/components/nerdubbio/EpisodeListSection";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -539,6 +540,14 @@ function MediaDetail() {
         )}
 
 
+
+        {item.type === "tv" && (
+          <EpisodeListSection
+            tmdbId={item.tmdb_id ?? numericId}
+            seasons={tmdbQuery.data?.item.seasonsInfo}
+            from={returnPath}
+          />
+        )}
 
         <CastSection cast={creditsQuery.data?.cast ?? []} loading={creditsQuery.isLoading} returnPath={returnPath} />
 

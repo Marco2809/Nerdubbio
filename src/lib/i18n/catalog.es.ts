@@ -99,7 +99,15 @@ export default {
     deleteAccount: "Eliminar cuenta",
     privacy: "Privacidad",
   },
+  episode: {
+    label: "Episodio",
+    discussions: "Debates por episodio",
+    noOverview: "No hay sinopsis para este episodio.",
+  },
   comments: {
+    reply: "Responder",
+    replyPlaceholder: "Escribe una respuesta…",
+    rating: "Voto",
     title: "Comentarios",
     all: "Todos",
     friends: "Amigos",

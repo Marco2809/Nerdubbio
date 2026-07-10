@@ -99,7 +99,15 @@ export default {
     deleteAccount: "Delete account",
     privacy: "Privacy",
   },
+  episode: {
+    label: "Episode",
+    discussions: "Episode discussions",
+    noOverview: "No overview available for this episode.",
+  },
   comments: {
+    reply: "Reply",
+    replyPlaceholder: "Write a reply…",
+    rating: "Rating",
     title: "Comments",
     all: "All",
     friends: "Friends",

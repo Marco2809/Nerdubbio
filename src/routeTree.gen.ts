@@ -34,6 +34,7 @@ import { Route as AuthenticatedProfiloFilmRouteImport } from './routes/_authenti
 import { Route as AuthenticatedPersonIdRouteImport } from './routes/_authenticated/person.$id'
 import { Route as AuthenticatedDubbioRisultatoRouteImport } from './routes/_authenticated/dubbio.risultato'
 import { Route as AuthenticatedMediaTypeIdRouteImport } from './routes/_authenticated/media.$type.$id'
+import { Route as AuthenticatedEpisodeIdSeasonEpisodeRouteImport } from './routes/_authenticated/episode.$id.$season.$episode'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -164,6 +165,12 @@ const AuthenticatedMediaTypeIdRoute =
     path: '/media/$type/$id',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedEpisodeIdSeasonEpisodeRoute =
+  AuthenticatedEpisodeIdSeasonEpisodeRouteImport.update({
+    id: '/episode/$id/$season/$episode',
+    path: '/episode/$id/$season/$episode',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -190,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/profilo/film': typeof AuthenticatedProfiloFilmRoute
   '/profilo/serie': typeof AuthenticatedProfiloSerieRoute
   '/media/$type/$id': typeof AuthenticatedMediaTypeIdRoute
+  '/episode/$id/$season/$episode': typeof AuthenticatedEpisodeIdSeasonEpisodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -216,6 +224,7 @@ export interface FileRoutesByTo {
   '/profilo/film': typeof AuthenticatedProfiloFilmRoute
   '/profilo/serie': typeof AuthenticatedProfiloSerieRoute
   '/media/$type/$id': typeof AuthenticatedMediaTypeIdRoute
+  '/episode/$id/$season/$episode': typeof AuthenticatedEpisodeIdSeasonEpisodeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -244,6 +253,7 @@ export interface FileRoutesById {
   '/_authenticated/profilo/film': typeof AuthenticatedProfiloFilmRoute
   '/_authenticated/profilo/serie': typeof AuthenticatedProfiloSerieRoute
   '/_authenticated/media/$type/$id': typeof AuthenticatedMediaTypeIdRoute
+  '/_authenticated/episode/$id/$season/$episode': typeof AuthenticatedEpisodeIdSeasonEpisodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -272,6 +282,7 @@ export interface FileRouteTypes {
     | '/profilo/film'
     | '/profilo/serie'
     | '/media/$type/$id'
+    | '/episode/$id/$season/$episode'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -298,6 +309,7 @@ export interface FileRouteTypes {
     | '/profilo/film'
     | '/profilo/serie'
     | '/media/$type/$id'
+    | '/episode/$id/$season/$episode'
   id:
     | '__root__'
     | '/'
@@ -325,6 +337,7 @@ export interface FileRouteTypes {
     | '/_authenticated/profilo/film'
     | '/_authenticated/profilo/serie'
     | '/_authenticated/media/$type/$id'
+    | '/_authenticated/episode/$id/$season/$episode'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -512,6 +525,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMediaTypeIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/episode/$id/$season/$episode': {
+      id: '/_authenticated/episode/$id/$season/$episode'
+      path: '/episode/$id/$season/$episode'
+      fullPath: '/episode/$id/$season/$episode'
+      preLoaderRoute: typeof AuthenticatedEpisodeIdSeasonEpisodeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -546,6 +566,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedProfiloFilmRoute: typeof AuthenticatedProfiloFilmRoute
   AuthenticatedProfiloSerieRoute: typeof AuthenticatedProfiloSerieRoute
   AuthenticatedMediaTypeIdRoute: typeof AuthenticatedMediaTypeIdRoute
+  AuthenticatedEpisodeIdSeasonEpisodeRoute: typeof AuthenticatedEpisodeIdSeasonEpisodeRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -568,6 +589,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProfiloFilmRoute: AuthenticatedProfiloFilmRoute,
   AuthenticatedProfiloSerieRoute: AuthenticatedProfiloSerieRoute,
   AuthenticatedMediaTypeIdRoute: AuthenticatedMediaTypeIdRoute,
+  AuthenticatedEpisodeIdSeasonEpisodeRoute: AuthenticatedEpisodeIdSeasonEpisodeRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
