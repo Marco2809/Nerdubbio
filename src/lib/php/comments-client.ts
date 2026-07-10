@@ -14,6 +14,9 @@ export interface MediaComment {
   id: string;
   body: string;
   spoiler: boolean;
+  rating: number | null;
+  parent_id: string | null;
+  reply_count: number;
   created_at: string;
   is_mine: boolean;
   author: MediaCommentAuthor;
@@ -28,12 +31,27 @@ export interface CommentsListResult {
   has_more: boolean;
 }
 
+export interface CommentTarget {
+  season?: number;
+  episode?: number;
+}
+
+export interface CreateCommentOptions extends CommentTarget {
+  parentId?: string;
+  rating?: number;
+}
+
 export function mediaCommentsKey(
   type: 'tv' | 'movie',
   tmdbId: number,
   scope: CommentScope,
+  target?: CommentTarget,
 ) {
-  return ['media-comments', type, tmdbId, scope] as const;
+  return ['media-comments', type, tmdbId, scope, target?.season ?? null, target?.episode ?? null] as const;
+}
+
+export function commentRepliesKey(parentId: string) {
+  return ['comment-replies', parentId] as const;
 }
 
 export const commentsApi = {
@@ -42,6 +60,7 @@ export const commentsApi = {
     tmdbId: number,
     scope: CommentScope = 'all',
     offset = 0,
+    target?: CommentTarget,
   ): Promise<CommentsListResult> {
     const q = new URLSearchParams({
       action: 'list',
@@ -50,7 +69,15 @@ export const commentsApi = {
       scope,
       offset: String(offset),
     });
+    if (target?.season != null) q.set('season', String(target.season));
+    if (target?.episode != null) q.set('episode', String(target.episode));
     return api<CommentsListResult>(`/api/comments.php?${q}`);
+  },
+
+  replies(parentId: string): Promise<{ replies: MediaComment[] }> {
+    return api<{ replies: MediaComment[] }>(
+      `/api/comments.php?action=replies&parent_id=${encodeURIComponent(parentId)}`,
+    );
   },
 
   create(
@@ -58,12 +85,17 @@ export const commentsApi = {
     tmdbId: number,
     body: string,
     spoiler = false,
+    opts: CreateCommentOptions = {},
   ): Promise<{ comment: MediaComment }> {
     return api<{ comment: MediaComment }>('/api/comments.php?action=create', 'POST', {
       type,
       tmdb_id: tmdbId,
       body,
       spoiler,
+      season: opts.season,
+      episode: opts.episode,
+      parent_id: opts.parentId,
+      rating: opts.rating,
     });
   },
 

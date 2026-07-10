@@ -15,10 +15,20 @@ if ($action === 'list') {
     $tmdbId    = (int) ($_GET['tmdb_id'] ?? $body['tmdb_id'] ?? 0);
     $scope     = (string) ($_GET['scope'] ?? $body['scope'] ?? 'all');
     $offset    = (int) ($_GET['offset'] ?? $body['offset'] ?? 0);
-    json_out(comments_list($pdo, $userId, $mediaType, $tmdbId, $scope, $offset));
+    $season    = isset($_GET['season']) && $_GET['season'] !== '' ? (int) $_GET['season'] : null;
+    $episode   = isset($_GET['episode']) && $_GET['episode'] !== '' ? (int) $_GET['episode'] : null;
+    json_out(comments_list($pdo, $userId, $mediaType, $tmdbId, $scope, $offset, $season, $episode));
+}
+
+if ($action === 'replies') {
+    $parentId = (string) ($_GET['parent_id'] ?? $body['parent_id'] ?? '');
+    if ($parentId === '') api_err('missing_parent', 400);
+    json_out(comments_replies($pdo, $userId, $parentId));
 }
 
 if ($action === 'create') {
+    $rating = array_key_exists('rating', $body) && $body['rating'] !== null && $body['rating'] !== ''
+        ? (int) $body['rating'] : null;
     json_out(comments_create(
         $pdo,
         $userId,
@@ -26,6 +36,10 @@ if ($action === 'create') {
         (int) ($body['tmdb_id'] ?? 0),
         (string) ($body['body'] ?? ''),
         !empty($body['spoiler']),
+        isset($body['season']) && $body['season'] !== null && $body['season'] !== '' ? (int) $body['season'] : null,
+        isset($body['episode']) && $body['episode'] !== null && $body['episode'] !== '' ? (int) $body['episode'] : null,
+        isset($body['parent_id']) && $body['parent_id'] !== '' ? (string) $body['parent_id'] : null,
+        $rating,
     ));
 }
 
