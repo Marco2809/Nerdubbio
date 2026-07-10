@@ -54,6 +54,10 @@ export function commentRepliesKey(parentId: string) {
   return ['comment-replies', parentId] as const;
 }
 
+export function commentCountsKey(type: 'tv' | 'movie', tmdbId: number) {
+  return ['media-comment-counts', type, tmdbId] as const;
+}
+
 export const commentsApi = {
   list(
     type: 'tv' | 'movie',
@@ -72,6 +76,12 @@ export const commentsApi = {
     if (target?.season != null) q.set('season', String(target.season));
     if (target?.episode != null) q.set('episode', String(target.episode));
     return api<CommentsListResult>(`/api/comments.php?${q}`);
+  },
+
+  counts(type: 'tv' | 'movie', tmdbId: number): Promise<{ counts: Record<string, number> }> {
+    return api<{ counts: Record<string, number> }>(
+      `/api/comments.php?action=counts&type=${type}&tmdb_id=${tmdbId}`,
+    );
   },
 
   replies(parentId: string): Promise<{ replies: MediaComment[] }> {

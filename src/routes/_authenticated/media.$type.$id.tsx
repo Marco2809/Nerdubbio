@@ -3,7 +3,7 @@ import { AppShell } from "@/components/nerdubbio/AppShell";
 import { OverlayBackButton } from "@/components/nerdubbio/OverlayBackButton";
 import { findById, type CatalogItem } from "@/lib/mock-catalog";
 import { useUserStore, isEpisodeWatched, getEpisodeWatchCount, totalEpisodeWatches, type UserStatus } from "@/lib/user-store";
-import { Plus, Heart, CheckCircle2, Pause, X, Star, Check, Loader2, PlayCircle, Trash2 } from "lucide-react";
+import { Plus, Heart, CheckCircle2, Pause, X, Star, Check, Loader2, PlayCircle, Trash2, MessageCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, tmdbWatchProviders, tmdbVideos, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
@@ -17,7 +17,7 @@ import { MediaCommentsSection } from "@/components/nerdubbio/MediaCommentsSectio
 import { MediaRatingsSection } from "@/components/nerdubbio/MediaRatingsSection";
 import { RecapSection } from "@/components/nerdubbio/recap/RecapSection";
 import { RecommendDialog } from "@/components/nerdubbio/RecommendDialog";
-import { EpisodeListSection } from "@/components/nerdubbio/EpisodeListSection";
+import { commentsApi, commentCountsKey } from "@/lib/php/comments-client";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -94,6 +94,13 @@ function MediaDetail() {
     queryFn: () => tmdbVideos({ data: { type: type as "movie" | "tv", tmdbId: numericId, locale } }),
     enabled: Number.isFinite(numericId) && numericId > 0,
     staleTime: 1000 * 60 * 60 * 24,
+  });
+
+  const commentCountsQuery = useQuery({
+    queryKey: commentCountsKey("tv", numericId),
+    queryFn: () => commentsApi.counts("tv", numericId),
+    enabled: type === "tv" && Number.isFinite(numericId) && numericId > 0,
+    staleTime: 1000 * 60,
   });
 
   const { state, addToList, setStatus, setFavorite, removeFromList, toggleEpisode, unwatchEpisode, logMovieWatch, setRating, markAllSeriesWatched, clearWatchedEpisodes } = useUserStore();
@@ -471,6 +478,8 @@ function MediaDetail() {
           <SeasonsTracker
             item={item}
             tmdbId={item.tmdb_id ?? numericId}
+            commentCounts={commentCountsQuery.data?.counts ?? {}}
+            from={returnPath}
             totalSeasons={item.seasons ?? 0}
             watched={entry?.watchedEpisodes ?? []}
             entry={entry}
@@ -541,14 +550,6 @@ function MediaDetail() {
 
 
 
-        {item.type === "tv" && (
-          <EpisodeListSection
-            tmdbId={item.tmdb_id ?? numericId}
-            seasons={tmdbQuery.data?.item.seasonsInfo}
-            from={returnPath}
-          />
-        )}
-
         <CastSection cast={creditsQuery.data?.cast ?? []} loading={creditsQuery.isLoading} returnPath={returnPath} />
 
         {shouldFetchTmdb && Number.isFinite(numericId) && numericId > 0 && (
@@ -602,10 +603,12 @@ function SeriesRating({ value, onChange }: { value: number | undefined; onChange
 }
 
 function SeasonsTracker({
-  item, tmdbId, totalSeasons, watched, entry, onToggle, onMarkSeasonWatched,
+  item, tmdbId, commentCounts, from, totalSeasons, watched, entry, onToggle, onMarkSeasonWatched,
 }: {
   item: NonNullable<ReturnType<typeof findById>>;
   tmdbId: number | undefined;
+  commentCounts: Record<string, number>;
+  from: string;
   totalSeasons: number;
   watched: string[];
   entry: ReturnType<typeof useUserStore>["state"]["media"][string] | undefined;
@@ -647,6 +650,8 @@ function SeasonsTracker({
             <SeasonCard
               key={s}
               tmdbId={tmdbId}
+              commentCounts={commentCounts}
+              from={from}
               seasonNumber={s}
               open={openSeason === s}
               onToggleOpen={() => setOpenSeason(openSeason === s ? 0 : s)}
@@ -668,9 +673,11 @@ function SeasonsTracker({
 }
 
 function SeasonCard({
-  tmdbId, seasonNumber, open, onToggleOpen, watchedSet, entry, onToggle, onMarkSeasonWatched,
+  tmdbId, commentCounts, from, seasonNumber, open, onToggleOpen, watchedSet, entry, onToggle, onMarkSeasonWatched,
 }: {
   tmdbId: number | undefined;
+  commentCounts: Record<string, number>;
+  from: string;
   seasonNumber: number;
   open: boolean;
   onToggleOpen: () => void;
@@ -747,6 +754,9 @@ function SeasonCard({
                 {episodes.map(ep => (
                   <EpisodeRow
                     key={ep.episodeNumber}
+                    tmdbId={tmdbId}
+                    from={from}
+                    commentCount={commentCounts[`S${seasonNumber}E${ep.episodeNumber}`] ?? 0}
                     seasonNumber={seasonNumber}
                     ep={ep}
                     watched={watchedSet.has(`S${seasonNumber}E${ep.episodeNumber}`)}
@@ -776,8 +786,11 @@ function SeasonCard({
 }
 
 function EpisodeRow({
-  seasonNumber, ep, watched, watchCount, onLogWatch, onUnwatch,
+  tmdbId, from, commentCount, seasonNumber, ep, watched, watchCount, onLogWatch, onUnwatch,
 }: {
+  tmdbId: number | undefined;
+  from: string;
+  commentCount: number;
   seasonNumber: number;
   ep: import("@/lib/tmdb/tmdb.functions").EpisodeInfo;
   watched: boolean;
@@ -786,7 +799,6 @@ function EpisodeRow({
   onUnwatch: () => void;
 }) {
   const { t, locale } = useI18n();
-  const [expanded, setExpanded] = useState(false);
   const airDate = ep.airDate ? new Date(ep.airDate) : null;
   const airLabel = airDate && !isNaN(airDate.getTime())
     ? airDate.toLocaleDateString(localeToBcp47(locale), { day: "2-digit", month: "short", year: "numeric" })
@@ -837,10 +849,27 @@ function EpisodeRow({
             )}
           </div>
           <div className="mt-1 flex items-center gap-2">
-            {ep.overview ? (
-              <button onClick={() => setExpanded(v => !v)} className="text-[11px] font-semibold text-accent hover:underline">
-                {expanded ? t("media.hide") : t("media.plot")}
-              </button>
+            {tmdbId ? (
+              <Link
+                to="/episode/$id/$season/$episode"
+                params={{ id: String(tmdbId), season: String(seasonNumber), episode: String(ep.episodeNumber) }}
+                state={{ from }}
+                className="text-[11px] font-semibold text-accent hover:underline"
+              >
+                {t("media.plot")}
+              </Link>
+            ) : null}
+            {tmdbId ? (
+              <Link
+                to="/episode/$id/$season/$episode"
+                params={{ id: String(tmdbId), season: String(seasonNumber), episode: String(ep.episodeNumber) }}
+                state={{ from }}
+                aria-label={t("comments.title")}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground transition hover:text-accent"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                {commentCount > 0 ? commentCount : null}
+              </Link>
             ) : null}
             <button
               onClick={onLogWatch}
@@ -880,11 +909,6 @@ function EpisodeRow({
           </div>
         </div>
       </div>
-      {expanded && ep.overview ? (
-        <p className="border-t border-border/40 p-3 text-xs leading-relaxed text-muted-foreground">
-          {ep.overview}
-        </p>
-      ) : null}
     </div>
   );
 }

@@ -20,6 +20,12 @@ if ($action === 'list') {
     json_out(comments_list($pdo, $userId, $mediaType, $tmdbId, $scope, $offset, $season, $episode));
 }
 
+if ($action === 'counts') {
+    $mediaType = (string) ($_GET['type'] ?? $body['type'] ?? '');
+    $tmdbId    = (int) ($_GET['tmdb_id'] ?? $body['tmdb_id'] ?? 0);
+    json_out(comments_counts($pdo, $mediaType, $tmdbId));
+}
+
 if ($action === 'replies') {
     $parentId = (string) ($_GET['parent_id'] ?? $body['parent_id'] ?? '');
     if ($parentId === '') api_err('missing_parent', 400);

@@ -125,6 +125,24 @@ function comments_replies(PDO $pdo, string $viewerId, string $parentId): array {
     return ['replies' => array_map(fn ($r) => comments_row_to_json($r, $viewerId), $stmt->fetchAll())];
 }
 
+/** Conteggio commenti per episodio (per i badge nella lista episodi). */
+function comments_counts(PDO $pdo, string $mediaType, int $tmdbId): array {
+    if (!in_array($mediaType, ['tv', 'movie'], true)) api_err('invalid_media_type', 400);
+    if ($tmdbId <= 0) api_err('invalid_tmdb_id', 400);
+
+    $stmt = $pdo->prepare(
+        "SELECT season, episode, COUNT(*) AS n FROM media_comments
+         WHERE media_type = ? AND tmdb_id = ? AND season IS NOT NULL AND episode IS NOT NULL AND deleted_at IS NULL
+         GROUP BY season, episode"
+    );
+    $stmt->execute([$mediaType, $tmdbId]);
+    $counts = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $counts['S' . (int) $r['season'] . 'E' . (int) $r['episode']] = (int) $r['n'];
+    }
+    return ['counts' => $counts];
+}
+
 function comments_create(
     PDO $pdo,
     string $userId,
