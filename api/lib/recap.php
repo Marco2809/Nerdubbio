@@ -5,12 +5,23 @@
 // il rendering del video e' codice deterministico lato client. Vedi RecapReel.tsx.
 
 const RECAP_MODEL_DEFAULT = 'claude-opus-4-8';
-const RECAP_MIN_SCENES = 5;
-const RECAP_MAX_SCENES = 12;
+const RECAP_MIN_SCENES = 6;
+const RECAP_MAX_SCENES = 14;
 const RECAP_DUR_MIN = 3200;
 const RECAP_DUR_MAX = 6500;
 const RECAP_CAPTION_MAX = 155;
 const RECAP_MAX_EPISODES = 30;
+
+// Layout dello Story Journey supportati dal renderer (storyScene.tsx).
+const RECAP_LAYOUTS = [
+    'hero', 'motif', 'character-card', 'quote', 'timeline', 'big-reveal',
+    'stat', 'map', 'relationship-graph', 'split-screen', 'ending',
+];
+
+const RECAP_EMOTIONS = [
+    'hope', 'fear', 'tension', 'grief', 'joy', 'anger', 'dread',
+    'triumph', 'betrayal', 'love', 'despair', 'awe', 'suspense', 'shock',
+];
 
 // Vocabolario di motivi animati supportati dal motore lato client (motifs.tsx).
 // Ogni nome DEVE avere una resa in src/components/nerdubbio/recap/motifs.tsx.
@@ -62,25 +73,34 @@ function recap_system_prompt(): string {
 TXT;
 
     return <<<SYS
-You are the storyboard writer for Nerdubbio, a TV/movie tracking app. You produce a "recap reel" that helps a viewer REMEMBER what happened before they watch the next season. It is a sequence of scenes, each pairing one visual MOTIF (from a fixed vocabulary) with a one-line caption describing a concrete event.
+You are the storyboard director for Nerdubbio. You produce a "Story Journey": a short cinematic reel that lets someone who watched this season years ago REMEMBER it in ~40-60 seconds. Not a summary, not slides — a memory reconstruction where each scene lands one memorable idea.
 
-Motif vocabulary (use ONLY these motif ids):
+You output a sequence of SCENES. Each scene has a LAYOUT and fills ONLY the fields that layout needs. Ground everything in the provided plot/episode synopses AND your reliable knowledge of THIS specific title (real character names, who dies, betrayals, twists, the cliffhanger). Never contradict the synopses. If you don't truly know the title, rely only on the given data and stay accurate — never invent. Never invent quotes.
+
+MOTIF ids (for fields that take a "motif"; use ONLY these):
 $motifs
 
-You are given the plot and, when available, a numbered list of episode synopses. Use them as the source of truth. You SHOULD ALSO draw on your own knowledge of this specific title to add precise, accurate details the synopses omit — real character names, who dies, who betrays whom, key twists and the season cliffhanger. Never contradict the provided synopses. If you do not actually know this title, rely only on the provided data and stay accurate rather than inventing.
+LAYOUTS (vary them — never the same layout twice in a row):
+- hero: opening title card. Fields: title (show/season), subtitle (the hook), motif. Use ONCE, first.
+- motif: one animated symbol + a caption. Fields: motif, title (2-3 word chip), subtitle (the concrete event, 12-20 words). The main workhorse beat.
+- character-card: focus one character. Fields: title (character name), subtitle (their arc in one line), motif (optional).
+- quote: an iconic VERBATIM line. Fields: quote{text, speaker}, title (short context). Use only if you know a real line.
+- timeline: a few chronological beats at once. Fields: title (header), items (3-5 very short beats).
+- big-reveal: a shocking turn. Fields: title (the reveal), subtitle, motif (danger/secret/betrayal/mystery).
+- stat: numbers that define the season. Fields: title (header), stats (1-3 {label, value}, e.g. morti/stagioni/episodi).
+- map: a key place. Fields: title (location name), subtitle, motif (map->journey/home/city).
+- relationship-graph: a bond between two people. Fields: characters (exactly 2 {name}), subtitle (the relation or what changed between them).
+- split-screen: contrast two forces/characters. Fields: characters (2 {name, note}) or title+subtitle.
+- ending: nostalgic closer. Fields: title, subtitle. Use ONCE, last.
 
-Rules:
-- Be SPECIFIC and CONCRETE. Every caption must name real characters and state exactly what happened — a death, a betrayal, a reveal, an alliance, a confrontation. Prefer "Rick uccide Shane per proteggere il gruppo" over "un personaggio prende una decisione difficile". Never write vague filler like "affrontano nuove sfide" or "la situazione precipita".
-- Follow the episodes in chronological order and cover the beats that matter for continuity into the next season.
-- Produce between 6 and 12 scenes (more for longer seasons). Do not merge unrelated events into one caption.
-- Each scene: pick the single motif that best fits that specific beat. Prefer variety, but repeat a motif if it genuinely fits.
-- "label": a very short chip, 1-3 words, in the target language (a place, a name, a turning point).
-- "caption": one sentence, 12-24 words, in the target language, naming who did what. No episode numbers, no meta ("in this episode...").
-- "dur": display time in milliseconds, 3500-6500, longer for longer captions.
-- End on the season's final major event / cliffhanger.
+RULES:
+- 8-14 scenes. Start with a hero, end with an ending; between them follow chronological order.
+- Be SPECIFIC: name real characters and state exactly what happened (a death, a betrayal, a reveal). No vague filler ("affrontano nuove sfide").
+- Fill only the fields the layout needs; omit the others.
+- title: short. subtitle: one sentence in the target language. items/notes: short. dur: milliseconds 3500-6500.
+- Optionally set "emotion" per scene.
 
-Respond with ONLY a JSON object, no prose, no markdown fences:
-{"scenes":[{"motif":"person","label":"...","caption":"...","dur":4800}, ...]}
+Respond with ONLY the JSON object matching the schema.
 SYS;
 }
 
@@ -118,28 +138,35 @@ function recap_user_message(array $media, string $langName): string {
     return implode("\n", $lines);
 }
 
-// Schema strict per gli structured outputs: JSON garantito valido e "motif"
-// vincolato ai motivi realmente supportati dal renderer.
+// Schema strict per gli structured outputs: scene ricche con layout + campi
+// per-layout. Ogni scena riempie solo i campi che il suo layout usa.
 function recap_output_schema(): array {
+    $strObj = fn (array $props, array $req) => [
+        'type' => 'object', 'additionalProperties' => false,
+        'properties' => $props, 'required' => $req,
+    ];
+    $scene = $strObj([
+        'layout'     => ['type' => 'string', 'enum' => array_values(RECAP_LAYOUTS)],
+        'title'      => ['type' => 'string'],
+        'subtitle'   => ['type' => 'string'],
+        'motif'      => ['type' => 'string', 'enum' => array_values(RECAP_MOTIFS)],
+        'emotion'    => ['type' => 'string', 'enum' => array_values(RECAP_EMOTIONS)],
+        'characters' => ['type' => 'array', 'items' => $strObj(
+            ['name' => ['type' => 'string'], 'note' => ['type' => 'string']], ['name'],
+        )],
+        'quote'      => $strObj(
+            ['text' => ['type' => 'string'], 'speaker' => ['type' => 'string']], ['text'],
+        ),
+        'stats'      => ['type' => 'array', 'items' => $strObj(
+            ['label' => ['type' => 'string'], 'value' => ['type' => 'string']], ['label', 'value'],
+        )],
+        'items'      => ['type' => 'array', 'items' => ['type' => 'string']],
+        'dur'        => ['type' => 'integer'],
+    ], ['layout', 'title', 'dur']);
+
     return [
-        'type'                 => 'object',
-        'additionalProperties' => false,
-        'properties'           => [
-            'scenes' => [
-                'type'  => 'array',
-                'items' => [
-                    'type'                 => 'object',
-                    'additionalProperties' => false,
-                    'properties'           => [
-                        'motif'   => ['type' => 'string', 'enum' => array_values(RECAP_MOTIFS)],
-                        'label'   => ['type' => 'string'],
-                        'caption' => ['type' => 'string'],
-                        'dur'     => ['type' => 'integer'],
-                    ],
-                    'required' => ['motif', 'label', 'caption', 'dur'],
-                ],
-            ],
-        ],
+        'type' => 'object', 'additionalProperties' => false,
+        'properties' => ['scenes' => ['type' => 'array', 'items' => $scene]],
         'required' => ['scenes'],
     ];
 }
@@ -198,22 +225,63 @@ function recap_parse_scenes(string $text): ?array {
     $scenes = [];
     foreach ($obj['scenes'] as $s) {
         if (!is_array($s)) continue;
-        $motif = (string) ($s['motif'] ?? '');
-        if (!in_array($motif, RECAP_MOTIFS, true)) continue;
-        $label   = trim((string) ($s['label'] ?? ''));
-        $caption = trim((string) ($s['caption'] ?? ''));
-        if ($caption === '') continue;
-        if (mb_strlen($caption) > RECAP_CAPTION_MAX) {
-            $caption = mb_substr($caption, 0, RECAP_CAPTION_MAX - 1) . '…';
+        $layout = (string) ($s['layout'] ?? '');
+        if (!in_array($layout, RECAP_LAYOUTS, true)) continue;
+        $title = trim((string) ($s['title'] ?? ''));
+        if ($title === '') continue;
+
+        $scene = ['layout' => $layout, 'title' => mb_substr($title, 0, 80)];
+
+        if (!empty($s['subtitle'])) {
+            $scene['subtitle'] = mb_substr(trim((string) $s['subtitle']), 0, RECAP_CAPTION_MAX);
         }
-        $dur = (int) ($s['dur'] ?? 4500);
-        $dur = max(RECAP_DUR_MIN, min(RECAP_DUR_MAX, $dur));
-        $scenes[] = [
-            'motif'   => $motif,
-            'label'   => mb_substr($label, 0, 40),
-            'caption' => $caption,
-            'dur'     => $dur,
-        ];
+        if (!empty($s['motif']) && in_array($s['motif'], RECAP_MOTIFS, true)) {
+            $scene['motif'] = (string) $s['motif'];
+        }
+        if (!empty($s['emotion']) && in_array($s['emotion'], RECAP_EMOTIONS, true)) {
+            $scene['emotion'] = (string) $s['emotion'];
+        }
+        if (!empty($s['characters']) && is_array($s['characters'])) {
+            $cs = [];
+            foreach (array_slice($s['characters'], 0, 4) as $c) {
+                if (!is_array($c) || empty($c['name'])) continue;
+                $cs[] = [
+                    'name' => mb_substr((string) $c['name'], 0, 40),
+                    'note' => isset($c['note']) ? mb_substr((string) $c['note'], 0, 60) : '',
+                ];
+            }
+            if ($cs) $scene['characters'] = $cs;
+        }
+        if (!empty($s['quote']['text'])) {
+            $scene['quote'] = [
+                'text'    => mb_substr((string) $s['quote']['text'], 0, 160),
+                'speaker' => isset($s['quote']['speaker']) ? mb_substr((string) $s['quote']['speaker'], 0, 40) : '',
+            ];
+        }
+        if (!empty($s['stats']) && is_array($s['stats'])) {
+            $st = [];
+            foreach (array_slice($s['stats'], 0, 3) as $x) {
+                if (!is_array($x) || !isset($x['value'])) continue;
+                $st[] = [
+                    'label' => mb_substr((string) ($x['label'] ?? ''), 0, 24),
+                    'value' => mb_substr((string) $x['value'], 0, 12),
+                ];
+            }
+            if ($st) $scene['stats'] = $st;
+        }
+        if (!empty($s['items']) && is_array($s['items'])) {
+            $it = [];
+            foreach (array_slice($s['items'], 0, 6) as $i) {
+                $v = trim((string) $i);
+                if ($v !== '') $it[] = mb_substr($v, 0, 80);
+            }
+            if ($it) $scene['items'] = $it;
+        }
+
+        $dur = (int) ($s['dur'] ?? 4800);
+        $scene['dur'] = max(RECAP_DUR_MIN, min(RECAP_DUR_MAX, $dur));
+
+        $scenes[] = $scene;
         if (count($scenes) >= RECAP_MAX_SCENES) break;
     }
 

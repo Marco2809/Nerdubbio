@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Volume2, VolumeX } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import { motifSvg } from "./motifs";
+import { SceneView } from "./storyScene";
 import { RecapMusic, type Mood } from "./recapMusic";
 import type { RecapScene } from "@/lib/php/recap-client";
 
@@ -45,6 +45,7 @@ const REEL_CSS = `
 @keyframes rb-flash{0%,100%{opacity:1}50%{opacity:.28}}
 @keyframes rb-slide{from{transform:translateX(-130px);opacity:0}to{transform:translateX(0);opacity:1}}
 @keyframes rb-swing{0%,100%{transform:rotate(-9deg)}50%{transform:rotate(9deg)}}
+@keyframes rb-up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 `;
 
 type Phase = "gate" | "playing" | "outro";
@@ -161,17 +162,9 @@ export function RecapReel({
 
         <div className="rbx-content" style={{ opacity: scene && shown ? 1 : 0 }}>
           {scene && (
-            <>
-              <div
-                className="rbx-motif"
-                key={idx}
-                dangerouslySetInnerHTML={{ __html: motifSvg(scene.motif) }}
-              />
-              <div className="rbx-lower">
-                {scene.label ? <div className="rbx-chip">{scene.label}</div> : null}
-                <div className="rbx-cap">{scene.caption}</div>
-              </div>
-            </>
+            <div key={idx} style={{ position: "absolute", inset: 0 }}>
+              <SceneView scene={scene} />
+            </div>
           )}
         </div>
 

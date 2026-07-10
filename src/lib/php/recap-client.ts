@@ -1,11 +1,25 @@
 import type { Locale } from '@/lib/i18n';
 import { api } from '@/lib/php/client';
 
+export interface RecapSceneCharacter {
+  name: string;
+  note?: string;
+}
+
 export interface RecapScene {
-  motif: string;
-  label: string;
-  caption: string;
+  layout?: string;
+  title?: string;
+  subtitle?: string;
+  motif?: string;
+  emotion?: string;
+  characters?: RecapSceneCharacter[];
+  quote?: { text: string; speaker?: string };
+  stats?: { label: string; value: string }[];
+  items?: string[];
   dur: number;
+  // Retrocompat con i vecchi recap in cache.
+  label?: string;
+  caption?: string;
 }
 
 export interface RecapResult {
