@@ -95,10 +95,12 @@ LAYOUTS (vary them — never the same layout twice in a row):
 
 RULES:
 - 8-14 scenes. Start with a hero, end with an ending; between them follow chronological order.
-- Be SPECIFIC: name real characters and state exactly what happened (a death, a betrayal, a reveal). No vague filler ("affrontano nuove sfide").
-- Fill only the fields the layout needs; omit the others.
-- title: short. subtitle: one sentence in the target language. items/notes: short. dur: milliseconds 3500-6500.
-- Optionally set "emotion" per scene.
+- Be SPECIFIC: name real characters and state exactly what happened (a death, a betrayal, a reveal). No vague filler ("affrontano nuove sfide", "molti", "vari").
+- EVERY scene MUST have a "subtitle": one clear sentence (12-24 words, target language) that makes the scene understandable on its own. A relationship-graph, split-screen or character-card whose subtitle does not explain who the people are and what happens between them is forbidden.
+- Fill the fields the layout needs (relationship-graph and split-screen also need the character names in "characters"); omit only fields the layout truly does not use.
+- stat: "value" must be a concrete number or short fact ("10", "4 morti"), never a vague word like "molti".
+- quote: only a real verbatim line; keep it in the language it is famous in.
+- title: short. items/notes: short. dur: milliseconds 3500-6500. Optionally set "emotion".
 
 Respond with ONLY the JSON object matching the schema.
 SYS;
@@ -162,7 +164,7 @@ function recap_output_schema(): array {
         )],
         'items'      => ['type' => 'array', 'items' => ['type' => 'string']],
         'dur'        => ['type' => 'integer'],
-    ], ['layout', 'title', 'dur']);
+    ], ['layout', 'title', 'subtitle', 'dur']);
 
     return [
         'type' => 'object', 'additionalProperties' => false,
