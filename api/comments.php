@@ -46,6 +46,7 @@ if ($action === 'create') {
         isset($body['episode']) && $body['episode'] !== null && $body['episode'] !== '' ? (int) $body['episode'] : null,
         isset($body['parent_id']) && $body['parent_id'] !== '' ? (string) $body['parent_id'] : null,
         $rating,
+        isset($body['media_url']) && $body['media_url'] !== '' ? (string) $body['media_url'] : null,
     ));
 }
 

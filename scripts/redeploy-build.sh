@@ -26,6 +26,10 @@ run_migrations() {
     [ -f "$f" ] || continue
     mysql -u root nerdubbio < "$f" 2>/dev/null && echo "migrated:$f" || true
   done
+  # Cartella upload immagini commenti: scrivibile dal web server.
+  mkdir -p "$APP/api/uploads"
+  chown -R www-data:www-data "$APP/api/uploads" 2>/dev/null || true
+  chmod 775 "$APP/api/uploads" 2>/dev/null || true
 }
 
 verify_assets() {

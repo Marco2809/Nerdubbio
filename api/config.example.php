@@ -32,4 +32,7 @@ return [
     // inattivo. Chiave da console.anthropic.com. recap_model opzionale.
     'anthropic_api_key' => '',
     'recap_model'       => 'claude-opus-4-8',
+
+    // GIF nei commenti (GIPHY — opzionale). Chiave da developers.giphy.com.
+    'giphy_api_key'     => '',
 ];

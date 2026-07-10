@@ -11,6 +11,7 @@ function comments_row_to_json(array $row, string $viewerId): array {
     return [
         'id'         => $row['id'],
         'body'       => $row['body'],
+        'media_url'  => $row['media_url'] ?? null,
         'spoiler'    => !empty($row['spoiler']),
         'rating'     => isset($row['rating']) && $row['rating'] !== null ? (int) $row['rating'] : null,
         'parent_id'  => $row['parent_id'] ?? null,
@@ -39,7 +40,7 @@ function comments_friend_ids(PDO $pdo, string $userId): array {
     return array_column($stmt->fetchAll(), 'fid');
 }
 
-const COMMENT_SELECT = "c.id, c.user_id, c.body, c.spoiler, c.rating, c.parent_id, c.created_at,
+const COMMENT_SELECT = "c.id, c.user_id, c.body, c.media_url, c.spoiler, c.rating, c.parent_id, c.created_at,
                         p.handle, p.display_name, p.avatar_url,
                         um.status AS media_status, um.rating AS media_rating, us.language AS author_language";
 
@@ -154,12 +155,21 @@ function comments_create(
     ?int $episode = null,
     ?string $parentId = null,
     ?int $rating = null,
+    ?string $mediaUrl = null,
 ): array {
     if (!in_array($mediaType, ['tv', 'movie'], true)) api_err('invalid_media_type', 400);
     if ($tmdbId <= 0) api_err('invalid_tmdb_id', 400);
 
     $body = trim($body);
-    if ($body === '') api_err('comment_empty', 400);
+    $mediaUrl = $mediaUrl !== null ? trim($mediaUrl) : null;
+    if ($mediaUrl !== null && $mediaUrl !== '') {
+        if (mb_strlen($mediaUrl) > 512 || !preg_match('#^(https?://|/api/uploads/)#', $mediaUrl)) {
+            api_err('invalid_media_url', 400);
+        }
+    } else {
+        $mediaUrl = null;
+    }
+    if ($body === '' && $mediaUrl === null) api_err('comment_empty', 400);
     if (mb_strlen($body) > COMMENT_BODY_MAX) {
         api_err('comment_too_long', 400, ['max' => COMMENT_BODY_MAX]);
     }
@@ -189,9 +199,9 @@ function comments_create(
 
     $id = uuid();
     $pdo->prepare(
-        'INSERT INTO media_comments (id, user_id, media_type, tmdb_id, season, episode, parent_id, body, spoiler, rating)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    )->execute([$id, $userId, $mediaType, $tmdbId, $season, $episode, $parentId, $body, $spoiler ? 1 : 0, $rating]);
+        'INSERT INTO media_comments (id, user_id, media_type, tmdb_id, season, episode, parent_id, body, media_url, spoiler, rating)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )->execute([$id, $userId, $mediaType, $tmdbId, $season, $episode, $parentId, $body, $mediaUrl, $spoiler ? 1 : 0, $rating]);
 
     $stmt = $pdo->prepare(
         'SELECT ' . COMMENT_SELECT . '

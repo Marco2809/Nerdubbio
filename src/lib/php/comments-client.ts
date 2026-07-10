@@ -13,6 +13,7 @@ export interface MediaCommentAuthor {
 export interface MediaComment {
   id: string;
   body: string;
+  media_url: string | null;
   spoiler: boolean;
   rating: number | null;
   parent_id: string | null;
@@ -39,6 +40,7 @@ export interface CommentTarget {
 export interface CreateCommentOptions extends CommentTarget {
   parentId?: string;
   rating?: number;
+  mediaUrl?: string;
 }
 
 export function mediaCommentsKey(
@@ -106,6 +108,7 @@ export const commentsApi = {
       episode: opts.episode,
       parent_id: opts.parentId,
       rating: opts.rating,
+      media_url: opts.mediaUrl,
     });
   },
 
