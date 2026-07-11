@@ -6,11 +6,12 @@
 
 const RECAP_MODEL_DEFAULT = 'claude-opus-4-8';
 const RECAP_MIN_SCENES = 6;
-const RECAP_MAX_SCENES = 14;
+const RECAP_MAX_SCENES = 18;
 const RECAP_DUR_MIN = 3200;
 const RECAP_DUR_MAX = 6500;
 const RECAP_CAPTION_MAX = 155;
 const RECAP_MAX_EPISODES = 30;
+const RECAP_MAX_CAST = 15;
 
 // Layout dello Story Journey supportati dal renderer (storyScene.tsx).
 const RECAP_LAYOUTS = [
@@ -77,6 +78,8 @@ You are the storyboard director for Nerdubbio. You produce a "Story Journey": a 
 
 You output a sequence of SCENES. Each scene has a LAYOUT and fills ONLY the fields that layout needs. Ground everything in the provided plot/episode synopses AND your reliable knowledge of THIS specific title (real character names, who dies, betrayals, twists, the cliffhanger). Never contradict the synopses. If you don't truly know the title, rely only on the given data and stay accurate — never invent. Never invent quotes.
 
+CHARACTERS: a CAST list is provided (character name — actor). These are the REAL names — use them EXACTLY as written whenever you name someone. Never rename a character, never merge two characters, never invent a character who is not in the cast or clearly named in the synopses. Every important recurring character of this season should appear at least once (character-card, relationship-graph or split-screen). When a scene involves a person, prefer stating who they are (role/allegiance) so a viewer instantly recognizes them.
+
 MOTIF ids (for fields that take a "motif"; use ONLY these):
 $motifs
 
@@ -94,8 +97,9 @@ LAYOUTS (vary them — never the same layout twice in a row):
 - ending: nostalgic closer. Fields: title, subtitle. Use ONCE, last.
 
 RULES:
-- 8-14 scenes. Start with a hero, end with an ending; between them follow chronological order.
-- Be SPECIFIC: name real characters and state exactly what happened (a death, a betrayal, a reveal). No vague filler ("affrontano nuove sfide", "molti", "vari").
+- 10-18 scenes, and SCALE with the season length: cover every major turning point of the season in chronological order — do not skip beats to save space. A season with many episodes needs more scenes. Start with a hero, end with an ending.
+- COMPLETENESS over cleverness: every major death, betrayal, reveal, alliance, and the season-ending cliffhanger MUST appear as its own scene. If you must choose, prefer telling one more real fact over a decorative beat. Never leave a central plot thread unmentioned.
+- Be SPECIFIC: name real characters (from the CAST) and state exactly what happened (a death, a betrayal, a reveal). No vague filler ("affrontano nuove sfide", "molti", "vari", "qualcosa cambia").
 - EVERY scene MUST have a "subtitle": one clear sentence (12-24 words, target language) that makes the scene understandable on its own. A relationship-graph, split-screen or character-card whose subtitle does not explain who the people are and what happens between them is forbidden.
 - Fill the fields the layout needs (relationship-graph and split-screen also need the character names in "characters"); omit only fields the layout truly does not use.
 - stat: "value" must be a concrete number or short fact ("10", "4 morti"), never a vague word like "molti".
@@ -116,6 +120,20 @@ function recap_user_message(array $media, string $langName): string {
     if (!empty($media['genres']) && is_array($media['genres'])) {
         $lines[] = 'Genres: ' . implode(', ', array_slice($media['genres'], 0, 6));
     }
+
+    $cast = is_array($media['cast'] ?? null) ? $media['cast'] : [];
+    if ($cast) {
+        $lines[] = '';
+        $lines[] = 'CAST (character — actor; use these exact character names):';
+        foreach (array_slice($cast, 0, RECAP_MAX_CAST) as $c) {
+            if (!is_array($c)) continue;
+            $char = trim((string) ($c['c'] ?? ''));
+            if ($char === '') continue;
+            $actor = trim((string) ($c['a'] ?? ''));
+            $lines[] = $actor !== '' ? "- $char — $actor" : "- $char";
+        }
+    }
+
     if (!empty($media['plot'])) {
         $lines[] = '';
         $lines[] = 'Overall plot:';
@@ -177,10 +195,13 @@ function recap_call_claude(string $system, string $user, string $model): ?array 
     $key = app_config('anthropic_api_key');
     if (!$key) return null;
 
+    // Thinking adattivo: Opus ragiona su quali fatti/personaggi sono centrali
+    // prima di comporre le scene. Migliora precisione e completezza. max_tokens
+    // deve coprire thinking + output JSON, quindi tenuto alto.
     $payload = [
         'model'         => $model,
-        'max_tokens'    => 2500,
-        'thinking'      => ['type' => 'disabled'],
+        'max_tokens'    => 8000,
+        'thinking'      => ['type' => 'adaptive'],
         'system'        => $system,
         'messages'      => [['role' => 'user', 'content' => $user]],
         'output_config' => ['format' => ['type' => 'json_schema', 'schema' => recap_output_schema()]],
@@ -196,7 +217,7 @@ function recap_call_claude(string $system, string $user, string $model): ?array 
             'x-api-key: ' . $key,
         ],
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 120,
+        CURLOPT_TIMEOUT        => 170,
     ]);
     $raw  = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -324,14 +345,16 @@ function recap_get_or_generate(PDO $pdo, array $body, ?string $userId): array {
         'year'        => $body['year'] ?? null,
         'type'        => $type,
         'genres'      => is_array($body['genres'] ?? null) ? $body['genres'] : [],
+        'cast'        => is_array($body['cast'] ?? null) ? $body['cast'] : [],
         'plot'        => $plot,
         'episodes'    => $episodes,
         'seasonLabel' => $season === 'full' ? 'entire series' : ('season ' . $season),
     ], recap_lang_name($lang));
 
-    // Opus può impiegare 30-60s per un recap dettagliato: alza il limite PHP
-    // (default 30s) oltre il timeout curl, altrimenti lo script viene ucciso.
-    @set_time_limit(150);
+    // Con thinking adattivo Opus può impiegare 1-2 minuti per un recap dettagliato:
+    // alza il limite PHP (default 30s) oltre il timeout curl, altrimenti lo script
+    // viene ucciso prima della risposta.
+    @set_time_limit(210);
 
     $scenes = recap_call_claude($system, $user, $model);
     if ($scenes === null) api_err('recap_unavailable', 503);

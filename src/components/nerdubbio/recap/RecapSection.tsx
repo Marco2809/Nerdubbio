@@ -3,7 +3,7 @@ import { Loader2, Play } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "@/lib/toast";
 import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
-import { tmdbSeason, type SeasonSummary } from "@/lib/tmdb/tmdb.functions";
+import { tmdbSeason, tmdbCredits, type SeasonSummary } from "@/lib/tmdb/tmdb.functions";
 import { recapApi, type RecapScene, type RecapEpisodeInput } from "@/lib/php/recap-client";
 import { RecapReel } from "./RecapReel";
 import { moodFromGenres } from "./recapMusic";
@@ -79,6 +79,21 @@ export function RecapSection({
           .map((e) => ({ n: e.episodeNumber, t: e.name, o: (e.overview || "").slice(0, 600) }))
           .filter((e) => e.o || e.t);
       }
+      // Cast (aggregate_credits copre tutte le stagioni): ancora i nomi dei
+      // personaggi così il recap non li confonde né li inventa.
+      let cast: { c: string; a?: string }[] | undefined;
+      try {
+        const cr = await tmdbCredits({ data: { type, tmdbId, locale: tmdbLocale } });
+        cast = cr.cast
+          .filter((c) => c.character)
+          .sort((a, b) => a.order - b.order)
+          .slice(0, 15)
+          .map((c) => ({ c: c.character, a: c.name || undefined }));
+        if (cast.length === 0) cast = undefined;
+      } catch {
+        // Il cast è un extra: se TMDB non risponde, si genera comunque.
+      }
+
       const res = await recapApi.generate({
         type,
         tmdbId,
@@ -89,6 +104,7 @@ export function RecapSection({
         genres,
         plot,
         episodes,
+        cast,
       });
       setByKey((prev) => ({ ...prev, [activeKey]: res.scenes }));
       setOpen(true);

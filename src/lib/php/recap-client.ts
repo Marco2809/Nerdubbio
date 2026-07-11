@@ -34,6 +34,11 @@ export interface RecapEpisodeInput {
   o: string;
 }
 
+export interface RecapCastInput {
+  c: string; // nome personaggio
+  a?: string; // attore
+}
+
 export interface RecapInput {
   type: 'movie' | 'tv';
   tmdbId: number;
@@ -44,6 +49,7 @@ export interface RecapInput {
   genres?: string[];
   plot: string;
   episodes?: RecapEpisodeInput[];
+  cast?: RecapCastInput[];
 }
 
 export const recapApi = {
