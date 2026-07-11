@@ -195,13 +195,14 @@ function recap_call_claude(string $system, string $user, string $model): ?array 
     $key = app_config('anthropic_api_key');
     if (!$key) return null;
 
-    // Thinking adattivo: Opus ragiona su quali fatti/personaggi sono centrali
-    // prima di comporre le scene. Migliora precisione e completezza. max_tokens
-    // deve coprire thinking + output JSON, quindi tenuto alto.
+    // Niente thinking: la qualità arriva dal grounding (cast) e dalle regole di
+    // completezza del prompt. Il thinking adattivo, quando si attivava, allungava
+    // i tempi e/o troncava il JSON oltre max_tokens (-> recap_unavailable), in modo
+    // incostante. Senza thinking la generazione è deterministica e veloce (~20s).
     $payload = [
         'model'         => $model,
-        'max_tokens'    => 8000,
-        'thinking'      => ['type' => 'adaptive'],
+        'max_tokens'    => 6000,
+        'thinking'      => ['type' => 'disabled'],
         'system'        => $system,
         'messages'      => [['role' => 'user', 'content' => $user]],
         'output_config' => ['format' => ['type' => 'json_schema', 'schema' => recap_output_schema()]],
@@ -217,7 +218,7 @@ function recap_call_claude(string $system, string $user, string $model): ?array 
             'x-api-key: ' . $key,
         ],
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 170,
+        CURLOPT_TIMEOUT        => 120,
     ]);
     $raw  = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -351,10 +352,9 @@ function recap_get_or_generate(PDO $pdo, array $body, ?string $userId): array {
         'seasonLabel' => $season === 'full' ? 'entire series' : ('season ' . $season),
     ], recap_lang_name($lang));
 
-    // Con thinking adattivo Opus può impiegare 1-2 minuti per un recap dettagliato:
-    // alza il limite PHP (default 30s) oltre il timeout curl, altrimenti lo script
-    // viene ucciso prima della risposta.
-    @set_time_limit(210);
+    // Opus impiega ~20-40s per un recap: alza il limite PHP (default 30s) oltre il
+    // timeout curl, altrimenti lo script viene ucciso prima della risposta.
+    @set_time_limit(150);
 
     $scenes = recap_call_claude($system, $user, $model);
     if ($scenes === null) api_err('recap_unavailable', 503);
