@@ -40,6 +40,22 @@ function Initial({ name, size = 64 }: { name: string; size?: number }) {
   );
 }
 
+// Foto reale dell'attore (TMDB) quando disponibile, altrimenti iniziale.
+function Avatar({ name, photo, size = 64 }: { name: string; photo?: string; size?: number }) {
+  if (!photo) return <Initial name={name} size={size} />;
+  return (
+    <img
+      src={photo}
+      alt={name}
+      loading="eager"
+      style={{
+        width: size, height: size, borderRadius: "50%", flex: "none",
+        objectFit: "cover", background: "#1c2a1a", border: `2px solid ${GOLD}`,
+      }}
+    />
+  );
+}
+
 const chip: CSSProperties = {
   display: "inline-block", fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase",
   fontWeight: 600, color: "#0d0f0c", background: GOLD, padding: "5px 12px", borderRadius: 20,
@@ -48,7 +64,14 @@ const kicker: CSSProperties = {
   color: GOLD, fontSize: 11, letterSpacing: ".22em", textTransform: "uppercase", fontWeight: 600,
 };
 
-export function SceneView({ scene }: { scene: RecapScene }) {
+export function SceneView({
+  scene,
+  photoFor,
+}: {
+  scene: RecapScene;
+  photoFor?: (name: string) => string | undefined;
+}) {
+  const photo = (name: string) => photoFor?.(name);
   const layout = scene.layout ?? "motif";
   const title = scene.title ?? scene.label ?? "";
   const subtitle = scene.subtitle ?? scene.caption ?? "";
@@ -79,7 +102,7 @@ export function SceneView({ scene }: { scene: RecapScene }) {
     const note = chars[0]?.note || subtitle;
     return (
       <div style={wrap}>
-        <div style={pop()}><Initial name={name} size={84} /></div>
+        <div style={pop()}><Avatar name={name} photo={photo(name)} size={84} /></div>
         <h2 style={{ color: CREAM, fontSize: 22, fontWeight: 600, margin: "16px 0 0", ...pop(0.08) }}>{name}</h2>
         {note && <p style={{ color: DIM, fontSize: 14, marginTop: 8, maxWidth: 260, ...pop(0.16) }}>{note}</p>}
       </div>
@@ -163,13 +186,13 @@ export function SceneView({ scene }: { scene: RecapScene }) {
       <div style={wrap}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, ...pop() }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-            <Initial name={a} size={60} />
+            <Avatar name={a} photo={photo(a)} size={60} />
             <span style={{ color: CREAM, fontSize: 13, fontWeight: 600, maxWidth: 80 }}>{a}</span>
           </div>
           <span style={{ flex: 1, height: 2, minWidth: 34, background: GOLD }} />
           {b && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-              <Initial name={b} size={60} />
+              <Avatar name={b} photo={photo(b)} size={60} />
               <span style={{ color: CREAM, fontSize: 13, fontWeight: 600, maxWidth: 80 }}>{b}</span>
             </div>
           )}
@@ -187,7 +210,7 @@ export function SceneView({ scene }: { scene: RecapScene }) {
         <div style={{ position: "absolute", inset: 0, display: "flex" }}>
           {[a, b].map((c, i) => (
             <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "54px 14px", gap: 10, background: i === 0 ? "#151d13" : "#1d1513", ...pop(i * 0.12) }}>
-              <Initial name={c.name} size={58} />
+              <Avatar name={c.name} photo={photo(c.name)} size={58} />
               <span style={{ color: CREAM, fontSize: 14, fontWeight: 600 }}>{c.name}</span>
               {c.note && <span style={{ color: DIM, fontSize: 12, lineHeight: 1.35 }}>{c.note}</span>}
             </div>

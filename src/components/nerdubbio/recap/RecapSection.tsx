@@ -3,7 +3,7 @@ import { Loader2, Play } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "@/lib/toast";
 import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
-import { tmdbSeason, tmdbCredits, type SeasonSummary } from "@/lib/tmdb/tmdb.functions";
+import { tmdbSeason, tmdbCredits, type SeasonSummary, type CastMember } from "@/lib/tmdb/tmdb.functions";
 import { recapApi, type RecapScene, type RecapEpisodeInput } from "@/lib/php/recap-client";
 import { RecapReel } from "./RecapReel";
 import { moodFromGenres } from "./recapMusic";
@@ -47,6 +47,21 @@ export function RecapSection({
   const [byKey, setByKey] = useState<Record<string, RecapScene[]>>({});
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [castMembers, setCastMembers] = useState<CastMember[] | null>(null);
+
+  // Cast (aggregate_credits, tutte le stagioni): serve sia per ancorare i nomi
+  // nel prompt sia per mostrare le foto attore nel reel. Recuperato una volta.
+  const ensureCast = async (): Promise<CastMember[]> => {
+    if (castMembers) return castMembers;
+    try {
+      const cr = await tmdbCredits({ data: { type, tmdbId, locale: tmdbLocale } });
+      setCastMembers(cr.cast);
+      return cr.cast;
+    } catch {
+      setCastMembers([]);
+      return [];
+    }
+  };
 
   const plot = (overview ?? "").trim();
   const canGenerate = isTv ? realSeasons.length > 0 : !!movieWatched && plot.length >= 20;
@@ -57,12 +72,14 @@ export function RecapSection({
   const reelTitle = isTv && effective != null ? `${title} · ${t("recap.season", { n: effective })}` : title;
 
   const run = async () => {
-    if (scenes) {
-      setOpen(true);
-      return;
-    }
     setLoading(true);
     try {
+      // Serve comunque per le foto nel reel, anche se lo storyboard è in cache.
+      const members = await ensureCast();
+      if (scenes) {
+        setOpen(true);
+        return;
+      }
       let episodes: RecapEpisodeInput[] | undefined;
       let seasonStr = "full";
       if (isTv && effective != null) {
@@ -79,20 +96,12 @@ export function RecapSection({
           .map((e) => ({ n: e.episodeNumber, t: e.name, o: (e.overview || "").slice(0, 600) }))
           .filter((e) => e.o || e.t);
       }
-      // Cast (aggregate_credits copre tutte le stagioni): ancora i nomi dei
-      // personaggi così il recap non li confonde né li inventa.
-      let cast: { c: string; a?: string }[] | undefined;
-      try {
-        const cr = await tmdbCredits({ data: { type, tmdbId, locale: tmdbLocale } });
-        cast = cr.cast
-          .filter((c) => c.character)
-          .sort((a, b) => a.order - b.order)
-          .slice(0, 15)
-          .map((c) => ({ c: c.character, a: c.name || undefined }));
-        if (cast.length === 0) cast = undefined;
-      } catch {
-        // Il cast è un extra: se TMDB non risponde, si genera comunque.
-      }
+      // Cast per ancorare i nomi dei personaggi nel prompt (primi 15 per ordine).
+      const cast = members
+        .filter((c) => c.character)
+        .sort((a, b) => a.order - b.order)
+        .slice(0, 15)
+        .map((c) => ({ c: c.character, a: c.name || undefined }));
 
       const res = await recapApi.generate({
         type,
@@ -104,7 +113,7 @@ export function RecapSection({
         genres,
         plot,
         episodes,
-        cast,
+        cast: cast.length ? cast : undefined,
       });
       setByKey((prev) => ({ ...prev, [activeKey]: res.scenes }));
       setOpen(true);
@@ -192,6 +201,9 @@ export function RecapSection({
           mood={moodFromGenres(genres)}
           open={open}
           onClose={() => setOpen(false)}
+          cast={(castMembers ?? [])
+            .filter((c) => c.character && c.profileUrl)
+            .map((c) => ({ character: c.character, photo: c.profileUrl }))}
         />
       )}
     </div>

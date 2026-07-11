@@ -1,10 +1,26 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Volume2, VolumeX } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { SceneView } from "./storyScene";
 import { RecapMusic, type Mood } from "./recapMusic";
 import type { RecapScene } from "@/lib/php/recap-client";
+
+export interface RecapCastPhoto {
+  character: string;
+  photo: string | null;
+}
+
+// Normalizza un nome per l'abbinamento (minuscole, senza accenti/punteggiatura).
+function normName(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 const REEL_CSS = `
 .rbx-overlay{position:fixed;inset:0;z-index:9999;background:#05060480;backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;font-family:var(--font-sans),system-ui,sans-serif}
@@ -56,14 +72,42 @@ export function RecapReel({
   mood,
   open,
   onClose,
+  cast,
 }: {
   scenes: RecapScene[];
   title: string;
   mood: Mood;
   open: boolean;
   onClose: () => void;
+  cast?: RecapCastPhoto[];
 }) {
   const { t } = useI18n();
+
+  // Abbina un nome personaggio (dalla scena) alla foto attore del cast.
+  const photoFor = useMemo(() => {
+    const entries = (cast ?? [])
+      .filter((c) => c.photo && c.character)
+      .map((c) => {
+        const norm = normName(c.character);
+        return { norm, tokens: norm.split(" ").filter((w) => w.length >= 4), photo: c.photo! };
+      });
+    if (entries.length === 0) return undefined;
+    return (name: string): string | undefined => {
+      const n = normName(name);
+      if (!n) return undefined;
+      for (const e of entries) if (e.norm === n) return e.photo;
+      for (const e of entries) if (n.length >= 4 && (e.norm.includes(n) || n.includes(e.norm))) return e.photo;
+      const nt = n.split(" ").filter((w) => w.length >= 4);
+      if (nt.length) for (const e of entries) if (e.tokens.some((tk) => nt.includes(tk))) return e.photo;
+      return undefined;
+    };
+  }, [cast]);
+
+  // Precarica le foto così non lampeggiano durante il reel.
+  useEffect(() => {
+    if (!open || !cast) return;
+    for (const c of cast) if (c.photo) new Image().src = c.photo;
+  }, [open, cast]);
   const [phase, setPhase] = useState<Phase>("gate");
   const [idx, setIdx] = useState(0);
   const [shown, setShown] = useState(false);
@@ -163,7 +207,7 @@ export function RecapReel({
         <div className="rbx-content" style={{ opacity: scene && shown ? 1 : 0 }}>
           {scene && (
             <div key={idx} style={{ position: "absolute", inset: 0 }}>
-              <SceneView scene={scene} />
+              <SceneView scene={scene} photoFor={photoFor} />
             </div>
           )}
         </div>
