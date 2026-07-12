@@ -35,3 +35,8 @@ dist-ssr
 .env.*
 !.env.example
 api/config.php
+
+__pycache__/
+scripts/audit-*.sql
+NUL
+.tmp-tvtime-bubu/
