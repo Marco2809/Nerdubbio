@@ -3,7 +3,7 @@ import { AppShell } from "@/components/nerdubbio/AppShell";
 import { useUserStore, computeStats } from "@/lib/user-store";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { useFriendRequestCount } from "@/hooks/use-friend-requests-count";
-import { Trophy, Flame, Star, Settings2, Crown, Users, Download, ExternalLink, BarChart3, Tv, Clapperboard, Bookmark } from "lucide-react";
+import { Trophy, Flame, Star, Settings2, Users, Download, ExternalLink, BarChart3, Tv, Clapperboard, Bookmark } from "lucide-react";
 import { countAllMovies, countAllSeries } from "@/lib/library-display";
 import { useI18n, pageTitle } from "@/lib/i18n";
 
@@ -154,10 +154,6 @@ function Profile() {
                 : t("profile.friendsHint")}
             </p>
           </div>
-        </Link>
-        <Link to="/premium" className="glass flex items-center gap-3 rounded-2xl p-4">
-          <Crown className="h-5 w-5 text-accent" />
-          <div className="flex-1"><p className="text-sm font-semibold">{t("profile.premium")}</p><p className="text-xs text-muted-foreground">{t("profile.premiumHint")}</p></div>
         </Link>
         <Link to="/gruppo" className="glass flex items-center gap-3 rounded-2xl p-4">
           <Users className="h-5 w-5 text-accent" />

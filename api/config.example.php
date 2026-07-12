@@ -35,4 +35,8 @@ return [
 
     // GIF nei commenti (GIPHY — opzionale). Chiave da developers.giphy.com.
     'giphy_api_key'     => '',
+
+    // Push "esce oggi" per le serie in corso (opzionale). Stessa API key TMDB
+    // usata dal frontend; senza chiave il cron notifica solo i reminder manuali.
+    'tmdb_api_key'      => '',
 ];

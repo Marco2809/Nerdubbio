@@ -109,6 +109,12 @@ if ($action === 'set_rating') {
     json_out(library_set_rating($pdo, $userId, $id, $rating));
 }
 
+if ($action === 'set_notes') {
+    $id = (string) ($body['id'] ?? '');
+    if ($id === '') api_err('missing_id', 400);
+    json_out(library_set_notes($pdo, $userId, $id, (string) ($body['notes'] ?? '')));
+}
+
 if ($action === 'set_reaction') {
     $id = (string) ($body['id'] ?? '');
     if ($id === '') api_err('missing_id', 400);

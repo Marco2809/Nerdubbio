@@ -20,7 +20,6 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedSearchRouteImport } from './routes/_authenticated/search'
 import { Route as AuthenticatedProssimiRouteImport } from './routes/_authenticated/prossimi'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
-import { Route as AuthenticatedPremiumRouteImport } from './routes/_authenticated/premium'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedNerdacoloRouteImport } from './routes/_authenticated/nerdacolo'
 import { Route as AuthenticatedImportRouteImport } from './routes/_authenticated/import'
@@ -89,11 +88,6 @@ const AuthenticatedProssimiRoute = AuthenticatedProssimiRouteImport.update({
 const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedPremiumRoute = AuthenticatedPremiumRouteImport.update({
-  id: '/premium',
-  path: '/premium',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
@@ -184,7 +178,6 @@ export interface FileRoutesByFullPath {
   '/import': typeof AuthenticatedImportRoute
   '/nerdacolo': typeof AuthenticatedNerdacoloRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
-  '/premium': typeof AuthenticatedPremiumRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/prossimi': typeof AuthenticatedProssimiRoute
   '/search': typeof AuthenticatedSearchRoute
@@ -211,7 +204,6 @@ export interface FileRoutesByTo {
   '/import': typeof AuthenticatedImportRoute
   '/nerdacolo': typeof AuthenticatedNerdacoloRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
-  '/premium': typeof AuthenticatedPremiumRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/prossimi': typeof AuthenticatedProssimiRoute
   '/search': typeof AuthenticatedSearchRoute
@@ -240,7 +232,6 @@ export interface FileRoutesById {
   '/_authenticated/import': typeof AuthenticatedImportRoute
   '/_authenticated/nerdacolo': typeof AuthenticatedNerdacoloRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
-  '/_authenticated/premium': typeof AuthenticatedPremiumRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/prossimi': typeof AuthenticatedProssimiRoute
   '/_authenticated/search': typeof AuthenticatedSearchRoute
@@ -269,7 +260,6 @@ export interface FileRouteTypes {
     | '/import'
     | '/nerdacolo'
     | '/onboarding'
-    | '/premium'
     | '/profile'
     | '/prossimi'
     | '/search'
@@ -296,7 +286,6 @@ export interface FileRouteTypes {
     | '/import'
     | '/nerdacolo'
     | '/onboarding'
-    | '/premium'
     | '/profile'
     | '/prossimi'
     | '/search'
@@ -324,7 +313,6 @@ export interface FileRouteTypes {
     | '/_authenticated/import'
     | '/_authenticated/nerdacolo'
     | '/_authenticated/onboarding'
-    | '/_authenticated/premium'
     | '/_authenticated/profile'
     | '/_authenticated/prossimi'
     | '/_authenticated/search'
@@ -425,13 +413,6 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof AuthenticatedProfileRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/premium': {
-      id: '/_authenticated/premium'
-      path: '/premium'
-      fullPath: '/premium'
-      preLoaderRoute: typeof AuthenticatedPremiumRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/onboarding': {
@@ -555,7 +536,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedImportRoute: typeof AuthenticatedImportRoute
   AuthenticatedNerdacoloRoute: typeof AuthenticatedNerdacoloRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
-  AuthenticatedPremiumRoute: typeof AuthenticatedPremiumRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedProssimiRoute: typeof AuthenticatedProssimiRoute
   AuthenticatedSearchRoute: typeof AuthenticatedSearchRoute
@@ -578,7 +558,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedImportRoute: AuthenticatedImportRoute,
   AuthenticatedNerdacoloRoute: AuthenticatedNerdacoloRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
-  AuthenticatedPremiumRoute: AuthenticatedPremiumRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedProssimiRoute: AuthenticatedProssimiRoute,
   AuthenticatedSearchRoute: AuthenticatedSearchRoute,

@@ -44,7 +44,7 @@ export function BottomNav() {
                   <span className="grid h-16 w-16 place-items-center rounded-full bg-hero shadow-glow-pink text-primary-foreground">
                     <Icon className="h-7 w-7" />
                   </span>
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/80">{it.label}</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/80">{it.label}</span>
                 </Link>
               );
             }
@@ -55,7 +55,7 @@ export function BottomNav() {
                   <Icon className="h-5 w-5" />
                   <NavBadge count={badgeCount} />
                 </span>
-                <span className="text-[10px] font-medium">{it.label}</span>
+                <span className="text-[11px] font-medium">{it.label}</span>
               </Link>
             );
           })}

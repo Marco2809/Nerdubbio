@@ -38,3 +38,71 @@ foreach ($rows as $r) {
 }
 
 echo date('c') . " reminders=" . count($rows) . " push_sent=$sent\n";
+
+// ---------------------------------------------------------------------------
+// Push automatiche "esce oggi": per le serie IN CORSO degli utenti con push
+// attive, controlla su TMDB se oggi esce un episodio. Una chiamata TMDB per
+// serie distinta (non per utente); log anti-duplicato in push_airing_log.
+// Richiede tmdb_api_key in config.php: senza, questa parte viene saltata.
+// ---------------------------------------------------------------------------
+
+$tmdbKey = app_config('tmdb_api_key');
+if (!$tmdbKey) {
+    echo "airing: skipped (tmdb_api_key mancante)\n";
+    exit;
+}
+
+$watching = $pdo->query(
+    "SELECT um.user_id, um.media_key, um.title
+     FROM user_media um
+     WHERE um.status = 'watching' AND um.media_key LIKE 'tv-%'
+       AND um.user_id IN (SELECT DISTINCT user_id FROM push_subscriptions)"
+)->fetchAll();
+
+$byShow = [];
+foreach ($watching as $w) {
+    $byShow[$w['media_key']]['title'] = $w['title'] ?: $w['media_key'];
+    $byShow[$w['media_key']]['users'][] = $w['user_id'];
+}
+
+$logIns = $pdo->prepare(
+    'INSERT IGNORE INTO push_airing_log (user_id, media_key, air_date) VALUES (?, ?, ?)'
+);
+
+$airSent = 0;
+$checked = 0;
+foreach ($byShow as $mediaKey => $show) {
+    $tmdbId = (int) substr($mediaKey, 3);
+    if ($tmdbId <= 0) continue;
+    $checked++;
+
+    $ch = curl_init("https://api.themoviedb.org/3/tv/$tmdbId?api_key=" . urlencode($tmdbKey));
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10]);
+    $raw = curl_exec($ch);
+    curl_close($ch);
+    if (!$raw) continue;
+    $data = json_decode($raw, true);
+    if (!is_array($data)) continue;
+
+    // Episodio che esce oggi: next_episode_to_air (non ancora marcato uscito)
+    // o last_episode_to_air con data odierna.
+    $ep = null;
+    foreach (['next_episode_to_air', 'last_episode_to_air'] as $f) {
+        if (($data[$f]['air_date'] ?? '') === $today) { $ep = $data[$f]; break; }
+    }
+    if (!$ep) continue;
+
+    $label = 'S' . (int) ($ep['season_number'] ?? 0) . 'E' . (int) ($ep['episode_number'] ?? 0);
+    foreach (array_unique($show['users']) as $uid) {
+        // INSERT IGNORE come gate: se la riga esiste già (run delle 9), salta.
+        $logIns->execute([$uid, $mediaKey, $today]);
+        if ($logIns->rowCount() === 0) continue;
+        $airSent += wp_send_to_user($pdo, $uid, [
+            'title' => 'Nerdubbio 🍿',
+            'body'  => $label . ' di ' . $show['title'] . ' esce oggi!',
+            'url'   => '/media/tv/' . $tmdbId,
+        ]);
+    }
+}
+
+echo date('c') . " airing: shows_checked=$checked push_sent=$airSent\n";

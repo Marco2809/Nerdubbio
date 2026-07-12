@@ -108,6 +108,10 @@ export const libraryApi = {
     return api<LibraryState>('/api/library.php?action=set_rating', 'POST', { id, rating });
   },
 
+  setNotes(id: string, notes: string): Promise<LibraryState> {
+    return api<LibraryState>('/api/library.php?action=set_notes', 'POST', { id, notes });
+  },
+
   setReaction(id: string, season: number, episode: number, emoji: string | null): Promise<LibraryState> {
     return api<LibraryState>('/api/library.php?action=set_reaction', 'POST', {
       id,

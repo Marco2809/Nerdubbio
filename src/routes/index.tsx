@@ -11,15 +11,15 @@ import { I18nProvider, LOCALES, LOCALE_LABELS, normalizeLocale, useI18n, type Lo
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Nerdubbio — Nerdacolo del binge" },
+      { title: "Nerdubbio — Traccia serie e film, scegli cosa guardare" },
       {
         name: "description",
-        content: "Traccia anime, serie e film come un completionist. Quiz nerd stile Akinator per scegliere la main quest di stasera.",
+        content: "Traccia serie, episodi e film, importa da TV Time in 2 minuti e lascia che il Nerdacolo scelga cosa guardare stasera — con match % e dove vederlo. Gratis.",
       },
-      { property: "og:title", content: "Nerdubbio — Nerdacolo del binge" },
+      { property: "og:title", content: "Nerdubbio — Basta mezz'ora a scorrere senza scegliere" },
       {
         property: "og:description",
-        content: "4 serie in parallelo e zero certezze? Nerdacolo calcola il match perfetto per stasera.",
+        content: "Il Nerdacolo trova il titolo giusto per te (e per il tuo gruppo): poche domande, un verdetto con match % e dove vederlo.",
       },
       { name: "theme-color", content: "#a855f7" },
     ],

@@ -193,6 +193,10 @@ function Settings() {
       </section>
 
       <section className="mt-8">
+        <p className="text-center text-[11px] text-muted-foreground">{t("settings.about")}</p>
+      </section>
+
+      <section className="mt-4">
         <TmdbAttribution />
       </section>
     </AppShell>

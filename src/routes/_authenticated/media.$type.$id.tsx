@@ -18,6 +18,7 @@ import { MediaRatingsSection } from "@/components/nerdubbio/MediaRatingsSection"
 import { RecapSection } from "@/components/nerdubbio/recap/RecapSection";
 import { RecommendDialog } from "@/components/nerdubbio/RecommendDialog";
 import { commentsApi, commentCountsKey } from "@/lib/php/comments-client";
+import { libraryApi, LIBRARY_QUERY_KEY } from "@/lib/php/library-client";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -352,6 +353,11 @@ function MediaDetail() {
                 <p className="text-lg font-bold tabular-nums">
                   ×{Math.max(entry.watchCount ?? 1, 1)}
                 </p>
+                {(entry.lastWatchedAt ?? entry.addedAt) && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {t("media.watchedOn", { date: formatItDate(entry.lastWatchedAt ?? entry.addedAt) })}
+                  </p>
+                )}
               </div>
               <button
                 type="button"
@@ -373,6 +379,8 @@ function MediaDetail() {
               </button>
             </div>
           )}
+
+          {entry && <EntryNotes key={item.id} entryId={item.id} initial={entry.notes ?? ""} />}
 
           {entry && (
             <AlertDialog>
@@ -1023,5 +1031,58 @@ function CastSection({ cast, loading, returnPath }: { cast: CastMember[]; loadin
         ))}
       </div>
     </section>
+  );
+}
+
+function formatItDate(iso?: string): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString();
+}
+
+/** Note private sull'entry (film o serie), salvate sul server. */
+function EntryNotes({ entryId, initial }: { entryId: string; initial: string }) {
+  const { t } = useI18n();
+  const queryClient = useQueryClient();
+  const [value, setValue] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const dirty = value.trim() !== initial.trim();
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const next = await libraryApi.setNotes(entryId, value.trim());
+      queryClient.setQueryData(LIBRARY_QUERY_KEY, next);
+      toast.success(t("media.notesSaved"));
+    } catch {
+      toast.error(t("media.notesError"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-3">
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {t("media.notesTitle")}
+      </p>
+      <textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        rows={2}
+        maxLength={1000}
+        placeholder={t("media.notesPlaceholder")}
+        className="w-full rounded-2xl border border-border bg-surface/40 p-3 text-sm outline-none focus:border-accent"
+      />
+      {dirty && (
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving}
+          className="mt-1 rounded-full bg-hero px-4 py-1.5 text-xs font-bold text-primary-foreground shadow-glow-pink disabled:opacity-50"
+        >
+          {t("media.notesSave")}
+        </button>
+      )}
+    </div>
   );
 }

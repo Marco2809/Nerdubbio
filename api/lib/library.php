@@ -650,6 +650,16 @@ function library_set_rating(PDO $pdo, string $userId, string $id, ?int $rating):
     return library_fetch_state($pdo, $userId);
 }
 
+function library_set_notes(PDO $pdo, string $userId, string $id, string $notes): array {
+    $entry = library_get_entry($pdo, $userId, $id);
+    // L'upsert usa COALESCE su notes: per svuotare va salvata stringa vuota,
+    // non null (null preserverebbe il valore precedente).
+    $entry['notes'] = mb_substr($notes, 0, 1000);
+    if (empty($entry['status'])) $entry['status'] = 'plan_to_watch';
+    library_upsert_media($pdo, $userId, $id, $entry);
+    return library_fetch_state($pdo, $userId);
+}
+
 function library_log_movie_watch(PDO $pdo, string $userId, string $id, ?array $meta = null): array {
     $entry = library_get_entry($pdo, $userId, $id);
     if ($meta) {
