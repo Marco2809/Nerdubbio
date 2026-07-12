@@ -26,6 +26,9 @@ export default {
     outroTitle: "You're all caught up.",
     outroSub: "Enjoy the (re)watch.",
     replay: "Watch again",
+    shareCta: "Share",
+    shareText: "I just relived {{title}} on Nerdubbio 🔮",
+    refreshHint: "Refresh S{{s}} before starting S{{next}}",
   },
   recommend: {
     action: "Recommend to a friend",

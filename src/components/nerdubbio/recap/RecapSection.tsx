@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Play } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "@/lib/toast";
@@ -71,51 +71,67 @@ export function RecapSection({
   const scenes = byKey[activeKey] ?? null;
   const reelTitle = isTv && effective != null ? `${title} · ${t("recap.season", { n: effective })}` : title;
 
+  // Genera (o recupera dalla cache server) lo storyboard. silent = senza toast.
+  const generate = async (silent: boolean): Promise<boolean> => {
+    const members = await ensureCast();
+    let episodes: RecapEpisodeInput[] | undefined;
+    let seasonStr = "full";
+    if (isTv && effective != null) {
+      seasonStr = String(effective);
+      const data = await tmdbSeason({ data: { tmdbId, seasonNumber: effective, locale: tmdbLocale } });
+      // Niente recap di una stagione ancora in corso: se un episodio non è
+      // ancora uscito (data futura o assente), blocca.
+      const unaired = data.episodes.filter((e) => !e.airDate || e.airDate > today);
+      if (data.episodes.length === 0 || unaired.length > 0) {
+        if (!silent) toast.warning(t("recap.incompleteSeason"));
+        return false;
+      }
+      episodes = data.episodes
+        .map((e) => ({ n: e.episodeNumber, t: e.name, o: (e.overview || "").slice(0, 600) }))
+        .filter((e) => e.o || e.t);
+    }
+    // Cast per ancorare i nomi dei personaggi nel prompt (primi 15 per ordine).
+    const cast = members
+      .filter((c) => c.character)
+      .sort((a, b) => a.order - b.order)
+      .slice(0, 15)
+      .map((c) => ({ c: c.character, a: c.name || undefined }));
+
+    const res = await recapApi.generate({
+      type,
+      tmdbId,
+      season: seasonStr,
+      lang: locale,
+      title,
+      year,
+      genres,
+      plot,
+      episodes,
+      cast: cast.length ? cast : undefined,
+    });
+    setByKey((prev) => ({ ...prev, [activeKey]: res.scenes }));
+    return true;
+  };
+
+  // Pre-generazione in background: quando la pagina mostra una stagione vista
+  // per intero, scalda la cache server così all'apertura il reel è istantaneo.
+  // Costo limitato: una generazione per serie+stagione+lingua, poi è cache.
+  const prewarmed = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isTv || effective == null || scenes || loading) return;
+    if (prewarmed.current.has(activeKey)) return;
+    prewarmed.current.add(activeKey);
+    void generate(true).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTv, effective, activeKey]);
+
   const run = async () => {
     setLoading(true);
     try {
-      // Serve comunque per le foto nel reel, anche se lo storyboard è in cache.
-      const members = await ensureCast();
-      if (scenes) {
-        setOpen(true);
-        return;
+      if (!scenes) {
+        const ok = await generate(false);
+        if (!ok) return;
       }
-      let episodes: RecapEpisodeInput[] | undefined;
-      let seasonStr = "full";
-      if (isTv && effective != null) {
-        seasonStr = String(effective);
-        const data = await tmdbSeason({ data: { tmdbId, seasonNumber: effective, locale: tmdbLocale } });
-        // Niente recap di una stagione ancora in corso: se un episodio non è
-        // ancora uscito (data futura o assente), blocca.
-        const unaired = data.episodes.filter((e) => !e.airDate || e.airDate > today);
-        if (data.episodes.length === 0 || unaired.length > 0) {
-          toast.warning(t("recap.incompleteSeason"));
-          return;
-        }
-        episodes = data.episodes
-          .map((e) => ({ n: e.episodeNumber, t: e.name, o: (e.overview || "").slice(0, 600) }))
-          .filter((e) => e.o || e.t);
-      }
-      // Cast per ancorare i nomi dei personaggi nel prompt (primi 15 per ordine).
-      const cast = members
-        .filter((c) => c.character)
-        .sort((a, b) => a.order - b.order)
-        .slice(0, 15)
-        .map((c) => ({ c: c.character, a: c.name || undefined }));
-
-      const res = await recapApi.generate({
-        type,
-        tmdbId,
-        season: seasonStr,
-        lang: locale,
-        title,
-        year,
-        genres,
-        plot,
-        episodes,
-        cast: cast.length ? cast : undefined,
-      });
-      setByKey((prev) => ({ ...prev, [activeKey]: res.scenes }));
       setOpen(true);
     } catch (e) {
       toast.error((e as Error).message || t("recap.error"));
@@ -129,6 +145,11 @@ export function RecapSection({
       ? t("recap.tileSeason", { n: effective })
       : t("recap.tileSeries")
     : t("recap.tileMovie");
+
+  // Caso d'uso principe: "sta per iniziare la S(n+1) e non ricordo la S(n)".
+  const nextSeason = isTv && lastSeason != null
+    ? (seasons ?? []).find((s) => s.seasonNumber === lastSeason + 1)?.seasonNumber ?? null
+    : null;
 
   return (
     <div className="mt-6">
@@ -170,6 +191,11 @@ export function RecapSection({
             <p className="mt-1 text-sm font-semibold leading-snug text-foreground">
               {loading ? t("recap.generating") : tileTitle}
             </p>
+            {!loading && nextSeason != null && lastSeason != null && effective === lastSeason && (
+              <p className="mt-1 text-[11px] leading-snug" style={{ color: "#e0a52e" }}>
+                {t("recap.refreshHint", { s: lastSeason, next: nextSeason })}
+              </p>
+            )}
           </div>
         </button>
 

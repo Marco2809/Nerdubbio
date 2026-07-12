@@ -26,6 +26,9 @@ export default {
     outroTitle: "Du bist auf dem neuesten Stand.",
     outroSub: "Viel Spaß beim (Wieder-)Sehen.",
     replay: "Nochmal ansehen",
+    shareCta: "Teilen",
+    shareText: "Ich habe gerade {{title}} auf Nerdubbio wiedererlebt 🔮",
+    refreshHint: "Frische S{{s}} auf, bevor du S{{next}} startest",
   },
   recommend: {
     action: "Einem Freund empfehlen",

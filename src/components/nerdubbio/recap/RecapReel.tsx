@@ -66,6 +66,55 @@ const REEL_CSS = `
 
 type Phase = "gate" | "playing" | "outro";
 
+/** Card condivisibile 1080x1350: solo testo/gradiente, nessuna immagine esterna. */
+async function buildRecapCard(title: string): Promise<Blob | null> {
+  const W = 1080;
+  const H = 1350;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, "#1a2415");
+  bg.addColorStop(0.55, "#0c0e0b");
+  bg.addColorStop(1, "#242015");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = "center";
+  ctx.font = "200px serif";
+  ctx.fillText("🔮", W / 2, 430);
+
+  ctx.fillStyle = "#f2efe4";
+  ctx.font = "bold 64px Georgia, serif";
+  const words = title.split(" ");
+  const lines: string[] = [];
+  let line = "";
+  for (const w of words) {
+    const testLine = line ? `${line} ${w}` : w;
+    if (ctx.measureText(testLine).width > W - 160 && line) {
+      lines.push(line);
+      line = w;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line) lines.push(line);
+  lines.slice(0, 3).forEach((l, i) => ctx.fillText(l, W / 2, 640 + i * 84));
+
+  ctx.fillStyle = "#e0a52e";
+  ctx.font = "600 38px system-ui, sans-serif";
+  ctx.fillText("Story Journey · Recap", W / 2, 640 + Math.min(lines.length, 3) * 84 + 40);
+
+  ctx.fillStyle = "rgba(242,239,228,0.6)";
+  ctx.font = "600 34px system-ui, sans-serif";
+  ctx.fillText("Nerdubbio", W / 2, H - 80);
+
+  return new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png"));
+}
+
 export function RecapReel({
   scenes,
   title,
@@ -112,7 +161,31 @@ export function RecapReel({
   const [idx, setIdx] = useState(0);
   const [shown, setShown] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [paused, setPaused] = useState(false);
   const musicRef = useRef<RecapMusic | null>(null);
+  const holdRef = useRef<{ timer: number; held: boolean }>({ timer: 0, held: false });
+
+  // Controlli stile stories: tenere premuto = pausa, tap sinistra/destra =
+  // scena precedente/successiva.
+  const onPointerDown = () => {
+    holdRef.current.held = false;
+    holdRef.current.timer = window.setTimeout(() => {
+      holdRef.current.held = true;
+      setPaused(true);
+    }, 250);
+  };
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    clearTimeout(holdRef.current.timer);
+    if (holdRef.current.held) {
+      setPaused(false);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const leftThird = e.clientX - rect.left < rect.width / 3;
+    setPaused(false);
+    if (leftThird) setIdx((i) => Math.max(0, i - 1));
+    else setIdx((i) => i + 1);
+  };
 
   useEffect(() => {
     if (open) {
@@ -148,6 +221,11 @@ export function RecapReel({
       setPhase("outro");
       return;
     }
+    // In pausa: la scena resta visibile, nessun timer di avanzamento.
+    if (paused) {
+      setShown(true);
+      return;
+    }
     setShown(false);
     const t0 = window.setTimeout(() => setShown(true), 40);
     const dur = scenes[idx]!.dur;
@@ -158,16 +236,39 @@ export function RecapReel({
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [open, phase, idx, scenes]);
+  }, [open, phase, idx, scenes, paused]);
 
   if (!open) return null;
 
   const start = () => {
     setIdx(0);
+    setPaused(false);
     setPhase("playing");
     if (!musicRef.current) musicRef.current = new RecapMusic(mood);
     musicRef.current.setMuted(muted);
     musicRef.current.start();
+  };
+
+  const shareRecap = async () => {
+    const text = t("recap.shareText", { title });
+    try {
+      const blob = await buildRecapCard(title);
+      if (blob && navigator.canShare) {
+        const file = new File([blob], "nerdubbio-recap.png", { type: "image/png" });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ text, files: [file] });
+          return;
+        }
+      }
+    } catch {
+      /* fallback testo */
+    }
+    try {
+      if (navigator.share) await navigator.share({ text });
+      else await navigator.clipboard.writeText(text);
+    } catch {
+      /* annullato */
+    }
   };
 
   const toggleMute = () => {
@@ -201,6 +302,25 @@ export function RecapReel({
             <div className="rbx-counter">
               {Math.min(idx + 1, scenes.length)} / {scenes.length}
             </div>
+            {/* Tap sinistra/destra = scena prec/succ; pressione = pausa */}
+            <div
+              className="absolute inset-0"
+              style={{ zIndex: 10, touchAction: "manipulation" }}
+              onPointerDown={onPointerDown}
+              onPointerUp={onPointerUp}
+              onPointerLeave={() => {
+                clearTimeout(holdRef.current.timer);
+                if (holdRef.current.held) {
+                  holdRef.current.held = false;
+                  setPaused(false);
+                }
+              }}
+            />
+            {paused && (
+              <div className="pointer-events-none absolute inset-0 grid place-items-center" style={{ zIndex: 11 }}>
+                <span className="rounded-full bg-black/55 px-4 py-1.5 text-xs font-bold text-white">⏸</span>
+              </div>
+            )}
           </>
         )}
 
@@ -236,6 +356,13 @@ export function RecapReel({
               <div className="rbx-sub">{t("recap.outroSub")}</div>
               <button className="rbx-replay" onClick={start}>
                 {t("recap.replay")}
+              </button>
+              <button
+                className="rbx-replay"
+                style={{ marginLeft: 10 }}
+                onClick={() => void shareRecap()}
+              >
+                {t("recap.shareCta")}
               </button>
             </div>
           </div>

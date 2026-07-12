@@ -26,6 +26,9 @@ export default {
     outroTitle: "Ora sei in pari.",
     outroSub: "Buona (ri)visione.",
     replay: "Rivedi il recap",
+    shareCta: "Condividi",
+    shareText: "Ho appena rivissuto {{title}} su Nerdubbio 🔮",
+    refreshHint: "Ripassa la S{{s}} prima di iniziare la S{{next}}",
   },
   recommend: {
     action: "Consiglia a un amico",

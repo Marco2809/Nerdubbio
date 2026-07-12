@@ -26,6 +26,9 @@ export default {
     outroTitle: "Vous êtes à jour.",
     outroSub: "Bon (re)visionnage.",
     replay: "Revoir",
+    shareCta: "Partager",
+    shareText: "Je viens de revivre {{title}} sur Nerdubbio 🔮",
+    refreshHint: "Révise la S{{s}} avant de commencer la S{{next}}",
   },
   recommend: {
     action: "Recommander à un ami",
