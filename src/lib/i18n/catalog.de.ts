@@ -477,6 +477,8 @@ export default {
     sphereWarning: "Sphären-Hinweis: enthält trotzdem {{traits}} — gut dosiert.",
     mood: "Stimmung",
     commitment: "Aufwand",
+    whereToWatch: "Wo schauen",
+    notOnYourPlatforms: "Nicht auf deinen üblichen Plattformen.",
     similarTo: "Ähnlich wie:",
     rejected: "Was ich aussortiert habe",
     watchlist: "Watchlist",

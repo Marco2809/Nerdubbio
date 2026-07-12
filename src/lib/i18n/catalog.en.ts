@@ -477,6 +477,8 @@ export default {
     sphereWarning: "Sphere note: still includes {{traits}} — well balanced.",
     mood: "Mood",
     commitment: "Commitment",
+    whereToWatch: "Where to watch",
+    notOnYourPlatforms: "Not on your usual platforms.",
     similarTo: "Similar to:",
     rejected: "What I ruled out",
     watchlist: "Watchlist",

@@ -24,8 +24,24 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { tmdbWatchProviders } from "@/lib/tmdb/tmdb.functions";
 import { toast } from "@/lib/toast";
-import { useI18n, pageTitle } from "@/lib/i18n";
+import { useI18n, pageTitle, type Locale } from "@/lib/i18n";
+
+const LOCALE_COUNTRY: Record<Locale, string> = { it: "IT", en: "US", es: "ES", fr: "FR", de: "DE" };
+
+// Match "Prime Video" (utente) vs "Amazon Prime Video" (TMDB), "Sky / NOW" vs "Now TV", ecc.
+function providerMatchesUser(providerName: string, userPlatforms: string[]): boolean {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const p = norm(providerName);
+  return userPlatforms.some((u) => {
+    const tokens = u.split(/[\s/]+/).map(norm).filter((tk) => tk.length >= 3);
+    if (tokens.length === 0) return false;
+    const whole = norm(u);
+    return p.includes(whole) || whole.includes(p) || tokens.some((tk) => p.includes(tk));
+  });
+}
 
 export const Route = createFileRoute("/_authenticated/dubbio/risultato")({
   head: () => ({ meta: [{ title: pageTitle("dubbioResult", "it", { name: QUEST.name }) }] }),
@@ -83,11 +99,27 @@ type FeedbackAction =
   | "watchlist";
 
 function ResultPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
   const { state, addToList, dismiss, update } = useUserStore();
   const [result, setResult] = useState<NerdacoloFinalResult | null>(null);
   const [ready, setReady] = useState(false);
+
+  const pickForQuery = result?.mainRecommendation ?? null;
+  const providersQ = useQuery({
+    queryKey: ["tmdb", "providers", pickForQuery?.mediaType, pickForQuery?.tmdbId, locale],
+    queryFn: () =>
+      tmdbWatchProviders({
+        data: {
+          type: pickForQuery!.mediaType,
+          tmdbId: pickForQuery!.tmdbId,
+          region: LOCALE_COUNTRY[locale] ?? "IT",
+        },
+      }),
+    enabled: !!pickForQuery,
+    staleTime: 1000 * 60 * 60,
+  });
+  const flatrate = providersQ.data?.providers.flatrate ?? [];
 
   useEffect(() => {
     setResult(loadNerdacoloResult());
@@ -259,6 +291,34 @@ function ResultPage() {
           <p className="mt-0.5 font-semibold">{result.commitmentLabel}</p>
         </div>
       </div>
+
+      {/* Dove vederlo — la domanda che decide se il consiglio è usabile stasera */}
+      {flatrate.length > 0 && (
+        <div className="mt-3 rounded-2xl border border-border bg-surface/40 p-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("dubbio.whereToWatch")}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {flatrate.slice(0, 6).map((p) => {
+              const mine = (state.platforms?.length ?? 0) > 0 && providerMatchesUser(p.name, state.platforms!);
+              return (
+                <span
+                  key={p.id}
+                  className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                    mine ? "border-accent/60 bg-accent/15 text-accent" : "border-border bg-surface/60"
+                  }`}
+                >
+                  {p.logoUrl && <img src={p.logoUrl} alt="" className="h-4 w-4 rounded" />}
+                  {p.name}
+                  {mine && <Check className="h-3 w-3" />}
+                </span>
+              );
+            })}
+          </div>
+          {(state.platforms?.length ?? 0) > 0 &&
+            !flatrate.some((p) => providerMatchesUser(p.name, state.platforms!)) && (
+              <p className="mt-2 text-[11px] text-amber-400/90">{t("dubbio.notOnYourPlatforms")}</p>
+            )}
+        </div>
+      )}
 
       {result.similarTo.length > 0 && (
         <p className="mt-3 text-xs text-muted-foreground">

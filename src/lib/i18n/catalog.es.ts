@@ -477,6 +477,8 @@ export default {
     sphereWarning: "Aviso de la esfera: incluye {{traits}} — bien dosificado.",
     mood: "Mood",
     commitment: "Compromiso",
+    whereToWatch: "Dónde verlo",
+    notOnYourPlatforms: "No está en tus plataformas habituales.",
     similarTo: "Similar a:",
     rejected: "Lo que descarté",
     watchlist: "Watchlist",
