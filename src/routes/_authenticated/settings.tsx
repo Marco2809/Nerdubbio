@@ -5,12 +5,13 @@ import { useUserStore } from "@/lib/user-store";
 import { libraryApi, LIBRARY_QUERY_KEY } from "@/lib/php/library-client";
 import { buildStatusPatches } from "@/lib/resolve-show-statuses";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "@/lib/toast";
 import { LOCALES, LOCALE_NAMES, useI18n, pageTitle, type Locale } from "@/lib/i18n";
 import { FlagIcon } from "@/components/nerdubbio/FlagIcon";
 import { TvTimeReimportCard } from "@/components/nerdubbio/TvTimeReimportCard";
-import { ArrowLeft, Globe, Shield, Trash2, Download, Sparkles, PlayCircle, Popcorn, CheckCircle2, Loader2 } from "lucide-react";
+import { pushSupported, getPushSubscription, enablePush, disablePush, sendTestPush } from "@/lib/push-client";
+import { ArrowLeft, Globe, Shield, Trash2, Download, Sparkles, PlayCircle, Popcorn, CheckCircle2, Loader2, BellRing } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: pageTitle("settings") }] }),
@@ -25,6 +26,33 @@ function Settings() {
   const filters = state.upcomingFilters ?? { newSeries: true, seasonPremieres: true, includeMovies: true };
   const setFilter = (patch: Partial<typeof filters>) =>
     update({ upcomingFilters: { ...filters, ...patch } });
+
+  // Notifiche push: lo stato reale sta nella subscription del browser.
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  useEffect(() => {
+    void getPushSubscription().then((sub) => setPushOn(!!sub));
+  }, []);
+
+  const togglePush = async (on: boolean) => {
+    if (pushBusy) return;
+    setPushBusy(true);
+    try {
+      if (on) {
+        const ok = await enablePush();
+        setPushOn(ok);
+        if (ok) toast.success(t("settings.pushEnabled"));
+        else toast.error(t("settings.pushDenied"));
+      } else {
+        await disablePush();
+        setPushOn(false);
+      }
+    } catch {
+      toast.error(t("settings.pushError"));
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const syncShowStatuses = async () => {
     setSyncing(true);
@@ -111,6 +139,32 @@ function Settings() {
           />
         </div>
       </section>
+
+      {pushSupported() && (
+        <section className="mt-6 space-y-2">
+          <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">{t("settings.notificationsSection")}</p>
+          <Toggle
+            icon={pushBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}
+            label={t("settings.pushLabel")}
+            hint={t("settings.pushHint")}
+            checked={pushOn}
+            onChange={(v) => void togglePush(v)}
+          />
+          {pushOn && (
+            <button
+              type="button"
+              onClick={() =>
+                void sendTestPush()
+                  .then((n) => (n > 0 ? toast.success(t("settings.pushTestSent")) : toast.error(t("settings.pushError"))))
+                  .catch(() => toast.error(t("settings.pushError")))
+              }
+              className="glass w-full rounded-2xl p-3 text-left text-sm font-semibold text-accent"
+            >
+              {t("settings.pushTest")}
+            </button>
+          )}
+        </section>
+      )}
 
       <section className="mt-6 space-y-2">
         <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">{t("settings.librarySection")}</p>

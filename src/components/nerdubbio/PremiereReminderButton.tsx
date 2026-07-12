@@ -9,6 +9,7 @@ import {
   requestNotificationPermission,
   type Reminder,
 } from "@/lib/reminders";
+import { syncReminderToServer, removeReminderFromServer } from "@/lib/push-client";
 import { useI18n } from "@/lib/i18n";
 
 type Props = {
@@ -43,12 +44,16 @@ export function PremiereReminderButton({ id, tmdbId, title, label, airDate, href
     e.stopPropagation();
     if (active) {
       removeReminder(id);
+      removeReminderFromServer(id);
       setActive(false);
       toast.message(t("reminder.removed"), { description: `${title} — ${label}` });
       return;
     }
     const perm = await requestNotificationPermission();
     addReminder(build());
+    // Specchio server-side: il cron manda la push il giorno dell'uscita anche
+    // ad app chiusa (se l'utente ha attivato le notifiche nelle impostazioni).
+    syncReminderToServer(build());
     setActive(true);
     const dateLabel = t("reminder.notifyOn", { date: airDate });
     if (perm === "granted") {
