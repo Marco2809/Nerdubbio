@@ -89,7 +89,17 @@ function HomeDashboard() {
   const trendingItems = (trending.data?.items ?? []).filter(
     (it: { id: string }) => !isMediaAlreadyWatched(state.media[it.id]),
   );
-  const suggestion = trendingItems[0];
+  // Suggerimento onesto: se un trending combacia coi generi preferiti lo
+  // presentiamo come "scelto per te" (col perché); altrimenti la label dichiara
+  // che è un popolare della settimana, senza fingersi personalizzato.
+  const favGenres = state.favoriteGenres ?? [];
+  const personalized = trendingItems.find((it: { genres?: string[] }) =>
+    (it.genres ?? []).some((g: string) => favGenres.includes(g)),
+  );
+  const suggestion = personalized ?? trendingItems[0];
+  const suggestionGenre = personalized
+    ? (personalized.genres ?? []).find((g: string) => favGenres.includes(g))
+    : undefined;
 
   const greetName = profile?.display_name || user?.email?.split("@")[0] || "nerd";
   const from = useReturnPath();
@@ -131,24 +141,19 @@ function HomeDashboard() {
         </Link>
       )}
 
-      {/* Consigli degli amici — sopra ai badge */}
+      {/* Prossimi episodi — il motivo per cui l'app si apre ogni giorno */}
+      <HomeNextEpisodesSection media={state.media} from={from} />
+
+      {/* Consigli degli amici */}
       <FriendRecommendationsSection from={from} />
       <SentRecommendationsNotice />
 
-      {/* Level card */}
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        <StatChip icon={<Trophy className="h-4 w-4" />} label={t("home.level")} value={String(state.level)} />
-        <StatChip icon={<TrendingUp className="h-4 w-4" />} label={t("home.xp")} value={String(state.xp)} />
-        <StatChip icon={<Flame className="h-4 w-4" />} label={t("home.streak")} value={t("home.streakDays", { n: state.streak })} />
-      </div>
-
-      {/* Prossimi episodi — tutte le serie in corso */}
-      <HomeNextEpisodesSection media={state.media} from={from} />
-
-      {/* Suggerimento del giorno — TMDB reale */}
+      {/* Suggerimento — personalizzato se combacia coi gusti, altrimenti popolare */}
       {suggestion && (
         <section className="mt-6">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">{t("home.suggestion")}</h2>
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider">
+            {personalized ? t("home.suggestionForYou") : t("home.suggestionTrending")}
+          </h2>
           <Link to="/media/$type/$id" params={{ type: suggestion.type, id: String(suggestion.tmdb_id) }}
             state={{ from }}
             className="relative block h-56 overflow-hidden rounded-3xl bg-surface-2 shadow-glow">
@@ -160,6 +165,11 @@ function HomeDashboard() {
             <div className="absolute inset-x-0 bottom-0 p-4">
               <p className="text-[10px] uppercase tracking-widest text-white/70">{suggestion.type === "tv" ? t("home.seriesShort") : t("home.movieShort")}{suggestion.year ? ` · ${suggestion.year}` : ""}</p>
               <h3 className="text-xl font-bold text-white">{suggestion.title}</h3>
+              {suggestionGenre && (
+                <p className="mt-0.5 text-[11px] font-semibold text-accent">
+                  {t("home.suggestionReason", { genre: suggestionGenre })}
+                </p>
+              )}
               <p className="mt-1 line-clamp-2 text-xs text-white/80">{suggestion.overview}</p>
             </div>
           </Link>
@@ -170,7 +180,14 @@ function HomeDashboard() {
       {watching.length > 0 && <LibRow title={t("home.inProgress")} items={watching} from={from} />}
       {plan.length > 0 && <LibRow title={t("home.toWatch")} items={plan} from={from} />}
 
-      <section className="mt-6 grid grid-cols-4 gap-2 text-center">
+      {/* Gamification in coda: contesto, non priorità */}
+      <div className="mt-6 grid grid-cols-3 gap-2">
+        <StatChip icon={<Trophy className="h-4 w-4" />} label={t("home.level")} value={String(state.level)} />
+        <StatChip icon={<TrendingUp className="h-4 w-4" />} label={t("home.xp")} value={String(state.xp)} />
+        <StatChip icon={<Flame className="h-4 w-4" />} label={t("home.streak")} value={t("home.streakDays", { n: state.streak })} />
+      </div>
+
+      <section className="mt-3 grid grid-cols-4 gap-2 text-center">
         <MiniStat label={t("home.statsSeries")} value={stats.series} />
         <MiniStat label={t("home.statsMovies")} value={stats.movies} />
         <MiniStat label={t("home.statsEpisodes")} value={stats.episodes} />

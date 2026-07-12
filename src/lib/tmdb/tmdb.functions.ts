@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { tmdbGenreIds } from "@/lib/recommendation/genre-map";
+import { tmdbGenreIds, genreNamesFromIds } from "@/lib/recommendation/genre-map";
 import { tmdbToCatalogItem } from "@/lib/recommendation/tmdb-catalog";
 
 const TMDB_BASE = "https://api.themoviedb.org/3";
@@ -114,7 +114,8 @@ function mapMulti(r: any): TmdbItem | null {
     overview: r.overview ?? "",
     posterUrl: posterUrl(r.poster_path),
     backdropUrl: backdropUrl(r.backdrop_path),
-    genres: [],
+    // I risultati "multi" hanno genre_ids numerici: mappali sul vocabolario app.
+    genres: genreNamesFromIds(Array.isArray(r.genre_ids) ? r.genre_ids : [], type),
   };
 }
 

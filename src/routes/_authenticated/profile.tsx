@@ -3,7 +3,7 @@ import { AppShell } from "@/components/nerdubbio/AppShell";
 import { useUserStore, computeStats } from "@/lib/user-store";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { useFriendRequestCount } from "@/hooks/use-friend-requests-count";
-import { Trophy, Flame, Star, Settings2, Crown, Users, Download, ExternalLink, BarChart3, Tv, Clapperboard } from "lucide-react";
+import { Trophy, Flame, Star, Settings2, Crown, Users, Download, ExternalLink, BarChart3, Tv, Clapperboard, Bookmark } from "lucide-react";
 import { countAllMovies, countAllSeries } from "@/lib/library-display";
 import { useI18n, pageTitle } from "@/lib/i18n";
 
@@ -100,6 +100,14 @@ function Profile() {
             </div>
           </Link>
         </div>
+        <Link to="/watchlist" className="mt-2 glass flex items-center gap-3 rounded-2xl p-4 transition hover:border-accent/40">
+          <Bookmark className="h-5 w-5 text-accent" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold">{t("profile.watchlist")}</p>
+            <p className="text-[11px] text-muted-foreground">{t("profile.watchlistHint")}</p>
+          </div>
+          <span className="text-xs font-bold text-accent">→</span>
+        </Link>
       </section>
 
       <Link to="/statistiche" className="mt-3 glass flex items-center gap-3 rounded-2xl p-4">

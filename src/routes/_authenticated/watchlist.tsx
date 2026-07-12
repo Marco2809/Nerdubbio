@@ -1,10 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
-import { MediaCard } from "@/components/nerdubbio/MediaCard";
 import { useUserStore, type UserStatus, type UserMediaEntry } from "@/lib/user-store";
-import { findById, type CatalogItem } from "@/lib/mock-catalog";
 import { useState, useMemo } from "react";
 import { ArrowDownUp } from "lucide-react";
+import { useReturnPath } from "@/lib/media-nav";
 import { useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/watchlist")({
@@ -12,7 +11,25 @@ export const Route = createFileRoute("/_authenticated/watchlist")({
   component: WatchlistPage,
 });
 
-type SortKey = "recent" | "added" | "title" | "rating" | "mine";
+type SortKey = "recent" | "added" | "title" | "mine";
+
+type Card = {
+  entry: UserMediaEntry;
+  type: "movie" | "tv";
+  tmdbId: string;
+  title: string;
+};
+
+function toCard(e: UserMediaEntry): Card | null {
+  const m = /^(movie|tv)-(\d+)$/.exec(e.id);
+  if (!m) return null;
+  return {
+    entry: e,
+    type: m[1] as "movie" | "tv",
+    tmdbId: m[2]!,
+    title: e.title || "?",
+  };
+}
 
 function WatchlistPage() {
   const { t } = useI18n();
@@ -22,14 +39,15 @@ function WatchlistPage() {
     return label === key ? s : label;
   };
   const { state } = useUserStore();
-  const [tab, setTab] = useState<UserStatus | "all" | "favorite">("all");
+  const from = useReturnPath();
+  const [tab, setTab] = useState<UserStatus | "all" | "favorite">("plan_to_watch");
   const [sort, setSort] = useState<SortKey>("recent");
 
   const tabs: { s: UserStatus | "all" | "favorite"; label: string }[] = useMemo(
     () => [
-      { s: "all", label: t("watchlist.tabAll") },
       { s: "plan_to_watch", label: statusLabel("plan_to_watch") },
       { s: "watching", label: statusLabel("watching") },
+      { s: "all", label: t("watchlist.tabAll") },
       { s: "completed", label: statusLabel("completed") },
       { s: "favorite", label: statusLabel("favorite") },
       { s: "paused", label: t("watchlist.tabCourage") },
@@ -44,7 +62,6 @@ function WatchlistPage() {
       { k: "recent", label: t("watchlist.sortRecent") },
       { k: "added", label: t("watchlist.sortAdded") },
       { k: "title", label: t("watchlist.sortTitle") },
-      { k: "rating", label: t("watchlist.sortRating") },
       { k: "mine", label: t("watchlist.sortMine") },
     ],
     [t],
@@ -53,22 +70,20 @@ function WatchlistPage() {
   const list = useMemo(() => {
     const arr = Object.values(state.media)
       .filter((m) => tab === "all" || (tab === "favorite" ? !!m.favorite : m.status === tab))
-      .map((m) => ({ entry: m, item: findById(m.id) }))
-      .filter((x): x is { entry: UserMediaEntry; item: CatalogItem } => !!x.item);
-    const cmp = (a: (typeof arr)[number], b: (typeof arr)[number]) => {
+      .map(toCard)
+      .filter((c): c is Card => !!c);
+    const cmp = (a: Card, b: Card) => {
       switch (sort) {
         case "title":
-          return a.item.title.localeCompare(b.item.title);
-        case "rating":
-          return b.item.rating - a.item.rating;
+          return a.title.localeCompare(b.title);
         case "mine":
           return (b.entry.rating ?? 0) - (a.entry.rating ?? 0);
         case "added":
           return (b.entry.addedAt ?? "").localeCompare(a.entry.addedAt ?? "");
         case "recent":
         default:
-          return (b.entry.lastWatchedAt ?? b.entry.addedAt ?? "").localeCompare(
-            a.entry.lastWatchedAt ?? a.entry.addedAt ?? "",
+          return (b.entry.lastWatchedAt ?? b.entry.updatedAt ?? b.entry.addedAt ?? "").localeCompare(
+            a.entry.lastWatchedAt ?? a.entry.updatedAt ?? a.entry.addedAt ?? "",
           );
       }
     };
@@ -116,20 +131,35 @@ function WatchlistPage() {
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-3">
-          {list.map(({ entry, item }) => (
-            <div key={item.id} className="relative">
-              <MediaCard item={item} />
-              {entry.rating != null && (
-                <span className="absolute left-2 top-2 rounded-full bg-hero px-2 py-0.5 text-[10px] font-bold text-primary-foreground shadow-glow-pink">
-                  {entry.rating}/10
-                </span>
-              )}
-              {entry.source === "tvtime" && (
-                <span className="absolute bottom-14 left-2 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest text-white/80">
-                  {t("watchlist.fromTvTime")}
-                </span>
-              )}
-            </div>
+          {list.map(({ entry, type, tmdbId, title }) => (
+            <Link
+              key={entry.id}
+              to="/media/$type/$id"
+              params={{ type, id: tmdbId }}
+              state={{ from }}
+              className="relative block"
+            >
+              <div className="relative h-52 overflow-hidden rounded-2xl bg-surface-2 shadow-glow">
+                {entry.posterUrl ? (
+                  <img src={entry.posterUrl} alt={title} className="h-full w-full object-cover" loading="lazy" />
+                ) : (
+                  <div className="grid h-full w-full place-items-center bg-gradient-to-br from-primary/40 to-accent/40 p-3 text-center text-sm font-bold">
+                    {title}
+                  </div>
+                )}
+                {entry.rating != null && (
+                  <span className="absolute left-2 top-2 rounded-full bg-hero px-2 py-0.5 text-[10px] font-bold text-primary-foreground shadow-glow-pink">
+                    {entry.rating}/10
+                  </span>
+                )}
+                {entry.source === "tvtime" && (
+                  <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest text-white/80">
+                    {t("watchlist.fromTvTime")}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 line-clamp-2 text-xs font-semibold">{title}</p>
+            </Link>
           ))}
         </div>
       )}
