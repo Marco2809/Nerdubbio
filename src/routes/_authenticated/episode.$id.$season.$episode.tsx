@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Loader2, EyeOff } from "lucide-react";
 import { OverlayBackButton } from "@/components/nerdubbio/OverlayBackButton";
 import { EpisodeCommentsSection } from "@/components/nerdubbio/EpisodeCommentsSection";
 import { tmdbSeason } from "@/lib/tmdb/tmdb.functions";
 import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
 import { useSmartBack } from "@/lib/media-nav";
+import { useUserStore } from "@/lib/user-store";
 import { useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/episode/$id/$season/$episode")({
@@ -21,6 +23,13 @@ function EpisodePage() {
   const episodeN = Number(episode);
   const locale = useTmdbLocale();
   const goBack = useSmartBack("/app");
+  const { state } = useUserStore();
+  const [spoilerRevealed, setSpoilerRevealed] = useState(false);
+
+  // Spoiler protection: trama in chiaro solo se l'episodio è già stato visto.
+  const entry = state.media[`tv-${tmdbId}`];
+  const isWatched = !!entry?.watchedEpisodes?.includes(`S${seasonN}E${episodeN}`);
+  const showOverview = isWatched || spoilerRevealed;
 
   const q = useQuery({
     queryKey: ["tmdb", "season", tmdbId, seasonN, locale],
@@ -57,7 +66,24 @@ function EpisodePage() {
 
       <div className="mx-auto max-w-md px-4">
         {ep?.overview ? (
-          <p className="mt-4 text-sm leading-relaxed text-foreground/90">{ep.overview}</p>
+          showOverview ? (
+            <p className="mt-4 text-sm leading-relaxed text-foreground/90">{ep.overview}</p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSpoilerRevealed(true)}
+              className="relative mt-4 block w-full text-left"
+            >
+              <p className="select-none text-sm leading-relaxed text-foreground/90 blur-sm" aria-hidden>
+                {ep.overview}
+              </p>
+              <span className="absolute inset-0 grid place-items-center">
+                <span className="flex items-center gap-1.5 rounded-full border border-border bg-surface-0/90 px-3 py-1.5 text-xs font-semibold">
+                  <EyeOff className="h-3.5 w-3.5" /> {t("episode.showSpoiler")}
+                </span>
+              </span>
+            </button>
+          )
         ) : (
           <p className="mt-4 text-sm text-muted-foreground">{t("episode.noOverview")}</p>
         )}

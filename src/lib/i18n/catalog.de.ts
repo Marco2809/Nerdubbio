@@ -103,6 +103,7 @@ export default {
     label: "Folge",
     discussions: "Diskussionen pro Folge",
     noOverview: "Keine Inhaltsangabe für diese Folge.",
+    showSpoiler: "Noch nicht gesehen — Inhalt anzeigen",
   },
   comments: {
     reply: "Antworten",

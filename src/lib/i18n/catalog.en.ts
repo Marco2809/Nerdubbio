@@ -103,6 +103,7 @@ export default {
     label: "Episode",
     discussions: "Episode discussions",
     noOverview: "No overview available for this episode.",
+    showSpoiler: "You haven't watched it yet — show plot",
   },
   comments: {
     reply: "Reply",

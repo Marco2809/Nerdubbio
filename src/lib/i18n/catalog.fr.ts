@@ -103,6 +103,7 @@ export default {
     label: "Épisode",
     discussions: "Discussions par épisode",
     noOverview: "Aucun résumé pour cet épisode.",
+    showSpoiler: "Pas encore vu — afficher le résumé",
   },
   comments: {
     reply: "Répondre",

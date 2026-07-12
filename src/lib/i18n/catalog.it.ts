@@ -103,6 +103,7 @@ export default {
     label: "Episodio",
     discussions: "Discussioni per episodio",
     noOverview: "Nessuna trama disponibile per questo episodio.",
+    showSpoiler: "Non l'hai ancora visto — mostra la trama",
   },
   comments: {
     reply: "Rispondi",

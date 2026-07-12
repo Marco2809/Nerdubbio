@@ -48,6 +48,104 @@ export const Route = createFileRoute("/_authenticated/dubbio/risultato")({
   component: ResultPage,
 });
 
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous"; // image.tmdb.org manda CORS *
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+/** Card 1080x1350 (4:5): poster + match% + brand. */
+async function buildShareCard(pick: NerdacoloCandidate, score: number): Promise<Blob | null> {
+  const W = 1080;
+  const H = 1350;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, "#17102b");
+  bg.addColorStop(0.55, "#0c0a14");
+  bg.addColorStop(1, "#1a0f22");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Poster centrale con angoli arrotondati
+  const pw = 560;
+  const ph = 840;
+  const px = (W - pw) / 2;
+  const py = 150;
+  if (pick.posterPath) {
+    try {
+      const img = await loadImage(pick.posterPath);
+      ctx.save();
+      roundRect(ctx, px, py, pw, ph, 36);
+      ctx.clip();
+      ctx.drawImage(img, px, py, pw, ph);
+      ctx.restore();
+    } catch {
+      /* senza poster: solo testo */
+    }
+  }
+  ctx.save();
+  roundRect(ctx, px, py, pw, ph, 36);
+  ctx.strokeStyle = "rgba(232,121,249,0.55)";
+  ctx.lineWidth = 6;
+  ctx.stroke();
+  ctx.restore();
+
+  // Badge match
+  ctx.fillStyle = "#e879f9";
+  roundRect(ctx, W / 2 - 130, py + ph + 36, 260, 72, 36);
+  ctx.fill();
+  ctx.fillStyle = "#17102b";
+  ctx.font = "bold 40px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(`MATCH ${score}%`, W / 2, py + ph + 84);
+
+  // Titolo (max 2 righe)
+  ctx.fillStyle = "#f5f0ff";
+  ctx.font = "bold 58px system-ui, sans-serif";
+  const words = pick.title.split(" ");
+  const lines: string[] = [];
+  let line = "";
+  for (const w of words) {
+    const test = line ? `${line} ${w}` : w;
+    if (ctx.measureText(test).width > W - 160 && line) {
+      lines.push(line);
+      line = w;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  lines.slice(0, 2).forEach((l, i) => {
+    ctx.fillText(lines.length > 2 && i === 1 ? `${l}…` : l, W / 2, py + ph + 200 + i * 70);
+  });
+
+  // Brand
+  ctx.fillStyle = "rgba(245,240,255,0.65)";
+  ctx.font = "600 34px system-ui, sans-serif";
+  ctx.fillText("Nerdubbio · Nerdacolo", W / 2, H - 70);
+
+  return new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png"));
+}
+
 function toMeta(c: NerdacoloCandidate): MediaMeta {
   return {
     title: c.title,
@@ -164,6 +262,19 @@ function ResultPage() {
       title: pick.title,
       score: result.compatibilityScore,
     });
+    // Card immagine: su WhatsApp/IG un testo nudo non porta nessuno.
+    try {
+      const blob = await buildShareCard(pick, result.compatibilityScore);
+      if (blob && navigator.canShare) {
+        const file = new File([blob], "nerdubbio.png", { type: "image/png" });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ title: QUEST.shareTitle, text, files: [file] });
+          return;
+        }
+      }
+    } catch {
+      /* card fallita o annullata: fallback testo */
+    }
     try {
       if (navigator.share) {
         await navigator.share({ title: QUEST.shareTitle, text });
