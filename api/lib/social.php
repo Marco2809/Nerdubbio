@@ -233,6 +233,63 @@ function social_groups_list(PDO $pdo, string $userId): array {
     return array_map(fn ($g) => social_group_card($pdo, $g, $userId), $stmt->fetchAll());
 }
 
+/**
+ * Contesto per il Dubbio di gruppo: gusti fusi dei membri.
+ * - seenIds: unione dei titoli visti/in corso di TUTTI i membri (da escludere)
+ * - dismissedIds: unione degli scartati
+ * - favoriteGenres: unione dei generi preferiti
+ * - platforms: intersezione delle piattaforme (ignora chi non le ha impostate)
+ */
+function social_group_context(PDO $pdo, string $userId, string $groupId): array {
+    if ($groupId === '') api_err('missing_group_id', 400);
+    $member = $pdo->prepare('SELECT user_id FROM group_members WHERE group_id = ?');
+    $member->execute([$groupId]);
+    $memberIds = array_column($member->fetchAll(), 'user_id');
+    if (!in_array($userId, $memberIds, true)) api_err('not_group_member', 403);
+
+    $ph = implode(',', array_fill(0, count($memberIds), '?'));
+
+    $seenStmt = $pdo->prepare(
+        "SELECT DISTINCT media_key FROM user_media
+         WHERE user_id IN ($ph) AND status IN ('completed','watching','dropped')"
+    );
+    $seenStmt->execute($memberIds);
+    $seenIds = array_column($seenStmt->fetchAll(), 'media_key');
+
+    $statsStmt = $pdo->prepare(
+        "SELECT favorite_genres, platforms, dismissed FROM user_stats WHERE user_id IN ($ph)"
+    );
+    $statsStmt->execute($memberIds);
+
+    $genres = [];
+    $dismissed = [];
+    $platformSets = [];
+    foreach ($statsStmt->fetchAll() as $row) {
+        foreach (parse_json($row['favorite_genres'] ?? null, []) as $g) $genres[$g] = true;
+        foreach (parse_json($row['dismissed'] ?? null, []) as $d) $dismissed[$d] = true;
+        $p = parse_json($row['platforms'] ?? null, []);
+        if (is_array($p) && count($p) > 0) $platformSets[] = $p;
+    }
+    $platforms = $platformSets ? array_shift($platformSets) : [];
+    foreach ($platformSets as $set) {
+        $platforms = array_values(array_intersect($platforms, $set));
+    }
+
+    $names = $pdo->prepare(
+        "SELECT COALESCE(NULLIF(display_name, ''), handle) AS name FROM profiles WHERE id IN ($ph)"
+    );
+    $names->execute($memberIds);
+
+    return [
+        'memberCount'    => count($memberIds),
+        'memberNames'    => array_column($names->fetchAll(), 'name'),
+        'seenIds'        => $seenIds,
+        'dismissedIds'   => array_keys($dismissed),
+        'favoriteGenres' => array_keys($genres),
+        'platforms'      => $platforms,
+    ];
+}
+
 function social_group_create(PDO $pdo, string $userId, string $name): array {
     $name = trim($name);
     if ($name === '' || strlen($name) > 120) api_err('invalid_group_name', 400);

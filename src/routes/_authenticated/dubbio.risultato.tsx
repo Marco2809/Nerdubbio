@@ -351,8 +351,21 @@ function ResultPage() {
     { id: "niche" as const, label: t("dubbio.lessMainstream"), icon: null },
   ];
 
+  let groupBadge: { name: string; count: number } | null = null;
+  try {
+    const raw = sessionStorage.getItem("nb_group_dubbio");
+    if (raw) groupBadge = JSON.parse(raw) as { name: string; count: number };
+  } catch {
+    /* ignore */
+  }
+
   return (
     <AppShell subtitle={t("dubbio.spoken", { name: NERDACOLO.name })} title={t("dubbio.tonightPick")}>
+      {groupBadge && (
+        <p className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-200">
+          👥 {t("dubbio.groupResultBadge", { name: groupBadge.name, count: groupBadge.count })}
+        </p>
+      )}
       {session && (
         <p className="mb-3 text-[10px] uppercase tracking-widest text-muted-foreground">
           {t("dubbio.sessionStats", {

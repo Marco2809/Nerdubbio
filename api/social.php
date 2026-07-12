@@ -51,6 +51,10 @@ if ($action === 'group_create') {
     json_out(['groups' => social_group_create($pdo, $userId, (string) ($body['name'] ?? ''))]);
 }
 
+if ($action === 'group_context') {
+    json_out(social_group_context($pdo, $userId, (string) ($_GET['group_id'] ?? '')));
+}
+
 if ($action === 'group_add_member') {
     json_out(['groups' => social_group_add_member(
         $pdo,

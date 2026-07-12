@@ -51,6 +51,16 @@ export interface Group {
   members: GroupMember[];
 }
 
+/** Gusti fusi dei membri per il Dubbio di gruppo. */
+export interface GroupContext {
+  memberCount: number;
+  memberNames: string[];
+  seenIds: string[];
+  dismissedIds: string[];
+  favoriteGenres: string[];
+  platforms: string[];
+}
+
 export const SOCIAL_FRIENDS_KEY = ['social-friends'] as const;
 export const SOCIAL_GROUPS_KEY = ['social-groups'] as const;
 
@@ -86,6 +96,10 @@ export const socialApi = {
 
   groups(): Promise<{ groups: Group[] }> {
     return api<{ groups: Group[] }>('/api/social.php?action=groups');
+  },
+
+  groupContext(groupId: string): Promise<GroupContext> {
+    return api<GroupContext>(`/api/social.php?action=group_context&group_id=${encodeURIComponent(groupId)}`);
   },
 
   groupCreate(name: string): Promise<{ groups: Group[] }> {

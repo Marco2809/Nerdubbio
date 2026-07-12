@@ -160,10 +160,23 @@ function Gruppo() {
             </button>
           </form>
 
-          <div className="mt-6 rounded-3xl border border-dashed border-border p-5 text-center text-sm text-muted-foreground">
-            <p className="font-semibold text-foreground">{t("gruppo.comingTitle")}</p>
-            <p className="mt-1">{t("gruppo.comingHint")}</p>
-          </div>
+          <Link
+            to="/dubbio"
+            search={{ group: active.id }}
+            className="mt-6 block overflow-hidden rounded-3xl bg-hero p-5 shadow-glow-pink"
+          >
+            <div className="flex items-center gap-4">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-black/30 text-2xl">🔮</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs uppercase tracking-widest text-white/70">{t("gruppo.dubbioKicker")}</p>
+                <p className="text-lg font-extrabold text-white">{t("gruppo.dubbioCta")}</p>
+                <p className="mt-0.5 text-xs text-white/80">
+                  {t("gruppo.dubbioHint", { count: active.members.length })}
+                </p>
+              </div>
+              <span className="text-lg font-bold text-white">→</span>
+            </div>
+          </Link>
 
           {active.is_owner && (
             <button
