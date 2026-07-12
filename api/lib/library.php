@@ -929,10 +929,54 @@ function library_fetch_watch_stats(PDO $pdo, string $userId): array {
     $totStmt->execute([$userId]);
     $totalEpisodes = (int) $totStmt->fetchColumn();
 
+    // Blocco per l'anno corrente — alimenta il Wrapped.
+    $year = (int) date('Y');
+    $yearTopStmt = $pdo->prepare(
+        'SELECT um.title, um.media_key, SUM(ue.watch_count) AS ep_count
+         FROM user_episodes ue
+         JOIN user_media um ON um.user_id = ue.user_id AND um.media_key = ue.media_key
+         WHERE ue.user_id = ? AND YEAR(ue.watched_at) = ?
+         GROUP BY ue.media_key, um.title
+         ORDER BY ep_count DESC
+         LIMIT 5'
+    );
+    $yearTopStmt->execute([$userId, $year]);
+    $yearTop = [];
+    foreach ($yearTopStmt->fetchAll() as $row) {
+        $yearTop[] = [
+            'title'    => $row['title'] ?? $row['media_key'],
+            'mediaKey' => $row['media_key'],
+            'episodes' => (int) $row['ep_count'],
+        ];
+    }
+
+    $yearEpisodes = 0;
+    $busiest = null;
+    foreach ($byMonth as $m) {
+        if (strpos($m['month'], (string) $year) !== 0) continue;
+        $yearEpisodes += $m['episodes'];
+        if ($busiest === null || $m['episodes'] > $busiest['episodes']) $busiest = $m;
+    }
+
+    // Serie completate quest'anno (status completed aggiornato nell'anno).
+    $doneStmt = $pdo->prepare(
+        "SELECT COUNT(*) FROM user_media
+         WHERE user_id = ? AND status = 'completed' AND media_key LIKE 'tv-%' AND YEAR(updated_at) = ?"
+    );
+    $doneStmt->execute([$userId, $year]);
+
     return [
         'totalEpisodes' => $totalEpisodes,
         'hoursEstimate' => (int) round($totalEpisodes * 45 / 60),
         'byMonth'       => $byMonth,
         'topShows'      => $topShows,
+        'year'          => [
+            'year'            => $year,
+            'episodes'        => $yearEpisodes,
+            'hoursEstimate'   => (int) round($yearEpisodes * 45 / 60),
+            'topShows'        => $yearTop,
+            'busiestMonth'    => $busiest,
+            'completedSeries' => (int) $doneStmt->fetchColumn(),
+        ],
     ];
 }

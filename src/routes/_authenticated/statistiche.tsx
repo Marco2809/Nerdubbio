@@ -3,7 +3,10 @@ import { AppShell } from "@/components/nerdubbio/AppShell";
 import { useUserStore, computeStats } from "@/lib/user-store";
 import { libraryApi, type WatchStats } from "@/lib/php/library-client";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, Clock, Flame, Star, Tv, TrendingUp } from "lucide-react";
+import { useMemo, useState } from "react";
+import { BarChart3, Clock, Flame, Gift, Star, Tv, TrendingUp } from "lucide-react";
+import { RecapReel } from "@/components/nerdubbio/recap/RecapReel";
+import type { RecapScene } from "@/lib/php/recap-client";
 import { useI18n, localeToBcp47, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/statistiche")({
@@ -25,8 +28,97 @@ function StatistichePage() {
   const ws = watchStats.data;
   const maxMonth = Math.max(1, ...(ws?.byMonth.map(m => m.episodes) ?? [1]));
 
+  // Wrapped: mini film dell'anno costruito in codice (nessuna AI).
+  const [wrappedOpen, setWrappedOpen] = useState(false);
+  const y = ws?.year;
+  const wrappedScenes = useMemo<RecapScene[] | null>(() => {
+    if (!y || y.episodes === 0) return null;
+    const monthLabel = y.busiestMonth ? formatMonth(y.busiestMonth.month, locale) : null;
+    const scenes: RecapScene[] = [
+      {
+        layout: "hero",
+        title: t("stats.wrappedHero", { year: y.year }),
+        subtitle: t("stats.wrappedHeroSub"),
+        motif: "time",
+        dur: 4200,
+      },
+      {
+        layout: "stat",
+        title: t("stats.wrappedNumbers"),
+        subtitle: "",
+        stats: [
+          { label: t("stats.wrappedEpisodes"), value: String(y.episodes) },
+          { label: t("stats.wrappedHours"), value: String(y.hoursEstimate) },
+          { label: t("stats.wrappedSeriesDone"), value: String(y.completedSeries) },
+        ],
+        dur: 5200,
+      },
+    ];
+    if (y.topShows[0]) {
+      scenes.push({
+        layout: "big-reveal",
+        title: y.topShows[0].title,
+        subtitle: t("stats.wrappedTopShowSub", { n: y.topShows[0].episodes }),
+        motif: "crown",
+        dur: 5000,
+      });
+    }
+    if (y.topShows.length > 1) {
+      scenes.push({
+        layout: "timeline",
+        title: t("stats.wrappedRanking"),
+        subtitle: "",
+        items: y.topShows.map((s, i) => `${i + 1}. ${s.title} — ${s.episodes} ep`),
+        dur: 5600,
+      });
+    }
+    if (monthLabel && y.busiestMonth) {
+      scenes.push({
+        layout: "motif",
+        title: t("stats.wrappedBusiest"),
+        subtitle: t("stats.wrappedBusiestSub", { month: monthLabel, n: y.busiestMonth.episodes }),
+        motif: "explosion",
+        dur: 4600,
+      });
+    }
+    scenes.push({
+      layout: "ending",
+      title: t("stats.wrappedEnd"),
+      subtitle: t("stats.wrappedEndSub", { year: y.year }),
+      dur: 4600,
+    });
+    return scenes;
+  }, [y, locale, t]);
+
   return (
     <AppShell subtitle={t("stats.subtitle")} title={t("stats.title")}>
+      {wrappedScenes && (
+        <button
+          type="button"
+          onClick={() => setWrappedOpen(true)}
+          className="mb-4 flex w-full items-center gap-4 overflow-hidden rounded-3xl bg-hero p-4 text-left shadow-glow-pink"
+        >
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-black/30">
+            <Gift className="h-6 w-6 text-white" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs uppercase tracking-widest text-white/70">Nerdubbio Wrapped</span>
+            <span className="block text-lg font-extrabold text-white">{t("stats.wrappedCard", { year: y!.year })}</span>
+            <span className="block text-xs text-white/80">{t("stats.wrappedHint")}</span>
+          </span>
+          <span className="text-lg font-bold text-white">→</span>
+        </button>
+      )}
+      {wrappedScenes && (
+        <RecapReel
+          scenes={wrappedScenes}
+          title={`Nerdubbio Wrapped ${y!.year}`}
+          mood="epic"
+          open={wrappedOpen}
+          onClose={() => setWrappedOpen(false)}
+        />
+      )}
+
       <div className="grid grid-cols-2 gap-2">
         <BigStat icon={<Tv className="h-5 w-5" />} label={t("stats.episodesWatched")} value={ws?.totalEpisodes ?? stats.episodes} />
         <BigStat icon={<Clock className="h-5 w-5" />} label={t("stats.hoursEstimate")} value={ws?.hoursEstimate ?? stats.hours} />

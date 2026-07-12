@@ -158,6 +158,14 @@ export interface WatchStats {
   hoursEstimate: number;
   byMonth: { month: string; episodes: number }[];
   topShows: { title: string; mediaKey: string; episodes: number }[];
+  year?: {
+    year: number;
+    episodes: number;
+    hoursEstimate: number;
+    topShows: { title: string; mediaKey: string; episodes: number }[];
+    busiestMonth: { month: string; episodes: number } | null;
+    completedSeries: number;
+  };
 }
 
 export const LIBRARY_QUERY_KEY = ['user-library'] as const;
