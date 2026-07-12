@@ -68,7 +68,7 @@ function library_fetch_stats(PDO $pdo, string $userId): array {
 function library_save_stats(PDO $pdo, string $userId, array $patch): void {
     $allowed = [
         'xp', 'level', 'streak_days', 'last_active_day', 'onboarding_done', 'language',
-        'favorite_genres', 'mood_profile', 'upcoming_filters', 'dismissed', 'achievements', 'local_migrated',
+        'favorite_genres', 'mood_profile', 'platforms', 'upcoming_filters', 'dismissed', 'achievements', 'local_migrated',
         'import_pending',
     ];
     $sets = [];
@@ -76,7 +76,7 @@ function library_save_stats(PDO $pdo, string $userId, array $patch): void {
     foreach ($allowed as $k) {
         if (!array_key_exists($k, $patch)) continue;
         $v = $patch[$k];
-        if (in_array($k, ['favorite_genres', 'mood_profile', 'upcoming_filters', 'dismissed', 'achievements', 'import_pending'], true)) {
+        if (in_array($k, ['favorite_genres', 'mood_profile', 'platforms', 'upcoming_filters', 'dismissed', 'achievements', 'import_pending'], true)) {
             $v = to_json($v);
         }
         if ($k === 'onboarding_done' || $k === 'local_migrated') {
@@ -178,6 +178,7 @@ function library_fetch_state(PDO $pdo, string $userId): array {
         'language'         => normalize_locale($stats['language'] ?? 'it'),
         'favoriteGenres'   => parse_json($stats['favorite_genres'] ?? null, []),
         'moodProfile'      => parse_json($stats['mood_profile'] ?? null, null),
+        'platforms'        => parse_json($stats['platforms'] ?? null, []),
         'upcomingFilters'  => $filters,
         'localMigrated'    => !empty($stats['local_migrated']),
         'importPending'    => parse_json($stats['import_pending'] ?? null, []),
@@ -866,6 +867,7 @@ function library_patch_settings(PDO $pdo, string $userId, array $patch): array {
         'language'        => 'language',
         'favoriteGenres'  => 'favorite_genres',
         'moodProfile'     => 'mood_profile',
+        'platforms'       => 'platforms',
         'upcomingFilters' => 'upcoming_filters',
         'dismissed'       => 'dismissed',
         'achievements'    => 'achievements',

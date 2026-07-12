@@ -21,6 +21,7 @@ export interface LibraryState {
   language: Locale;
   favoriteGenres: string[];
   moodProfile?: string[];
+  platforms?: string[];
   upcomingFilters: {
     newSeries: boolean;
     seasonPremieres: boolean;

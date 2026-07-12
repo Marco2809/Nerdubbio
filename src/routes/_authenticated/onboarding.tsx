@@ -1,9 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useUserStore, type UserMediaEntry } from "@/lib/user-store";
-import { Sparkles, Check, ArrowLeft, ArrowRight, Wand2 } from "lucide-react";
+import { Sparkles, Check, ArrowLeft, ArrowRight, Wand2, Search, Plus } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { tmdbTrending, type TmdbItem } from "@/lib/tmdb/tmdb.functions";
+import { tmdbTrending, tmdbSearch, type TmdbItem } from "@/lib/tmdb/tmdb.functions";
 import { CATALOG, type CatalogItem } from "@/lib/mock-catalog";
 import { Wordmark } from "@/components/nerdubbio/Wordmark";
 import { NERDACOLO, QUEST } from "@/lib/brand";
@@ -43,8 +43,14 @@ const GENRES = [
 
 /** Domande "Dubbio nerd" — locale in onboarding-dubbio.ts */
 
-type StepKey = "welcome" | "lang" | "genres" | "dubbio" | "seen" | "done";
-const STEPS: StepKey[] = ["welcome", "lang", "genres", "dubbio", "seen", "done"];
+// Nomi brand, non tradotti.
+const PLATFORMS = [
+  "Netflix", "Prime Video", "Disney+", "Apple TV+", "Sky / NOW",
+  "Paramount+", "Crunchyroll", "RaiPlay", "Mediaset Infinity",
+];
+
+type StepKey = "welcome" | "lang" | "genres" | "platforms" | "dubbio" | "seen" | "done";
+const STEPS: StepKey[] = ["welcome", "lang", "genres", "platforms", "dubbio", "seen", "done"];
 
 function Onboarding() {
   const [lang, setLang] = useState<Locale>("it");
@@ -63,10 +69,19 @@ function OnboardingInner({ lang, setLang }: { lang: Locale; setLang: (l: Locale)
   const { state, loading } = useUserStore();
   const [stepIdx, setStepIdx] = useState(0);
   const [genres, setGenres] = useState<string[]>([]);
+  const [platforms, setPlatforms] = useState<string[]>([]);
   const [seen, setSeen] = useState<TmdbItem[]>([]);
   const [dubbioIdx, setDubbioIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
+  const [seenQuery, setSeenQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [pickAdded, setPickAdded] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(seenQuery.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [seenQuery]);
 
   useEffect(() => {
     if (loading) return;
@@ -82,6 +97,17 @@ function OnboardingInner({ lang, setLang }: { lang: Locale; setLang: (l: Locale)
     (trendingQ.data?.items?.length ? trendingQ.data.items : null) ??
     (trendingQ.isError ? ONBOARDING_FALLBACK : []);
   const usingFallback = trendingQ.isError && trendingItems.length > 0;
+
+  // Ricerca titoli nello step "visti": senza, chi ha 200 serie alle spalle
+  // può spuntare solo i trending della settimana.
+  const searchQ = useQuery({
+    queryKey: ["tmdb", "search", "onboarding", debouncedQuery],
+    queryFn: () => tmdbSearch({ data: { query: debouncedQuery } }),
+    enabled: debouncedQuery.length >= 2,
+    staleTime: 1000 * 60 * 5,
+  });
+  const searching = debouncedQuery.length >= 2;
+  const seenGrid: TmdbItem[] = searching ? (searchQ.data?.items ?? []) : trendingItems;
   const toggleSeen = (item: TmdbItem) =>
     setSeen((prev) =>
       prev.some((x) => x.id === item.id) ? prev.filter((x) => x.id !== item.id) : [...prev, item],
@@ -100,10 +126,20 @@ function OnboardingInner({ lang, setLang }: { lang: Locale; setLang: (l: Locale)
     return [...s];
   }, [answers, dubbioQuestions]);
 
+  // Primo consiglio: chiude il patto "dati in cambio di valore" prima della home.
+  const firstPick = useMemo(() => {
+    const pool = trendingItems.filter((it: TmdbItem) => !seen.some((x) => x.id === it.id));
+    return pool.find((it: TmdbItem) => (it.genres ?? []).some((g) => genres.includes(g))) ?? pool[0] ?? null;
+  }, [trendingItems, seen, genres]);
+  const firstPickGenre = firstPick
+    ? (firstPick.genres ?? []).find((g: string) => genres.includes(g))
+    : undefined;
+
   const canAdvance =
     step === "welcome" ||
     (step === "lang" && !!lang) ||
     (step === "genres" && genres.length >= 3) ||
+    step === "platforms" ||
     (step === "dubbio" && Object.keys(answers).length === dubbioQuestions.length) ||
     (step === "seen" && seen.length >= 1) ||
     step === "done";
@@ -122,11 +158,24 @@ function OnboardingInner({ lang, setLang }: { lang: Locale; setLang: (l: Locale)
         type: item.type,
         year: item.year,
       }));
+      if (pickAdded && firstPick) {
+        entries.push({
+          id: firstPick.id,
+          status: "plan_to_watch",
+          addedAt: new Date().toISOString(),
+          title: firstPick.title,
+          posterUrl: firstPick.posterUrl ?? undefined,
+          backdropUrl: firstPick.backdropUrl ?? undefined,
+          type: firstPick.type,
+          year: firstPick.year,
+        });
+      }
       if (entries.length) await libraryApi.bulkImport(entries);
       const next = await libraryApi.patchSettings({
         language: lang,
         favoriteGenres: genres,
         moodProfile,
+        platforms,
         onboardingDone: true,
       });
       queryClient.setQueryData(LIBRARY_QUERY_KEY, next);
@@ -293,6 +342,34 @@ function OnboardingInner({ lang, setLang }: { lang: Locale; setLang: (l: Locale)
             </div>
           )}
 
+          {step === "platforms" && (
+            <div className="animate-in fade-in slide-in-from-bottom-4">
+              <h2 className="text-3xl font-black">{t("onboarding.platformsTitle")}</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {t("onboarding.platformsHint")}
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {PLATFORMS.map((p) => {
+                  const on = platforms.includes(p);
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => toggle(platforms, p, setPlatforms)}
+                      className={`rounded-full border px-4 py-2 text-sm font-semibold transition-all ${
+                        on
+                          ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-200 shadow-[0_0_20px_-6px_rgba(34,211,238,0.7)]"
+                          : "border-white/10 bg-white/[0.03] text-muted-foreground hover:border-white/20"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-4 text-xs text-muted-foreground">{t("onboarding.platformsSkip")}</p>
+            </div>
+          )}
+
           {step === "dubbio" && (
             <div key={dubbioQ.id} className="animate-in fade-in slide-in-from-right-6">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-cyan-300">
@@ -331,15 +408,24 @@ function OnboardingInner({ lang, setLang }: { lang: Locale; setLang: (l: Locale)
               <p className="mt-2 text-sm text-muted-foreground">
                 {t("onboarding.seenHint")}
               </p>
-              <div className="mt-6 grid grid-cols-3 gap-2">
-                {trendingQ.isLoading &&
+              <div className="relative mt-4">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={seenQuery}
+                  onChange={(e) => setSeenQuery(e.target.value)}
+                  placeholder={t("onboarding.seenSearch")}
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] py-3 pl-9 pr-3 text-sm outline-none focus:border-fuchsia-400/60"
+                />
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {(searching ? searchQ.isLoading : trendingQ.isLoading) &&
                   Array.from({ length: 12 }).map((_, i) => (
                     <div
                       key={i}
                       className="h-32 animate-pulse rounded-2xl bg-white/5 ring-1 ring-white/10"
                     />
                   ))}
-                {trendingItems.map((item: TmdbItem) => {
+                {seenGrid.map((item: TmdbItem) => {
                   const on = seen.some((x) => x.id === item.id);
                   return (
                     <button
@@ -374,7 +460,23 @@ function OnboardingInner({ lang, setLang }: { lang: Locale; setLang: (l: Locale)
                   );
                 })}
               </div>
-              {usingFallback && (
+              {searching && !searchQ.isLoading && seenGrid.length === 0 && (
+                <p className="mt-3 text-xs text-muted-foreground">{t("onboarding.seenNoResults")}</p>
+              )}
+              {seen.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {seen.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => toggleSeen(s)}
+                      className="rounded-full border border-fuchsia-400/40 bg-fuchsia-400/10 px-2.5 py-1 text-[11px] font-semibold text-fuchsia-200"
+                    >
+                      {s.title} ✕
+                    </button>
+                  ))}
+                </div>
+              )}
+              {usingFallback && !searching && (
                 <p className="mt-3 text-xs text-amber-300/90">
                   {t("onboarding.tmdbFallback")}
                 </p>
@@ -402,6 +504,46 @@ function OnboardingInner({ lang, setLang }: { lang: Locale; setLang: (l: Locale)
                 <SummaryRow label={t("onboarding.summaryMood")} value={moodProfile.slice(0, 4).join(" · ") || "—"} extra={moodProfile.length > 4 ? `+${moodProfile.length - 4}` : undefined} />
                 <SummaryRow label={t("onboarding.summarySeen")} value={t("onboarding.seenSelected", { count: seen.length })} />
               </div>
+
+              {/* Primo consiglio: valore immediato prima ancora di entrare */}
+              {firstPick && (
+                <div className="mt-6 overflow-hidden rounded-3xl border border-fuchsia-400/30 bg-white/[0.03]">
+                  <div className="relative h-40">
+                    {(firstPick.backdropUrl || firstPick.posterUrl) && (
+                      <img
+                        src={firstPick.backdropUrl ?? firstPick.posterUrl!}
+                        alt={firstPick.title}
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 p-4">
+                      <p className="text-[10px] uppercase tracking-widest text-fuchsia-300">
+                        {t("onboarding.firstPickTitle")}
+                      </p>
+                      <p className="text-lg font-extrabold text-white">{firstPick.title}</p>
+                      {firstPickGenre && (
+                        <p className="text-[11px] font-semibold text-cyan-300">
+                          {t("home.suggestionReason", { genre: firstPickGenre })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPickAdded((v) => !v)}
+                    className={`flex w-full items-center justify-center gap-2 py-3 text-sm font-bold transition ${
+                      pickAdded
+                        ? "bg-fuchsia-500/20 text-fuchsia-200"
+                        : "bg-white/[0.04] text-foreground/90 hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    {pickAdded ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                    {pickAdded ? t("onboarding.firstPickAdded") : t("onboarding.firstPickAdd")}
+                  </button>
+                </div>
+              )}
+
               <div className="mt-6 rounded-3xl border border-white/10 bg-gradient-to-br from-fuchsia-500/20 via-pink-500/10 to-cyan-500/20 p-6 backdrop-blur">
                 <p className="text-[11px] uppercase tracking-widest text-fuchsia-200/80">
                   {t("onboarding.profileTitle")}
