@@ -543,10 +543,13 @@ function MediaDetail() {
               }
             }}
             onMarkSeasonWatched={async (seasonNumber, episodeNumbers, epsCount) => {
-              let nextState = state;
-              for (const ep of episodeNumbers) {
-                nextState = await toggleEpisode(item.id, seasonNumber, ep, epsCount, item.seasons!, mediaMeta);
-              }
+              // Una sola chiamata bulk: segnare episodio per episodio faceva
+              // N round-trip e ci metteva un'eternità sulle stagioni lunghe.
+              const nextState = await markAllSeriesWatched(
+                item.id,
+                [{ seasonNumber, episodeCount: epsCount }],
+                { meta: mediaMeta },
+              );
               toast.reward(t("media.seasonCompleted", { n: seasonNumber }), episodeNumbers.length * 15 + 50, {
                 description: t("media.seasonCompletedDesc", { count: episodeNumbers.length }),
               });

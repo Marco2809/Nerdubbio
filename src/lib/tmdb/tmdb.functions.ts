@@ -110,6 +110,7 @@ function mapMulti(r: any): TmdbItem | null {
     title: title ?? "Senza titolo",
     year: dateStr ? Number(String(dateStr).slice(0, 4)) : 0,
     rating: Number(r.vote_average ?? 0),
+    voteCount: Number(r.vote_count ?? 0),
     popularity: Number(r.popularity ?? 0),
     overview: r.overview ?? "",
     posterUrl: posterUrl(r.poster_path),
@@ -179,6 +180,12 @@ function rankMatches(mapped: TmdbItem[], q: { title: string; year?: number }): T
     const aInc = a.title.toLowerCase().includes(want) ? 1 : 0;
     const bInc = b.title.toLowerCase().includes(want) ? 1 : 0;
     if (aInc !== bInc) return bInc - aInc;
+    // Omonimi (es. Scrubs 2001 vs revival): la popularity premia il trending
+    // del momento e sceglie la serie NUOVA; il vote_count storico identifica
+    // quella che l'utente ha realmente visto. Senza anno, vince lo storico.
+    const av = a.voteCount ?? 0;
+    const bv = b.voteCount ?? 0;
+    if (av !== bv) return bv - av;
     return b.popularity - a.popularity;
   });
 }
