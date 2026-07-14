@@ -18,6 +18,14 @@ $apply = in_array('--apply', $argv, true);
 $tmdbKey = app_config('tmdb_api_key');
 if (!$tmdbKey) exit("ERRORE: tmdb_api_key mancante in api/config.php\n");
 
+// Titoli normalizzati per il confronto omonimi: minuscole, senza accenti/punteggiatura.
+function norm_title(string $s): string {
+    $s = mb_strtolower($s);
+    $t = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s);
+    if ($t !== false) $s = $t;
+    return trim(preg_replace('/\s+/', ' ', preg_replace('/[^a-z0-9 ]/', ' ', $s)) ?? '');
+}
+
 function tmdb_get(string $path, array $params = []): ?array {
     global $tmdbKey;
     $params['api_key'] = $tmdbKey;
@@ -84,8 +92,14 @@ foreach ($rows as $r) {
     // 2) Candidato giusto: omonimo con abbastanza stagioni e più voti storici.
     $search = tmdb_get('/search/tv', ['query' => (string) $r['title'], 'language' => 'it-IT']);
     $best = null;
+    $wantTitle = norm_title((string) $r['title']);
     foreach (array_slice($search['results'] ?? [], 0, 5) as $c) {
         if ((int) $c['id'] === $tmdbId) continue;
+        // Solo VERI omonimi: il titolo del candidato deve coincidere con quello
+        // dell'entry (evita rimappature-spazzatura da ricerca fuzzy).
+        $cn = norm_title((string) ($c['name'] ?? ''));
+        $co = norm_title((string) ($c['original_name'] ?? ''));
+        if ($wantTitle === '' || ($cn !== $wantTitle && $co !== $wantTitle)) continue;
         $det = tmdb_get('/tv/' . (int) $c['id']);
         usleep(120000);
         if (!$det || !empty($det['__404'])) continue;
