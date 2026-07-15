@@ -4,7 +4,7 @@ import type { NextUnwatchedInfo } from "@/lib/tmdb/tmdb.functions";
 /** Quante serie interroghiamo per la home. Deve reggere anche librerie con
     molte "in corso" in pari (post-import): con un limite basso la sezione
     può svuotarsi del tutto pur avendo serie con episodi nuovi. */
-export const HOME_NEXT_EPISODES_LIMIT = 12;
+export const HOME_NEXT_EPISODES_LIMIT = 24;
 /** Quante righe mostriamo davvero: le 3 più recenti per ultima visione.
     Ne interroghiamo di più perché le serie "in pari" spariscono (next = null). */
 export const HOME_NEXT_EPISODES_DISPLAY = 3;
