@@ -325,6 +325,17 @@ function library_merge_episode_fields(array $existing, array $incoming): array {
 }
 
 function library_sync_episodes(PDO $pdo, string $userId, string $mediaKey, array $watchedKeys, ?array $episodeDates = null, ?array $watchCounts = null): void {
+    // Le date già note vanno conservate: qui si cancella e si reinserisce, e
+    // ristampare date('now') su episodi visti anni fa li faceva risultare
+    // "visti adesso" (un re-import mandava in cima alla home serie in pari,
+    // svuotando i prossimi episodi).
+    $prev = [];
+    $prevStmt = $pdo->prepare('SELECT season, episode, watched_at FROM user_episodes WHERE user_id = ? AND media_key = ?');
+    $prevStmt->execute([$userId, $mediaKey]);
+    foreach ($prevStmt->fetchAll() as $row) {
+        $prev['S' . (int) $row['season'] . 'E' . (int) $row['episode']] = $row['watched_at'];
+    }
+
     $pdo->prepare('DELETE FROM user_episodes WHERE user_id = ? AND media_key = ?')->execute([$userId, $mediaKey]);
     if (!$watchedKeys) return;
 
@@ -341,12 +352,13 @@ function library_sync_episodes(PDO $pdo, string $userId, string $mediaKey, array
         if (is_array($watchCounts) && isset($watchCounts[$key])) {
             $count = max(1, (int) $watchCounts[$key]);
         }
+        // Priorità: data esplicita > data già registrata > adesso (episodio nuovo).
         $ins->execute([
             $userId,
             $mediaKey,
             (int) $m[1],
             (int) $m[2],
-            $watchedAt ?? date('Y-m-d H:i:s'),
+            $watchedAt ?? $prev[$key] ?? date('Y-m-d H:i:s'),
             $count,
         ]);
     }
