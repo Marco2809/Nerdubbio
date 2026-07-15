@@ -1,8 +1,10 @@
 import type { UserMediaEntry } from "@/lib/user-store";
 import type { NextUnwatchedInfo } from "@/lib/tmdb/tmdb.functions";
 
-/** Quante serie interroghiamo per la home (evita limiti batch TMDB). */
-export const HOME_NEXT_EPISODES_LIMIT = 6;
+/** Quante serie interroghiamo per la home. Deve reggere anche librerie con
+    molte "in corso" in pari (post-import): con un limite basso la sezione
+    può svuotarsi del tutto pur avendo serie con episodi nuovi. */
+export const HOME_NEXT_EPISODES_LIMIT = 20;
 /** Quante righe mostriamo davvero: le 3 più recenti per ultima visione.
     Ne interroghiamo di più perché le serie "in pari" spariscono (next = null). */
 export const HOME_NEXT_EPISODES_DISPLAY = 3;

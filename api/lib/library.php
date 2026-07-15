@@ -255,6 +255,12 @@ function library_merge_status(array $existing, array $incoming): ?string {
     if (in_array($cur, ['favorite', 'paused', 'dropped'], true) && $source !== 'status_sync') {
         return null;
     }
+    if ($source === 'tvtime') {
+        // Il CSV di TV Time è una foto vecchia: l'import può impostare lo stato
+        // solo su entry nuove o "da vedere", mai retrocedere watching/completed
+        // attuali (un re-import azzerava centinaia di stati reali).
+        return $cur === 'plan_to_watch' ? $inc : null;
+    }
     if ($cur === 'completed' && $inc === 'watching' && $source !== 'tvtime') {
         return null;
     }
