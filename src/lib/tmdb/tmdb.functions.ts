@@ -75,9 +75,26 @@ async function tmdb<T = any>(path: string, params: Record<string, string | numbe
   const headers: Record<string, string> = { Accept: "application/json" };
   if (bearer) headers.Authorization = `Bearer ${bearer}`;
 
-  const res = await fetch(url, { headers });
+  const res = await fetchWithRateLimitRetry(url, headers);
   if (!res.ok) throw new Error(`TMDB ${res.status}: ${await res.text()}`);
   return res.json() as Promise<T>;
+}
+
+/**
+ * TMDB risponde 429 quando una schermata fa molte richieste insieme (es. la
+ * home che calcola i prossimi episodi di N serie). Senza retry l'errore
+ * risaliva come "nessun episodio", svuotando le sezioni: qui aspettiamo e
+ * riproviamo, rispettando Retry-After.
+ */
+async function fetchWithRateLimitRetry(url: URL, headers: Record<string, string>): Promise<Response> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(url, { headers });
+    if (res.status !== 429) return res;
+    const retryAfter = Number(res.headers.get("retry-after") ?? "1");
+    const waitMs = Math.min(Number.isFinite(retryAfter) ? retryAfter : 1, 5) * 1000 + 150;
+    await new Promise((r) => setTimeout(r, waitMs));
+  }
+  return fetch(url, { headers });
 }
 
 /** Fetch TMDB con lingua custom (es. fallback EN). */
@@ -957,8 +974,10 @@ async function scanSeasonsForNext(
         aired: false,
       };
     }
-    let sd: any;
-    try { sd = await tmdb<any>(`/tv/${tmdbId}/season/${s.season_number}`); } catch { continue; }
+    // Se la stagione non si carica NON saltarla in silenzio: proseguire darebbe
+    // un episodio di una stagione successiva (sbagliato). Meglio far risalire
+    // l'errore e lasciare al chiamante la stima locale.
+    const sd: any = await tmdb<any>(`/tv/${tmdbId}/season/${s.season_number}`);
     const eps: any[] = Array.isArray(sd.episodes) ? sd.episodes : [];
     for (const e of eps) {
       const key = `S${e.season_number}E${e.episode_number}`;
@@ -996,8 +1015,10 @@ async function findNextUnwatchedEpisode(
   const today = new Date().toISOString().slice(0, 10);
   const { watched: watchedSet, lastS, lastE, hasFrontier } = computeWatchFrontier(watched, lastSeason, lastEpisode);
 
-  let det: any;
-  try { det = await tmdb<any>(`/tv/${tmdbId}`); } catch { return null; }
+  // NON silenziare gli errori: null qui significa "sei in pari" e farebbe
+  // sparire la serie dalla home. Se TMDB non risponde, l'errore deve risalire
+  // così il client mostra la stima locale.
+  const det: any = await tmdb<any>(`/tv/${tmdbId}`);
   const seasons: any[] = (det.seasons ?? [])
     .filter((s: any) => s && s.season_number > 0 && (s.episode_count ?? 0) > 0)
     .sort((a: any, b: any) => a.season_number - b.season_number);
