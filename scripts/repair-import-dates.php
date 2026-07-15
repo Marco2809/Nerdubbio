@@ -34,12 +34,15 @@ $to   = date('Y-m-d H:i:s', strtotime($when) + 600);
 echo ($apply ? "== APPLY ==" : "== DRY-RUN ==") . " @$handle, finestra $from -> $to\n\n";
 
 // Episodi timbrati nella finestra, con la data reale della serie a confronto.
+// Data reale: quella della serie; in mancanza, quando è stata aggiunta in
+// libreria. Mai "adesso": per un import la data di visione è ignota, e
+// spacciarla per recente falsa l'ordinamento della home.
 $q = $pdo->prepare(
-    'SELECT ue.media_key, um.title, um.last_watched_at AS real_date, COUNT(*) AS eps
+    'SELECT ue.media_key, um.title, COALESCE(um.last_watched_at, um.added_at) AS real_date, COUNT(*) AS eps
      FROM user_episodes ue
      JOIN user_media um ON um.user_id = ue.user_id AND um.media_key = ue.media_key
      WHERE ue.user_id = ? AND ue.watched_at BETWEEN ? AND ?
-     GROUP BY ue.media_key, um.title, um.last_watched_at
+     GROUP BY ue.media_key, um.title, real_date
      ORDER BY eps DESC'
 );
 $q->execute([$userId, $from, $to]);
