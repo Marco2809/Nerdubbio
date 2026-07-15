@@ -3,7 +3,8 @@ import { AppShell } from "@/components/nerdubbio/AppShell";
 import { Search as SearchIcon, Loader2, BookmarkCheck, SlidersHorizontal, X, Star, Plus, Check } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { tmdbSearch, tmdbTrending, tmdbDiscover, type TmdbItem } from "@/lib/tmdb/tmdb.functions";
+import { tmdbSearch, tmdbTrending, tmdbDiscover, type TmdbItem, type AvailabilityInfo } from "@/lib/tmdb/tmdb.functions";
+import { AvailabilityBadge, availabilityKey, useAvailability, type AvailabilityItem } from "@/components/nerdubbio/AvailabilityBadge";
 import { Link } from "@tanstack/react-router";
 import { useUserStore } from "@/lib/user-store";
 import { isMediaAlreadyWatched } from "@/lib/library-display";
@@ -51,7 +52,7 @@ function useDebounced<T>(value: T, delay = 350) {
   return v;
 }
 
-function TmdbCard({ item }: { item: TmdbItem }) {
+function TmdbCard({ item, availability }: { item: TmdbItem; availability?: AvailabilityInfo }) {
   const { t } = useI18n();
   const { state, addToList } = useUserStore();
   const from = useReturnPath();
@@ -115,6 +116,9 @@ function TmdbCard({ item }: { item: TmdbItem }) {
             <BookmarkCheck className="h-3 w-3" /> {t("search.watchedBadge")}
           </div>
         )}
+        <span className="absolute bottom-12 left-2">
+          <AvailabilityBadge info={availability} />
+        </span>
         <div className="absolute bottom-0 inset-x-0 p-3 pr-12">
           <p className="text-[10px] uppercase tracking-widest text-white/70">
             {item.type === "tv" ? t("home.seriesShort") : t("home.movieShort")}{item.year ? ` · ${item.year}` : ""}
@@ -236,6 +240,13 @@ function SearchPage() {
       });
   }, [raw, type, minRating, hideWatched, hideInLibrary, mode, userState.media]);
 
+  // Dove si vede ogni risultato: una sola chiamata batch per la griglia.
+  const availItems: AvailabilityItem[] = useMemo(
+    () => results.map((it) => ({ type: it.type, tmdbId: it.tmdb_id })),
+    [results],
+  );
+  const availability = useAvailability(availItems);
+
   const loading = search.isFetching || trending.isFetching || discover.isFetching;
   const activeError = search.error || trending.error || discover.error;
 
@@ -353,7 +364,13 @@ function SearchPage() {
       )}
 
       <div className="mt-3 grid grid-cols-2 gap-3">
-        {results.map(it => <TmdbCard key={it.id} item={it} />)}
+        {results.map(it => (
+          <TmdbCard
+            key={it.id}
+            item={it}
+            availability={availability[availabilityKey(it.type, it.tmdb_id)]}
+          />
+        ))}
       </div>
 
       {/* Carica altri (solo discover) */}

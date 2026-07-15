@@ -616,6 +616,95 @@ export const tmdbWatchProviders = createServerFn({ method: "GET" })
   .inputValidator((data) => z.object({ type: z.enum(["movie", "tv"]), tmdbId: z.number().int().positive(), region: z.string().length(2).default("IT") }).parse(data))
   .handler(async ({ data }) => ({ providers: await fetchProviders(data.type, data.tmdbId, data.region) }));
 
+/** Disponibilità a colpo d'occhio per le copertine. */
+export type AvailabilityStatus = "streaming" | "theaters" | "upcoming" | "rent" | "none";
+export interface AvailabilityInfo {
+  status: AvailabilityStatus;
+  providers: ProviderInfo[];
+  releaseDate?: string | null;
+}
+
+/** Tipi TMDB release_dates: 2/3 = cinema, 4 = digitale, 5 = fisico. */
+function firstDateOfTypes(rel: any[], types: number[]): string | null {
+  const dates = rel
+    .filter((d: any) => types.includes(Number(d.type)))
+    .map((d: any) => String(d.release_date ?? ""))
+    .filter(Boolean)
+    .sort();
+  return dates[0] ?? null;
+}
+
+/**
+ * Disponibilità per una lista di titoli, in batch.
+ * Una sola chiamata TMDB per titolo grazie ad append_to_response.
+ */
+export const tmdbAvailability = createServerFn({ method: "POST" })
+  .inputValidator((data) => z.object({
+    items: z.array(z.object({
+      type: z.enum(["movie", "tv"]),
+      tmdbId: z.number().int().positive(),
+    })).max(40),
+    region: z.string().length(2).default("IT"),
+  }).parse(data))
+  .handler(async ({ data }) => {
+    const region = data.region.toUpperCase();
+    const nowIso = new Date().toISOString();
+    const today = nowIso.slice(0, 10);
+    const availability: Record<string, AvailabilityInfo> = {};
+
+    await Promise.all(data.items.map(async (it) => {
+      const key = `${it.type}-${it.tmdbId}`;
+      try {
+        const append = it.type === "movie" ? "watch/providers,release_dates" : "watch/providers";
+        const res = await tmdb<any>(`/${it.type}/${it.tmdbId}`, { append_to_response: append });
+        const r = res["watch/providers"]?.results?.[region] ?? {};
+
+        // In abbonamento / gratis / con pubblicità: è la risposta migliore.
+        const streaming = [...(r.flatrate ?? []), ...(r.free ?? []), ...(r.ads ?? [])].map(mapProvider);
+        if (streaming.length) {
+          availability[key] = { status: "streaming", providers: streaming.slice(0, 3) };
+          return;
+        }
+
+        if (it.type === "movie") {
+          const results = res.release_dates?.results ?? [];
+          const local = results.find((x: any) => x.iso_3166_1 === region)
+            ?? results.find((x: any) => x.iso_3166_1 === "US");
+          const rel = local?.release_dates ?? [];
+          const theatrical = firstDateOfTypes(rel, [2, 3]);
+          const digital = firstDateOfTypes(rel, [4, 5]);
+
+          if (theatrical && theatrical > nowIso) {
+            availability[key] = { status: "upcoming", providers: [], releaseDate: theatrical.slice(0, 10) };
+            return;
+          }
+          // Uscito al cinema, non ancora in digitale: verosimilmente ancora in sala.
+          if (theatrical && (!digital || digital > nowIso)) {
+            const days = (Date.now() - Date.parse(theatrical)) / 86_400_000;
+            if (days <= 120) {
+              availability[key] = { status: "theaters", providers: [], releaseDate: theatrical.slice(0, 10) };
+              return;
+            }
+          }
+          // Nessuna data per la regione ma uscita globale futura.
+          if (!theatrical && res.release_date && String(res.release_date) > today) {
+            availability[key] = { status: "upcoming", providers: [], releaseDate: String(res.release_date) };
+            return;
+          }
+        }
+
+        const rentBuy = [...(r.rent ?? []), ...(r.buy ?? [])].map(mapProvider);
+        availability[key] = rentBuy.length
+          ? { status: "rent", providers: rentBuy.slice(0, 3) }
+          : { status: "none", providers: [] };
+      } catch {
+        availability[key] = { status: "none", providers: [] };
+      }
+    }));
+
+    return { availability };
+  });
+
 export interface UpcomingMovie extends TmdbItem {
   releaseDate: string;
   providers: ProviderInfo[];

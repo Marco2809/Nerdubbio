@@ -297,6 +297,12 @@ export default {
     episodesMarked: " {{n}} episodi segnati in libreria.",
     noEpisodesYet: " Nessun episodio segnato ancora.",
   },
+  availability: {
+    cinema: "Cinema",
+    inTheaters: "Al cinema ora",
+    upcomingOn: "In uscita al cinema il {{date}}",
+    rent: "A noleggio",
+  },
   media: {
     series: "Serie TV",
     movie: "Film",

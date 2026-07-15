@@ -10,3 +10,13 @@ export function useTmdbLocale(): string {
   const { state } = useUserStore();
   return localeToBcp47(normalizeLocale(state.language));
 }
+
+/**
+ * Regione (ISO 3166-1, es. "IT") per provider streaming e date d'uscita:
+ * la disponibilità cambia da paese a paese.
+ */
+export function useTmdbRegion(): string {
+  const bcp47 = useTmdbLocale();
+  const region = bcp47.split("-")[1];
+  return region ? region.toUpperCase() : "IT";
+}

@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { LibraryDisplayItem } from "@/lib/library-display";
 import { mediaRouteParams } from "@/lib/library-display";
 import { useReturnPath } from "@/lib/media-nav";
+import { AvailabilityBadge, availabilityKey, useAvailability, type AvailabilityItem } from "@/components/nerdubbio/AvailabilityBadge";
 import { Heart, PlayCircle } from "lucide-react";
 
 export function LibraryGrid({
@@ -14,6 +15,18 @@ export function LibraryGrid({
   emptyText?: string;
 }) {
   const from = useReturnPath();
+
+  // Dove si vede ogni titolo: una sola chiamata batch per tutta la griglia.
+  const availItems: AvailabilityItem[] = items
+    .map((i) => {
+      const p = mediaRouteParams(i);
+      const tmdbId = Number(p.id);
+      return Number.isFinite(tmdbId) && tmdbId > 0
+        ? { type: p.type as "movie" | "tv", tmdbId }
+        : null;
+    })
+    .filter((x): x is AvailabilityItem => !!x);
+  const availability = useAvailability(availItems);
 
   if (items.length === 0) {
     return (
@@ -59,6 +72,11 @@ export function LibraryGrid({
                   <PlayCircle className="h-3 w-3" /> {epCount} ep.
                 </span>
               )}
+              <span className="absolute bottom-12 left-2">
+                <AvailabilityBadge
+                  info={availability[availabilityKey(params.type as "movie" | "tv", Number(params.id))]}
+                />
+              </span>
               <div className="absolute inset-x-0 bottom-0 p-2.5">
                 <p className="text-[9px] uppercase tracking-widest text-white/65">
                   {item.type === "tv" ? "Serie" : "Film"}
