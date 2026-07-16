@@ -603,7 +603,7 @@ function library_toggle_episode(
     return library_fetch_state($pdo, $userId);
 }
 
-function library_mark_all_watched(PDO $pdo, string $userId, string $id, array $seasons, bool $onlyAired, ?array $meta): array {
+function library_mark_all_watched(PDO $pdo, string $userId, string $id, array $seasons, bool $onlyAired, ?array $meta, bool $complete = true): array {
     $entry = library_get_entry($pdo, $userId, $id);
     $watched = array_fill_keys($entry['watchedEpisodes'] ?? [], true);
     $today = library_today();
@@ -631,7 +631,13 @@ function library_mark_all_watched(PDO $pdo, string $userId, string $id, array $s
     $entry['episodeWatchCounts'] = $counts ?: null;
     $entry['currentSeason'] = $maxS ?: ($entry['currentSeason'] ?? null);
     $entry['currentEpisode'] = $maxE ?: ($entry['currentEpisode'] ?? null);
-    $entry['status'] = 'completed';
+    // Con $complete=false (segna una singola stagione) non si conclude l'intera
+    // serie: resta "in corso" e sarà il sync TMDB a completarla se è finita.
+    if ($complete) {
+        $entry['status'] = 'completed';
+    } elseif (!in_array($entry['status'] ?? '', ['completed', 'favorite', 'dropped', 'paused'], true)) {
+        $entry['status'] = 'watching';
+    }
     if ($meta) {
         foreach (['title', 'posterUrl', 'backdropUrl', 'type', 'year'] as $k) {
             if (array_key_exists($k, $meta) && $meta[$k] !== null) $entry[$k] = $meta[$k];

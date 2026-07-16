@@ -93,6 +93,7 @@ if ($action === 'mark_all_watched') {
         is_array($body['seasons'] ?? null) ? $body['seasons'] : [],
         !empty($body['onlyAired']),
         $body['meta'] ?? null,
+        !array_key_exists('complete', $body) || !empty($body['complete']),
     ));
 }
 

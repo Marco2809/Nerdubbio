@@ -65,7 +65,6 @@ export function RecapSection({
 
   const plot = (overview ?? "").trim();
   const canGenerate = isTv ? realSeasons.length > 0 : !!movieWatched && plot.length >= 20;
-  if (!canGenerate || !Number.isFinite(tmdbId) || tmdbId <= 0) return null;
 
   const activeKey = isTv && effective != null ? String(effective) : "full";
   const scenes = byKey[activeKey] ?? null;
@@ -124,6 +123,11 @@ export function RecapSection({
     void generate(true).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTv, effective, activeKey]);
+
+  // Guard DOPO tutti gli hook: mai un return anticipato prima di useRef/useEffect,
+  // altrimenti quando "canGenerate" cambia (es. stagione appena completata) il
+  // numero di hook varia e React crasha ("Rendered more hooks than…").
+  if (!canGenerate || !Number.isFinite(tmdbId) || tmdbId <= 0) return null;
 
   const run = async () => {
     setLoading(true);

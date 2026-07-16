@@ -545,10 +545,12 @@ function MediaDetail() {
             onMarkSeasonWatched={async (seasonNumber, episodeNumbers, epsCount) => {
               // Una sola chiamata bulk: segnare episodio per episodio faceva
               // N round-trip e ci metteva un'eternità sulle stagioni lunghe.
+              // complete:false → segna la stagione ma NON conclude l'intera
+              // serie; il sync TMDB la completerà solo se è davvero finita.
               const nextState = await markAllSeriesWatched(
                 item.id,
                 [{ seasonNumber, episodeCount: epsCount }],
-                { meta: mediaMeta },
+                { meta: mediaMeta, complete: false },
               );
               toast.reward(t("media.seasonCompleted", { n: seasonNumber }), episodeNumbers.length * 15 + 50, {
                 description: t("media.seasonCompletedDesc", { count: episodeNumbers.length }),

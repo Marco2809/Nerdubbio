@@ -87,13 +87,14 @@ export const libraryApi = {
   markAllSeriesWatched(
     id: string,
     seasons: { seasonNumber: number; episodeCount: number; airDate?: string | null }[],
-    opts: { onlyAired?: boolean; meta?: MediaMeta } = {},
+    opts: { onlyAired?: boolean; meta?: MediaMeta; complete?: boolean } = {},
   ): Promise<LibraryState> {
     return api<LibraryState>('/api/library.php?action=mark_all_watched', 'POST', {
       id,
       seasons,
       onlyAired: opts.onlyAired ?? false,
       meta: opts.meta,
+      complete: opts.complete ?? true,
     });
   },
 

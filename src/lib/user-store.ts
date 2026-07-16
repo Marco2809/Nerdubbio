@@ -173,7 +173,7 @@ export function useUserStore() {
     (
       id: string,
       seasons: { seasonNumber: number; episodeCount: number; airDate?: string | null }[],
-      opts: { onlyAired?: boolean; meta?: MediaMeta } = {},
+      opts: { onlyAired?: boolean; meta?: MediaMeta; complete?: boolean } = {},
     ) =>
       apply(() => libraryApi.markAllSeriesWatched(id, seasons, opts)).then((next) => {
         queryClient.invalidateQueries({ queryKey: NEXT_UNWATCHED_BATCH_KEY });
