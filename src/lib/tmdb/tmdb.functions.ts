@@ -1071,28 +1071,33 @@ async function analyzeShowProgress(
   const locked = currentStatus === "paused" || currentStatus === "dropped";
   const hasProgress = watched.length > 0 || (lastSeason ?? 0) > 0;
 
+  // Se TMDB non risponde NON si inventa uno stato: senza dati una serie
+  // completata verrebbe retrocessa a "in corso" (il sync stati la corrompeva
+  // a ogni errore di rete). Meglio lasciare quello che c'è.
+  const keepCurrent = (): ShowProgressResult => ({
+    inferredStatus: (currentStatus as ResolvedShowStatus) ?? (hasProgress ? "watching" : "plan_to_watch"),
+    seriesEnded: false,
+    seriesStatus: "",
+    seriesStatusLabel: "",
+    caughtUp: false,
+    next: null,
+    shouldAutoComplete: false,
+  });
+
   let seriesStatus = "";
   try {
     const det = await tmdb<any>(`/tv/${tmdbId}`);
     seriesStatus = det.status ?? "";
   } catch {
-    const fallback: ResolvedShowStatus = locked
-      ? ((currentStatus as ResolvedShowStatus) ?? "watching")
-      : hasProgress
-        ? "watching"
-        : "plan_to_watch";
-    return {
-      inferredStatus: fallback,
-      seriesEnded: false,
-      seriesStatus: "",
-      seriesStatusLabel: "",
-      caughtUp: false,
-      next: null,
-      shouldAutoComplete: false,
-    };
+    return keepCurrent();
   }
 
-  const next = await findNextUnwatchedEpisode(tmdbId, watched, lastSeason, lastEpisode);
+  let next: NextUnwatchedInfo | null;
+  try {
+    next = await findNextUnwatchedEpisode(tmdbId, watched, lastSeason, lastEpisode);
+  } catch {
+    return keepCurrent();
+  }
   const seriesEnded = isDeadSeries(seriesStatus);
   const caughtUp = !next?.aired;
 
