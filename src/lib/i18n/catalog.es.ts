@@ -314,6 +314,7 @@ export default {
     state: "Estado",
     synopsisMissing: "Sinopsis no disponible.",
     yourRating: "Tu nota",
+    ratingHint: "Arrastra para votar — también medio punto",
     removeRating: "Toca de nuevo para quitarla.",
     ratingValue: "Nota {{n}}/10",
     contentNotFound: "Contenido no encontrado.",

@@ -314,6 +314,7 @@ export default {
     state: "Statut",
     synopsisMissing: "Synopsis indisponible.",
     yourRating: "Votre note",
+    ratingHint: "Glisse pour noter — demi-point aussi",
     removeRating: "Touchez à nouveau pour retirer.",
     ratingValue: "Note {{n}}/10",
     contentNotFound: "Contenu introuvable.",

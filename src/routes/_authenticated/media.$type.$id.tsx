@@ -594,37 +594,73 @@ function MediaDetail() {
 
 function SeriesRating({ value, onChange }: { value: number | undefined; onChange: (r: number | undefined) => void }) {
   const { t } = useI18n();
-  // Tap sulla metà sinistra della barra = mezzo voto (n-0.5), metà destra = n.
-  const pick = (n: number, e: React.MouseEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const half = e.clientX - rect.left < rect.width / 2;
-    const v = half ? n - 0.5 : n;
-    onChange(value === v ? undefined : v);
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  // Trascina/tocca lungo la barra: voto 0.5–10 al mezzo punto, in tempo reale.
+  const setFromClientX = (clientX: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    onChange(Math.max(0.5, Math.round(ratio * 10 * 2) / 2));
   };
+
+  const pct = value != null ? (value / 10) * 100 : 0;
+
   return (
     <div className="mt-6">
-      <p className="text-xs uppercase tracking-widest text-muted-foreground">{t("media.yourRating")}</p>
-      <div className="mt-2 flex items-center gap-1">
-        {Array.from({ length: 10 }).map((_, i) => {
-          const n = i + 1;
-          const fillPct = value == null ? 0 : value >= n ? 100 : value >= n - 0.5 ? 50 : 0;
-          const filled = fillPct > 0;
-          return (
-            <button key={n} onClick={(e) => pick(n, e)}
-              aria-label={t("media.rateN", { n })}
-              className="relative h-8 flex-1 overflow-hidden rounded-lg border border-border bg-surface/60 text-[10px] font-bold">
-              {fillPct > 0 && (
-                <span
-                  className="absolute inset-y-0 left-0 bg-hero shadow-glow-pink"
-                  style={{ width: `${fillPct}%` }}
-                />
-              )}
-              <span className={`relative ${filled ? "text-primary-foreground" : "text-muted-foreground"}`}>{n}</span>
-            </button>
-          );
-        })}
+      <div className="flex items-baseline justify-between">
+        <p className="text-xs uppercase tracking-widest text-muted-foreground">{t("media.yourRating")}</p>
+        {value != null && (
+          <button type="button" onClick={() => onChange(undefined)} className="text-[11px] font-semibold text-muted-foreground hover:text-foreground">
+            {t("media.removeRating")}
+          </button>
+        )}
       </div>
-      {value != null && <p className="mt-1 text-[11px] text-accent">{t("media.ratingValue", { n: value })}. {t("media.removeRating")}</p>}
+
+      <div className="mt-2 flex items-center gap-3">
+        <span className={`w-14 shrink-0 text-3xl font-extrabold tabular-nums ${value != null ? "text-gradient" : "text-muted-foreground"}`}>
+          {value != null ? value.toFixed(1) : "–"}
+        </span>
+        <div className="flex-1">
+          <div
+            ref={trackRef}
+            role="slider"
+            aria-valuemin={0.5}
+            aria-valuemax={10}
+            aria-valuenow={value ?? 0}
+            tabIndex={0}
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              setFromClientX(e.clientX);
+            }}
+            onPointerMove={(e) => {
+              if (e.buttons === 1 || e.pressure > 0) setFromClientX(e.clientX);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowLeft") onChange(Math.max(0.5, (value ?? 0.5) - 0.5));
+              else if (e.key === "ArrowRight") onChange(Math.min(10, (value ?? 0) + 0.5));
+            }}
+            className="relative h-9 cursor-pointer touch-none select-none"
+          >
+            <div className="absolute inset-x-0 top-1/2 h-2.5 -translate-y-1/2 rounded-full bg-surface-2" />
+            <div className="absolute left-0 top-1/2 h-2.5 -translate-y-1/2 rounded-full bg-hero shadow-glow-pink" style={{ width: `${pct}%` }} />
+            {value != null && (
+              <div
+                className="absolute top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-hero bg-background shadow-glow-pink"
+                style={{ left: `${pct}%` }}
+              />
+            )}
+          </div>
+          <div className="mt-1 flex justify-between text-[9px] text-muted-foreground">
+            <span>0.5</span>
+            <span>5</span>
+            <span>10</span>
+          </div>
+        </div>
+      </div>
+
+      {value == null && <p className="mt-1 text-[11px] text-muted-foreground">{t("media.ratingHint")}</p>}
     </div>
   );
 }
