@@ -119,7 +119,7 @@ function library_row_to_entry(array $row, array $episodes): array {
         'id'              => $row['media_key'],
         'status'          => $row['status'],
         'favorite'        => (int) ($row['is_favorite'] ?? 0) === 1,
-        'rating'          => $row['rating'] !== null ? (int) $row['rating'] : null,
+        'rating'          => $row['rating'] !== null ? (float) $row['rating'] : null,
         'currentSeason'   => $row['current_season'] !== null ? (int) $row['current_season'] : null,
         'currentEpisode'  => $row['current_episode'] !== null ? (int) $row['current_episode'] : null,
         'watchedEpisodes' => $watched,
@@ -665,7 +665,7 @@ function library_clear_watched(PDO $pdo, string $userId, string $id, ?string $re
     return library_fetch_state($pdo, $userId);
 }
 
-function library_set_rating(PDO $pdo, string $userId, string $id, ?int $rating): array {
+function library_set_rating(PDO $pdo, string $userId, string $id, ?float $rating): array {
     $entry = library_get_entry($pdo, $userId, $id);
     $entry['rating'] = $rating;
     if (empty($entry['status'])) $entry['status'] = 'plan_to_watch';

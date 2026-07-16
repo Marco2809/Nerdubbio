@@ -594,18 +594,32 @@ function MediaDetail() {
 
 function SeriesRating({ value, onChange }: { value: number | undefined; onChange: (r: number | undefined) => void }) {
   const { t } = useI18n();
+  // Tap sulla metà sinistra della barra = mezzo voto (n-0.5), metà destra = n.
+  const pick = (n: number, e: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const half = e.clientX - rect.left < rect.width / 2;
+    const v = half ? n - 0.5 : n;
+    onChange(value === v ? undefined : v);
+  };
   return (
     <div className="mt-6">
       <p className="text-xs uppercase tracking-widest text-muted-foreground">{t("media.yourRating")}</p>
       <div className="mt-2 flex items-center gap-1">
         {Array.from({ length: 10 }).map((_, i) => {
           const n = i + 1;
-          const active = value != null && n <= value;
+          const fillPct = value == null ? 0 : value >= n ? 100 : value >= n - 0.5 ? 50 : 0;
+          const filled = fillPct > 0;
           return (
-            <button key={n} onClick={() => onChange(value === n ? undefined : n)}
+            <button key={n} onClick={(e) => pick(n, e)}
               aria-label={t("media.rateN", { n })}
-              className={`h-8 flex-1 rounded-lg text-[10px] font-bold transition ${active ? "bg-hero text-primary-foreground shadow-glow-pink" : "border border-border bg-surface/60 text-muted-foreground"}`}>
-              {n}
+              className="relative h-8 flex-1 overflow-hidden rounded-lg border border-border bg-surface/60 text-[10px] font-bold">
+              {fillPct > 0 && (
+                <span
+                  className="absolute inset-y-0 left-0 bg-hero shadow-glow-pink"
+                  style={{ width: `${fillPct}%` }}
+                />
+              )}
+              <span className={`relative ${filled ? "text-primary-foreground" : "text-muted-foreground"}`}>{n}</span>
             </button>
           );
         })}

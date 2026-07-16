@@ -106,7 +106,12 @@ if ($action === 'clear_watched') {
 if ($action === 'set_rating') {
     $id = (string) ($body['id'] ?? '');
     if ($id === '') api_err('missing_id', 400);
-    $rating = array_key_exists('rating', $body) && $body['rating'] !== null ? (int) $body['rating'] : null;
+    // Voto 0.5–10 arrotondato al mezzo punto.
+    $rating = null;
+    if (array_key_exists('rating', $body) && $body['rating'] !== null) {
+        $r = round(((float) $body['rating']) * 2) / 2;
+        $rating = max(0.5, min(10.0, $r));
+    }
     json_out(library_set_rating($pdo, $userId, $id, $rating));
 }
 

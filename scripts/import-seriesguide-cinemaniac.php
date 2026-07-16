@@ -88,7 +88,7 @@ foreach ($sg as $sh) {
     $status = ($ended && count($keys) >= $total) ? 'completed' : 'watching';
     $status === 'completed' ? $tvCompleted++ : $tvWatching++;
     $fav = !empty($sh['favorite']); if ($fav) $tvFav++;
-    $rating = isset($ratings[$tmdbId]) ? max(1, (int) round($ratings[$tmdbId])) : null;
+    $rating = isset($ratings[$tmdbId]) ? max(0.5, min(10.0, round($ratings[$tmdbId] * 2) / 2)) : null;
     if ($rating) $tvRated++;
     $poster = !empty($sh['poster']) ? 'https://image.tmdb.org/t/p/w342' . $sh['poster'] : null;
     $year = !empty($sh['first_aired']) ? (int) substr($sh['first_aired'], 0, 4) : null;
@@ -111,7 +111,7 @@ foreach ($cm['movies'] ?? [] as $mv) {
     if ($tmdbId <= 0) { $mvNoMap++; continue; }
     $seen = ((int) ($mv['seen'] ?? 0)) === 1;
     $seen ? $mvSeen++ : $mvPlan++;
-    $rating = isset($ratings[$tmdbId]) ? max(1, (int) round($ratings[$tmdbId])) : null;
+    $rating = isset($ratings[$tmdbId]) ? max(0.5, min(10.0, round($ratings[$tmdbId] * 2) / 2)) : null;
     if ($rating) $mvRated++;
     $year = !empty($mv['year']) ? (int) date('Y', (int) ($mv['year'] / 1000)) : null;
     $added = ms_to_dt($mv['date'] ?? 0);
