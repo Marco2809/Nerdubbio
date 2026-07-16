@@ -179,6 +179,44 @@ export const tmdbSearch = createServerFn({ method: "GET" })
     return { items };
   }));
 
+export interface PersonResult {
+  id: number;
+  name: string;
+  department: string;   // "Acting" | "Directing" | ...
+  profileUrl: string | null;
+  knownForTitles: string;  // 2-3 titoli noti, per contesto
+  popularity: number;
+}
+
+/** Ricerca persone (attori/registi). `role` filtra per reparto principale. */
+export const tmdbSearchPeople = createServerFn({ method: "GET" })
+  .inputValidator((data) => z.object({
+    query: z.string().min(1).max(200),
+    role: z.enum(["actor", "director", "any"]).default("any"),
+    locale: z.string().optional(),
+  }).parse(data))
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
+    const res = await tmdb<any>(`/search/person`, { query: data.query, include_adult: "false", page: 1 });
+    let people: PersonResult[] = (res.results ?? []).map((p: any) => ({
+      id: p.id,
+      name: p.name ?? "",
+      department: p.known_for_department ?? "",
+      profileUrl: p.profile_path ? `${IMG_BASE}/w185${p.profile_path}` : null,
+      knownForTitles: (p.known_for ?? [])
+        .map((k: any) => k.title ?? k.name)
+        .filter(Boolean)
+        .slice(0, 3)
+        .join(" · "),
+      popularity: Number(p.popularity ?? 0),
+    })).filter((p: PersonResult) => p.name);
+
+    if (data.role === "actor") people = people.filter((p) => p.department === "Acting");
+    else if (data.role === "director") people = people.filter((p) => p.department === "Directing" || p.department === "Writing");
+
+    people.sort((a, b) => b.popularity - a.popularity);
+    return { people: people.slice(0, 30) };
+  }));
+
 function cleanMatchTitle(title: string): { title: string; year?: number } {
   const paren = title.match(/^(.+?)\s*\((\d{4})\)\s*$/);
   if (paren) return { title: paren[1].trim(), year: Number(paren[2]) };

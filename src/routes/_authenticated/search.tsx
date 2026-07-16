@@ -3,7 +3,7 @@ import { AppShell } from "@/components/nerdubbio/AppShell";
 import { Search as SearchIcon, Loader2, BookmarkCheck, SlidersHorizontal, X, Star, Plus, Check } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { tmdbSearch, tmdbTrending, tmdbDiscover, type TmdbItem, type AvailabilityInfo } from "@/lib/tmdb/tmdb.functions";
+import { tmdbSearch, tmdbSearchPeople, tmdbTrending, tmdbDiscover, type TmdbItem, type AvailabilityInfo, type PersonResult } from "@/lib/tmdb/tmdb.functions";
 import { AvailabilityBadge, availabilityKey, useAvailability, type AvailabilityItem } from "@/components/nerdubbio/AvailabilityBadge";
 import { Link } from "@tanstack/react-router";
 import { useUserStore } from "@/lib/user-store";
@@ -13,7 +13,8 @@ import { useI18n, pageTitle } from "@/lib/i18n";
 import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
 import { toast } from "@/lib/toast";
 
-type SearchType = "all" | "movie" | "tv";
+type SearchType = "all" | "movie" | "tv" | "actor" | "director";
+const PERSON_TYPES: SearchType[] = ["actor", "director"];
 type PersistedSearch = {
   q: string; type: SearchType; genres: string[]; minRating: number;
   sort: SortMode; yearPreset: YearPreset; hideWatched: boolean; hideInLibrary: boolean; showFilters: boolean;
@@ -130,6 +131,39 @@ function TmdbCard({ item, availability }: { item: TmdbItem; availability?: Avail
   );
 }
 
+function PersonCard({ person, from }: { person: PersonResult; from: string }) {
+  const { t } = useI18n();
+  const role = person.department === "Directing" || person.department === "Writing"
+    ? t("search.directors")
+    : person.department === "Acting"
+      ? t("search.actors")
+      : person.department;
+  return (
+    <Link
+      to="/person/$id"
+      params={{ id: String(person.id) }}
+      state={{ from }}
+      className="group block"
+    >
+      <div className="relative aspect-[2/3] overflow-hidden rounded-2xl bg-surface-2 shadow-glow">
+        {person.profileUrl ? (
+          <img src={person.profileUrl} alt={person.name} loading="lazy" className="h-full w-full object-cover" />
+        ) : (
+          <div className="grid h-full w-full place-items-center bg-gradient-to-br from-primary/40 to-accent/40 text-3xl">🎭</div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 p-2">
+          <p className="text-[9px] uppercase tracking-widest text-white/70">{role}</p>
+          <h3 className="line-clamp-2 text-xs font-bold text-white">{person.name}</h3>
+          {person.knownForTitles && (
+            <p className="mt-0.5 line-clamp-1 text-[10px] text-white/70">{person.knownForTitles}</p>
+          )}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
@@ -158,7 +192,7 @@ function SearchPage() {
   const [minRating, setMinRating] = useState(saved.minRating ?? 0);
   const [sort, setSort] = useState<SortMode>(saved.sort ?? "popularity");
   const [yearPreset, setYearPreset] = useState<YearPreset>(saved.yearPreset ?? "any");
-  const [hideWatched, setHideWatched] = useState(saved.hideWatched ?? true);
+  const [hideWatched, setHideWatched] = useState(saved.hideWatched ?? false);
   const [hideInLibrary, setHideInLibrary] = useState(saved.hideInLibrary ?? false);
   const [showFilters, setShowFilters] = useState(saved.showFilters ?? false);
   const [page, setPage] = useState(1);
@@ -171,16 +205,28 @@ function SearchPage() {
   }, [q, type, genres, minRating, sort, yearPreset, hideWatched, hideInLibrary, showFilters]);
 
   const debouncedQ = useDebounced(q.trim(), 400);
+  const personMode = type === "actor" || type === "director";
 
   // Un filtro è "attivo" se restringe il catalogo → modalità discover.
   const filtersActive =
     genres.length > 0 || minRating > 0 || yearPreset !== "any" || sort !== "popularity" || type !== "all";
 
-  const mode: "search" | "discover" | "trending" = debouncedQ
+  const mode: "search" | "discover" | "trending" = personMode
     ? "search"
-    : filtersActive
-      ? "discover"
-      : "trending";
+    : debouncedQ
+      ? "search"
+      : filtersActive
+        ? "discover"
+        : "trending";
+
+  // Ricerca persone (attori/registi): serve una query digitata.
+  const peopleQuery = useQuery({
+    queryKey: ["tmdb", "people", type, debouncedQ, locale],
+    queryFn: () => tmdbSearchPeople({ data: { query: debouncedQ, role: type as "actor" | "director", locale } }),
+    enabled: personMode && debouncedQ.length >= 2,
+    staleTime: 1000 * 60 * 10,
+  });
+  const people = peopleQuery.data?.people ?? [];
 
   // Reset paginazione quando cambiano query o filtri.
   useEffect(() => { setPage(1); }, [debouncedQ, type, genres, minRating, sort, yearPreset, mode]);
@@ -195,7 +241,7 @@ function SearchPage() {
   const search = useQuery({
     queryKey: ["tmdb", "search", debouncedQ, locale],
     queryFn: () => tmdbSearch({ data: { query: debouncedQ, locale } }),
-    enabled: mode === "search",
+    enabled: mode === "search" && !personMode,
     staleTime: 1000 * 60 * 10,
   });
 
@@ -247,8 +293,8 @@ function SearchPage() {
   );
   const availability = useAvailability(availItems);
 
-  const loading = search.isFetching || trending.isFetching || discover.isFetching;
-  const activeError = search.error || trending.error || discover.error;
+  const loading = search.isFetching || trending.isFetching || discover.isFetching || peopleQuery.isFetching;
+  const activeError = search.error || trending.error || discover.error || peopleQuery.error;
 
   const resetFilters = () => {
     setGenres([]); setMinRating(0); setSort("popularity"); setYearPreset("any"); setType("all");
@@ -280,35 +326,41 @@ function SearchPage() {
       </div>
 
       {/* Tipo */}
-      <div className="mt-3 flex items-center gap-2">
-        {(["all","movie","tv"] as const).map(tab => (
-          <button key={tab} onClick={() => setType(tab)}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${type===tab ? "bg-hero text-primary-foreground shadow-glow" : "bg-surface-2 text-muted-foreground"}`}>
-            {tab === "all" ? t("common.all") : tab === "movie" ? t("home.movieShort") : t("home.seriesShort")}
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => setShowFilters(v => !v)}
-          className={`ml-auto flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-            showFilters || filtersActive ? "bg-accent/20 text-accent" : "bg-surface-2 text-muted-foreground"
-          }`}
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" /> {t("search.filters")}
-        </button>
-      </div>
-
-      {/* Generi */}
       <div className="mt-3 -mx-4 overflow-x-auto">
-        <div className="flex gap-2 px-4 pb-1">
-          {GENRES.map(g => (
-            <Chip key={g} active={genres.includes(g)} onClick={() => toggleGenre(g)}>{g}</Chip>
+        <div className="flex items-center gap-2 px-4">
+          {(["all","movie","tv","actor","director"] as const).map(tab => (
+            <button key={tab} onClick={() => setType(tab)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition ${type===tab ? "bg-hero text-primary-foreground shadow-glow" : "bg-surface-2 text-muted-foreground"}`}>
+              {tab === "all" ? t("common.all") : tab === "movie" ? t("home.movieShort") : tab === "tv" ? t("home.seriesShort") : tab === "actor" ? t("search.actors") : t("search.directors")}
+            </button>
           ))}
+          {!personMode && (
+            <button
+              type="button"
+              onClick={() => setShowFilters(v => !v)}
+              className={`ml-auto flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                showFilters || filtersActive ? "bg-accent/20 text-accent" : "bg-surface-2 text-muted-foreground"
+              }`}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" /> {t("search.filters")}
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Generi (solo per titoli) */}
+      {!personMode && (
+        <div className="mt-3 -mx-4 overflow-x-auto">
+          <div className="flex gap-2 px-4 pb-1">
+            {GENRES.map(g => (
+              <Chip key={g} active={genres.includes(g)} onClick={() => toggleGenre(g)}>{g}</Chip>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Pannello filtri avanzati */}
-      {showFilters && (
+      {showFilters && !personMode && (
         <div className="mt-3 space-y-3 rounded-2xl border border-border bg-surface/50 p-3">
           <div>
             <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("search.minRating")}</p>
@@ -350,11 +402,15 @@ function SearchPage() {
       )}
 
       <p className="mt-4 text-xs text-muted-foreground">
-        {mode === "search"
-          ? t("search.resultsFor", { count: results.length, query: debouncedQ })
-          : mode === "discover"
-            ? t("search.browsing", { count: results.length })
-            : t("search.trendingNow", { count: results.length })}
+        {personMode
+          ? debouncedQ.length < 2
+            ? t("search.personHint")
+            : t("search.resultsFor", { count: people.length, query: debouncedQ })
+          : mode === "search"
+            ? t("search.resultsFor", { count: results.length, query: debouncedQ })
+            : mode === "discover"
+              ? t("search.browsing", { count: results.length })
+              : t("search.trendingNow", { count: results.length })}
       </p>
 
       {activeError && (
@@ -363,15 +419,21 @@ function SearchPage() {
         </p>
       )}
 
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        {results.map(it => (
-          <TmdbCard
-            key={it.id}
-            item={it}
-            availability={availability[availabilityKey(it.type, it.tmdb_id)]}
-          />
-        ))}
-      </div>
+      {personMode ? (
+        <div className="mt-3 grid grid-cols-3 gap-3">
+          {people.map(p => <PersonCard key={p.id} person={p} from={from} />)}
+        </div>
+      ) : (
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          {results.map(it => (
+            <TmdbCard
+              key={it.id}
+              item={it}
+              availability={availability[availabilityKey(it.type, it.tmdb_id)]}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Carica altri (solo discover) */}
       {mode === "discover" && results.length > 0 && (discover.data?.items.length ?? 0) > 0 && (
