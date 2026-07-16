@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { LibraryDisplayItem } from "@/lib/library-display";
 import { mediaRouteParams } from "@/lib/library-display";
 import { useReturnPath } from "@/lib/media-nav";
+import { useUserStore, type MediaMeta } from "@/lib/user-store";
 import { AvailabilityBadge, availabilityKey, useAvailability, type AvailabilityItem } from "@/components/nerdubbio/AvailabilityBadge";
 import { Heart, PlayCircle } from "lucide-react";
 
@@ -15,6 +16,7 @@ export function LibraryGrid({
   emptyText?: string;
 }) {
   const from = useReturnPath();
+  const { setFavorite } = useUserStore();
 
   // Dove si vede ogni titolo: una sola chiamata batch per tutta la griglia.
   const availItems: AvailabilityItem[] = items
@@ -62,11 +64,28 @@ export function LibraryGrid({
                   {item.entry.rating}/10
                 </span>
               )}
-              {item.entry.favorite && (
-                <span className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-accent">
-                  <Heart className="h-3.5 w-3.5 fill-current" />
-                </span>
-              )}
+              <button
+                type="button"
+                aria-pressed={!!item.entry.favorite}
+                onClick={(e) => {
+                  // Dentro un <Link>: evita la navigazione al dettaglio.
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const meta: MediaMeta = {
+                    title: item.title,
+                    type: item.type,
+                    year: item.year,
+                    posterUrl: item.posterUrl ?? null,
+                    backdropUrl: item.entry.backdropUrl ?? null,
+                  };
+                  setFavorite(item.id, !item.entry.favorite, meta);
+                }}
+                className={`absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full transition active:scale-90 ${
+                  item.entry.favorite ? "bg-black/60 text-accent" : "bg-black/40 text-white/70 hover:text-white"
+                }`}
+              >
+                <Heart className={`h-3.5 w-3.5 ${item.entry.favorite ? "fill-current" : ""}`} />
+              </button>
               {item.type === "tv" && epCount > 0 && (
                 <span className="absolute right-2 bottom-12 flex items-center gap-0.5 rounded-full bg-black/65 px-2 py-0.5 text-[9px] font-semibold text-white/90">
                   <PlayCircle className="h-3 w-3" /> {epCount} ep.
