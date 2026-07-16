@@ -13,8 +13,7 @@ import { useI18n, pageTitle } from "@/lib/i18n";
 import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
 import { toast } from "@/lib/toast";
 
-type SearchType = "all" | "movie" | "tv" | "actor" | "director";
-const PERSON_TYPES: SearchType[] = ["actor", "director"];
+type SearchType = "all" | "movie" | "tv" | "person";
 type PersistedSearch = {
   q: string; type: SearchType; genres: string[]; minRating: number;
   sort: SortMode; yearPreset: YearPreset; hideWatched: boolean; hideInLibrary: boolean; showFilters: boolean;
@@ -134,9 +133,9 @@ function TmdbCard({ item, availability }: { item: TmdbItem; availability?: Avail
 function PersonCard({ person, from }: { person: PersonResult; from: string }) {
   const { t } = useI18n();
   const role = person.department === "Directing" || person.department === "Writing"
-    ? t("search.directors")
+    ? t("search.roleDirector")
     : person.department === "Acting"
-      ? t("search.actors")
+      ? t("search.roleActor")
       : person.department;
   return (
     <Link
@@ -205,7 +204,7 @@ function SearchPage() {
   }, [q, type, genres, minRating, sort, yearPreset, hideWatched, hideInLibrary, showFilters]);
 
   const debouncedQ = useDebounced(q.trim(), 400);
-  const personMode = type === "actor" || type === "director";
+  const personMode = type === "person";
 
   // Un filtro è "attivo" se restringe il catalogo → modalità discover.
   const filtersActive =
@@ -221,8 +220,8 @@ function SearchPage() {
 
   // Ricerca persone (attori/registi): serve una query digitata.
   const peopleQuery = useQuery({
-    queryKey: ["tmdb", "people", type, debouncedQ, locale],
-    queryFn: () => tmdbSearchPeople({ data: { query: debouncedQ, role: type as "actor" | "director", locale } }),
+    queryKey: ["tmdb", "people", debouncedQ, locale],
+    queryFn: () => tmdbSearchPeople({ data: { query: debouncedQ, role: "any", locale } }),
     enabled: personMode && debouncedQ.length >= 2,
     staleTime: 1000 * 60 * 10,
   });
@@ -328,10 +327,10 @@ function SearchPage() {
       {/* Tipo */}
       <div className="mt-3 -mx-4 overflow-x-auto">
         <div className="flex items-center gap-2 px-4">
-          {(["all","movie","tv","actor","director"] as const).map(tab => (
+          {(["all","movie","tv","person"] as const).map(tab => (
             <button key={tab} onClick={() => setType(tab)}
               className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition ${type===tab ? "bg-hero text-primary-foreground shadow-glow" : "bg-surface-2 text-muted-foreground"}`}>
-              {tab === "all" ? t("common.all") : tab === "movie" ? t("home.movieShort") : tab === "tv" ? t("home.seriesShort") : tab === "actor" ? t("search.actors") : t("search.directors")}
+              {tab === "all" ? t("common.all") : tab === "movie" ? t("home.movieShort") : tab === "tv" ? t("home.seriesShort") : t("search.people")}
             </button>
           ))}
           {!personMode && (
