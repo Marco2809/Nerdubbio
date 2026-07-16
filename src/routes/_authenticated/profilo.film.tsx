@@ -1,11 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
+import { useState } from "react";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { LibraryGrid } from "@/components/nerdubbio/LibraryGrid";
+import { LibrarySortSelect } from "@/components/nerdubbio/LibrarySortSelect";
 import { StatusTabs } from "@/components/nerdubbio/StatusTabs";
 import {
   countMovieTab,
   filterByMovieTab,
+  applyLibrarySort,
+  type LibrarySortKey,
 } from "@/lib/library-display";
 import { useUserStore } from "@/lib/user-store";
 import { ArrowLeft } from "lucide-react";
@@ -23,7 +27,8 @@ function ProfiloFilmPage() {
   const { t } = useI18n();
   const { state } = useUserStore();
   const { tab } = Route.useSearch();
-  const items = filterByMovieTab(state.media, tab);
+  const [sort, setSort] = useState<LibrarySortKey>("default");
+  const items = applyLibrarySort(filterByMovieTab(state.media, tab), sort);
 
   const tabLabels: Record<string, string> = {
     da_vedere: t("library.tabMoviesToWatch"),
@@ -52,7 +57,10 @@ function ProfiloFilmPage() {
         buildTo={id => ({ to: "/profilo/film", search: { tab: id } })}
       />
 
-      <p className="mt-3 text-xs text-muted-foreground">{t("library.titlesCount", { count: items.length })}</p>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">{t("library.titlesCount", { count: items.length })}</p>
+        <LibrarySortSelect value={sort} onChange={setSort} />
+      </div>
 
       <LibraryGrid items={items} emptyEmoji="🎬" emptyText={emptyLabels[tab]!} />
     </AppShell>

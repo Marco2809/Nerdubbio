@@ -124,6 +124,29 @@ function sortLibraryItems(a: LibraryDisplayItem, b: LibraryDisplayItem, mode: "r
   return bT.localeCompare(aT);
 }
 
+/** Ordinamenti scelti dall'utente in Profilo Film/Serie. "default" = quello
+    naturale della scheda (ultima visione / aggiunta). */
+export type LibrarySortKey = "default" | "rating" | "title" | "year";
+
+export function applyLibrarySort(items: LibraryDisplayItem[], key: LibrarySortKey): LibraryDisplayItem[] {
+  if (key === "default") return items;
+  const copy = [...items];
+  copy.sort((a, b) => {
+    switch (key) {
+      case "rating":
+        // Voto personale decrescente; senza voto in fondo.
+        return (b.entry.rating ?? -1) - (a.entry.rating ?? -1);
+      case "title":
+        return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
+      case "year":
+        return (b.year ?? 0) - (a.year ?? 0);
+      default:
+        return 0;
+    }
+  });
+  return copy;
+}
+
 export function countAllSeries(media: Record<string, UserMediaEntry>): number {
   return Object.values(media).filter(m => inferMediaType(m) === "tv").length;
 }
