@@ -3,8 +3,8 @@ import { AppShell } from "@/components/nerdubbio/AppShell";
 import { useUserStore, computeStats } from "@/lib/user-store";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { useFriendRequestCount } from "@/hooks/use-friend-requests-count";
-import { Trophy, Flame, Star, Settings2, Users, Download, ExternalLink, BarChart3, Tv, Clapperboard, Bookmark } from "lucide-react";
-import { countAllMovies, countAllSeries } from "@/lib/library-display";
+import { Trophy, Flame, Star, Settings2, Users, Download, ExternalLink, BarChart3, Tv, Clapperboard, Bookmark, Heart } from "lucide-react";
+import { countAllMovies, countAllSeries, countFavorites } from "@/lib/library-display";
 import { useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/profile")({
@@ -29,6 +29,7 @@ function Profile() {
   const stats = computeStats(state);
   const seriesCount = countAllSeries(state.media);
   const moviesCount = countAllMovies(state.media);
+  const favCount = countFavorites(state.media);
   const xpToNext = 400;
   const name = profile?.display_name || user?.email?.split("@")[0] || "Nerd";
   const handle = profile?.handle ?? "nerd";
@@ -107,6 +108,14 @@ function Profile() {
             <p className="text-[11px] text-muted-foreground">{t("profile.watchlistHint")}</p>
           </div>
           <span className="text-xs font-bold text-accent">→</span>
+        </Link>
+        <Link to="/watchlist" search={{ tab: "favorite" }} className="mt-2 glass flex items-center gap-3 rounded-2xl p-4 transition hover:border-accent/40">
+          <Heart className="h-5 w-5 text-accent" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold">{t("profile.favorites")}</p>
+            <p className="text-[11px] text-muted-foreground">{t("profile.favoritesHint")}</p>
+          </div>
+          <span className="text-xs font-bold text-accent">{favCount > 0 ? favCount : "→"}</span>
         </Link>
       </section>
 

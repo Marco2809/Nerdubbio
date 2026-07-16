@@ -147,6 +147,10 @@ export function applyLibrarySort(items: LibraryDisplayItem[], key: LibrarySortKe
   return copy;
 }
 
+export function countFavorites(media: Record<string, UserMediaEntry>): number {
+  return Object.values(media).filter(m => !!m.favorite).length;
+}
+
 export function countAllSeries(media: Record<string, UserMediaEntry>): number {
   return Object.values(media).filter(m => inferMediaType(m) === "tv").length;
 }

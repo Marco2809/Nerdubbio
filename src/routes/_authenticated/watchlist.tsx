@@ -6,8 +6,15 @@ import { ArrowDownUp } from "lucide-react";
 import { useReturnPath } from "@/lib/media-nav";
 import { useI18n, pageTitle } from "@/lib/i18n";
 
+const TAB_VALUES = ["plan_to_watch", "watching", "all", "completed", "favorite", "paused", "dropped"] as const;
+
 export const Route = createFileRoute("/_authenticated/watchlist")({
   head: () => ({ meta: [{ title: pageTitle("watchlist") }] }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    tab: (TAB_VALUES as readonly string[]).includes(s.tab as string)
+      ? (s.tab as (typeof TAB_VALUES)[number])
+      : undefined,
+  }),
   component: WatchlistPage,
 });
 
@@ -40,7 +47,8 @@ function WatchlistPage() {
   };
   const { state } = useUserStore();
   const from = useReturnPath();
-  const [tab, setTab] = useState<UserStatus | "all" | "favorite">("plan_to_watch");
+  const initialTab = Route.useSearch().tab;
+  const [tab, setTab] = useState<UserStatus | "all" | "favorite">(initialTab ?? "plan_to_watch");
   const [sort, setSort] = useState<SortKey>("recent");
 
   const tabs: { s: UserStatus | "all" | "favorite"; label: string }[] = useMemo(
