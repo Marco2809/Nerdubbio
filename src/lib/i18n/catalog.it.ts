@@ -475,6 +475,8 @@ export default {
     sortRating: "Voto personale",
     sortTitle: "Titolo A→Z",
     sortYear: "Anno",
+    searchPlaceholder: "Cerca nella libreria…",
+    noMatch: "Nessun titolo trovato.",
     tabInProgress: "In corso",
     tabToWatch: "Da vedere",
     tabWatched: "Viste",

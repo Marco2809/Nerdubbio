@@ -3,13 +3,14 @@ import { z } from "zod";
 import { useState } from "react";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { LibraryGrid } from "@/components/nerdubbio/LibraryGrid";
-import { LibrarySortSelect } from "@/components/nerdubbio/LibrarySortSelect";
+import { LibrarySortSelect, usePersistentSort } from "@/components/nerdubbio/LibrarySortSelect";
+import { LibrarySearch } from "@/components/nerdubbio/LibrarySearch";
 import { StatusTabs } from "@/components/nerdubbio/StatusTabs";
 import {
   countSeriesTab,
   filterBySeriesTab,
   applyLibrarySort,
-  type LibrarySortKey,
+  filterByQuery,
 } from "@/lib/library-display";
 import { useUserStore } from "@/lib/user-store";
 import { ArrowLeft } from "lucide-react";
@@ -27,8 +28,9 @@ function ProfiloSeriePage() {
   const { t } = useI18n();
   const { state } = useUserStore();
   const { tab } = Route.useSearch();
-  const [sort, setSort] = useState<LibrarySortKey>("default");
-  const items = applyLibrarySort(filterBySeriesTab(state.media, tab), sort);
+  const [sort, setSort] = usePersistentSort("nb_lib_sort_serie");
+  const [query, setQuery] = useState("");
+  const items = filterByQuery(applyLibrarySort(filterBySeriesTab(state.media, tab), sort), query);
 
   const tabLabels: Record<string, string> = {
     in_corso: t("library.tabInProgress"),
@@ -59,12 +61,14 @@ function ProfiloSeriePage() {
         buildTo={id => ({ to: "/profilo/serie", search: { tab: id } })}
       />
 
+      <LibrarySearch value={query} onChange={setQuery} />
+
       <div className="mt-3 flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">{t("library.titlesCount", { count: items.length })}</p>
         <LibrarySortSelect value={sort} onChange={setSort} />
       </div>
 
-      <LibraryGrid items={items} emptyEmoji="📺" emptyText={emptyLabels[tab]!} />
+      <LibraryGrid items={items} emptyEmoji="📺" emptyText={query ? t("library.noMatch") : emptyLabels[tab]!} />
     </AppShell>
   );
 }

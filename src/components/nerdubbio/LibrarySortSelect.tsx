@@ -1,8 +1,23 @@
+import { useEffect, useState } from "react";
 import { ArrowDownUp } from "lucide-react";
 import type { LibrarySortKey } from "@/lib/library-display";
 import { useI18n } from "@/lib/i18n";
 
 const KEYS: LibrarySortKey[] = ["default", "rating", "title", "year"];
+const VALID = new Set<LibrarySortKey>(KEYS);
+
+/** Sort ricordato tra i cambi di sezione (per pagina). */
+export function usePersistentSort(storageKey: string): [LibrarySortKey, (v: LibrarySortKey) => void] {
+  const [sort, setSort] = useState<LibrarySortKey>(() => {
+    if (typeof sessionStorage === "undefined") return "default";
+    const saved = sessionStorage.getItem(storageKey) as LibrarySortKey | null;
+    return saved && VALID.has(saved) ? saved : "default";
+  });
+  useEffect(() => {
+    if (typeof sessionStorage !== "undefined") sessionStorage.setItem(storageKey, sort);
+  }, [storageKey, sort]);
+  return [sort, setSort];
+}
 
 /** Selettore di ordinamento per Profilo Film/Serie. */
 export function LibrarySortSelect({

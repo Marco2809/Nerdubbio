@@ -475,6 +475,8 @@ export default {
     sortRating: "Deine Bewertung",
     sortTitle: "Titel A→Z",
     sortYear: "Jahr",
+    searchPlaceholder: "Durchsuche deine Bibliothek…",
+    noMatch: "Keine Titel gefunden.",
     tabInProgress: "Läuft",
     tabToWatch: "Geplant",
     tabWatched: "Gesehen",

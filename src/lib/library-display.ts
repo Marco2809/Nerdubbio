@@ -147,6 +147,13 @@ export function applyLibrarySort(items: LibraryDisplayItem[], key: LibrarySortKe
   return copy;
 }
 
+/** Filtro testuale per titolo dentro una sezione della libreria. */
+export function filterByQuery(items: LibraryDisplayItem[], query: string): LibraryDisplayItem[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return items;
+  return items.filter((i) => i.title.toLowerCase().includes(q));
+}
+
 export function countFavorites(media: Record<string, UserMediaEntry>): number {
   return Object.values(media).filter(m => !!m.favorite).length;
 }
