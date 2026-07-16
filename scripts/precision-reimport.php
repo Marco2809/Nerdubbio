@@ -76,6 +76,14 @@ echo "Serie nel file: " . count($shows) . " | episodi unici: " . array_sum(array
 $curEps = $pdo->prepare('SELECT COUNT(*) FROM user_episodes WHERE user_id = ? AND media_key = ?');
 $curStat = $pdo->prepare('SELECT status FROM user_media WHERE user_id = ? AND media_key = ?');
 
+// Scrittura (solo --apply)
+$existsMedia   = $pdo->prepare('SELECT status, added_at FROM user_media WHERE user_id = ? AND media_key = ?');
+$keepAfterStmt = $pdo->prepare('SELECT season, episode, watched_at FROM user_episodes WHERE user_id = ? AND media_key = ? AND (season > ? OR (season = ? AND episode > ?))');
+$delEpsStmt    = $pdo->prepare('DELETE FROM user_episodes WHERE user_id = ? AND media_key = ?');
+$insEpStmt     = $pdo->prepare('INSERT INTO user_episodes (user_id, media_key, season, episode, watched_at, watch_count) VALUES (?, ?, ?, ?, ?, 1)');
+$updMediaStmt  = $pdo->prepare('UPDATE user_media SET status = ?, current_season = ?, current_episode = ?, last_watched_at = ?, source = "tvtime" WHERE user_id = ? AND media_key = ?');
+$insMediaStmt  = $pdo->prepare('INSERT INTO user_media (user_id, media_key, tmdb_id, media_type, status, current_season, current_episode, title, poster_url, source, last_watched_at) VALUES (?, ?, ?, "tv", ?, ?, ?, ?, ?, "tvtime", ?)');
+
 $mapOk = 0; $unmapped = 0; $toComplete = 0; $epsBefore = 0; $epsAfter = 0;
 $sampleComplete = []; $sampleBig = [];
 $today = date('Y-m-d');
@@ -110,6 +118,56 @@ foreach ($shows as $sid => $sh) {
     }
     if (abs($newCount - $oldCount) >= 5 && count($sampleBig) < 20) {
         $sampleBig[] = sprintf("%-30s %3d -> %3d ep  [%s]", mb_substr($sh['name'], 0, 29), $oldCount, $newCount, $mapKey);
+    }
+
+    if (!$apply) continue;
+
+    // --- Scrittura: episodi esatti dallo ZIP + progresso in-app oltre lo ZIP ---
+    // Frontier dello ZIP: massimo (stagione, episodio) noto dall'export.
+    $fs = 0; $fe = 0;
+    foreach (array_keys($sh['eps']) as $key) {
+        if (!preg_match('/^S(\d+)E(\d+)$/', $key, $mm)) continue;
+        $ss = (int) $mm[1]; $ee = (int) $mm[2];
+        if ($ss > $fs || ($ss === $fs && $ee > $fe)) { $fs = $ss; $fe = $ee; }
+    }
+    // Episodi segnati in-app DOPO il frontier ZIP = progresso reale nuovo, da tenere.
+    $keepAfterStmt->execute([$userId, $mapKey, $fs, $fs, $fe]);
+    $kept = $keepAfterStmt->fetchAll();
+
+    $maxDate = null;
+    $pdo->beginTransaction();
+    try {
+        $delEpsStmt->execute([$userId, $mapKey]);
+        foreach ($sh['eps'] as $key => $date) {
+            preg_match('/^S(\d+)E(\d+)$/', $key, $mm);
+            $wa = $date ?: '2017-01-01 00:00:00';
+            $insEpStmt->execute([$userId, $mapKey, (int) $mm[1], (int) $mm[2], $wa]);
+            if ($maxDate === null || $wa > $maxDate) $maxDate = $wa;
+        }
+        $frontierS = $fs; $frontierE = $fe;
+        foreach ($kept as $k) {
+            $insEpStmt->execute([$userId, $mapKey, (int) $k['season'], (int) $k['episode'], $k['watched_at']]);
+            if ($maxDate === null || $k['watched_at'] > $maxDate) $maxDate = $k['watched_at'];
+            if ((int) $k['season'] > $frontierS || ((int) $k['season'] === $frontierS && (int) $k['episode'] > $frontierE)) {
+                $frontierS = (int) $k['season']; $frontierE = (int) $k['episode'];
+            }
+        }
+
+        $existsMedia->execute([$userId, $mapKey]);
+        if ($existsMedia->fetch()) {
+            $updMediaStmt->execute([$newStatus, $frontierS, $frontierE, $maxDate, $userId, $mapKey]);
+        } else {
+            $insMediaStmt->execute([
+                $userId, $mapKey, $tmdbId, $newStatus, $frontierS, $frontierE,
+                mb_substr($det['name'] ?? $sh['name'], 0, 255),
+                !empty($det['poster_path']) ? 'https://image.tmdb.org/t/p/w342' . $det['poster_path'] : null,
+                $maxDate,
+            ]);
+        }
+        $pdo->commit();
+    } catch (Throwable $ex) {
+        $pdo->rollBack();
+        echo "  ERRORE su {$sh['name']}: " . $ex->getMessage() . "\n";
     }
 }
 
