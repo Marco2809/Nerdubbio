@@ -595,17 +595,27 @@ function MediaDetail() {
 function SeriesRating({ value, onChange }: { value: number | undefined; onChange: (r: number | undefined) => void }) {
   const { t } = useI18n();
   const trackRef = useRef<HTMLDivElement>(null);
+  // Durante il drag si aggiorna solo lo stato locale: il salvataggio (chiamata
+  // API) avviene UNA volta sola, al rilascio.
+  const [drag, setDrag] = useState<number | null>(null);
+  const shown = drag ?? value;
 
-  // Trascina/tocca lungo la barra: voto 0.5–10 al mezzo punto, in tempo reale.
-  const setFromClientX = (clientX: number) => {
+  const valueFromClientX = (clientX: number): number => {
     const el = trackRef.current;
-    if (!el) return;
+    if (!el) return 0.5;
     const rect = el.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    onChange(Math.max(0.5, Math.round(ratio * 10 * 2) / 2));
+    return Math.max(0.5, Math.round(ratio * 10 * 2) / 2);
   };
 
-  const pct = value != null ? (value / 10) * 100 : 0;
+  const commit = () => {
+    setDrag((d) => {
+      if (d != null && d !== value) onChange(d);
+      return null;
+    });
+  };
+
+  const pct = shown != null ? (shown / 10) * 100 : 0;
 
   return (
     <div className="mt-6">
@@ -619,8 +629,8 @@ function SeriesRating({ value, onChange }: { value: number | undefined; onChange
       </div>
 
       <div className="mt-2 flex items-center gap-3">
-        <span className={`w-14 shrink-0 text-3xl font-extrabold tabular-nums ${value != null ? "text-gradient" : "text-muted-foreground"}`}>
-          {value != null ? value.toFixed(1) : "–"}
+        <span className={`w-14 shrink-0 text-3xl font-extrabold tabular-nums ${shown != null ? "text-gradient" : "text-muted-foreground"}`}>
+          {shown != null ? shown.toFixed(1) : "–"}
         </span>
         <div className="flex-1">
           <div
@@ -628,15 +638,17 @@ function SeriesRating({ value, onChange }: { value: number | undefined; onChange
             role="slider"
             aria-valuemin={0.5}
             aria-valuemax={10}
-            aria-valuenow={value ?? 0}
+            aria-valuenow={shown ?? 0}
             tabIndex={0}
             onPointerDown={(e) => {
               e.currentTarget.setPointerCapture(e.pointerId);
-              setFromClientX(e.clientX);
+              setDrag(valueFromClientX(e.clientX));
             }}
             onPointerMove={(e) => {
-              if (e.buttons === 1 || e.pressure > 0) setFromClientX(e.clientX);
+              if (drag != null && (e.buttons === 1 || e.pressure > 0)) setDrag(valueFromClientX(e.clientX));
             }}
+            onPointerUp={commit}
+            onPointerCancel={() => setDrag(null)}
             onKeyDown={(e) => {
               if (e.key === "ArrowLeft") onChange(Math.max(0.5, (value ?? 0.5) - 0.5));
               else if (e.key === "ArrowRight") onChange(Math.min(10, (value ?? 0) + 0.5));
@@ -645,7 +657,7 @@ function SeriesRating({ value, onChange }: { value: number | undefined; onChange
           >
             <div className="absolute inset-x-0 top-1/2 h-2.5 -translate-y-1/2 rounded-full bg-surface-2" />
             <div className="absolute left-0 top-1/2 h-2.5 -translate-y-1/2 rounded-full bg-hero shadow-glow-pink" style={{ width: `${pct}%` }} />
-            {value != null && (
+            {shown != null && (
               <div
                 className="absolute top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-hero bg-background shadow-glow-pink"
                 style={{ left: `${pct}%` }}
@@ -660,7 +672,7 @@ function SeriesRating({ value, onChange }: { value: number | undefined; onChange
         </div>
       </div>
 
-      {value == null && <p className="mt-1 text-[11px] text-muted-foreground">{t("media.ratingHint")}</p>}
+      {shown == null && <p className="mt-1 text-[11px] text-muted-foreground">{t("media.ratingHint")}</p>}
     </div>
   );
 }
