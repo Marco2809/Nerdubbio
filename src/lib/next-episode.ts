@@ -8,6 +8,10 @@ export const HOME_NEXT_EPISODES_LIMIT = 24;
 /** Quante righe mostriamo davvero: le 3 più recenti per ultima visione.
     Ne interroghiamo di più perché le serie "in pari" spariscono (next = null). */
 export const HOME_NEXT_EPISODES_DISPLAY = 3;
+/** Finestra "la sto guardando ora": entro questi giorni dall'ultimo episodio
+    segnato una serie sta in cima anche se non è preferita. Oltre, contano
+    prima i preferiti. */
+export const RECENT_ACTIVITY_DAYS = 14;
 
 /** Ultimo episodio segnato visto (max S/E da lista o da currentSeason/Episode). */
 export function maxWatchedFrontier(
@@ -69,11 +73,21 @@ export function listTvShowsForNextEpisode(media: Record<string, UserMediaEntry>)
       return false;
     })
     .sort((a, b) => {
-      // I preferiti hanno sempre la precedenza: prima smaltisci le serie del
-      // cuore, poi le altre (es. una S2 nuova non ti scavalca i preferiti).
-      const favA = a.favorite ? 1 : 0;
-      const favB = b.favorite ? 1 : 0;
-      if (favA !== favB) return favB - favA;
+      // Tre fasce: 0) la serie che stai guardando ORA (episodio segnato di
+      // recente) sempre in cima, preferita o no; 1) i preferiti "in pausa";
+      // 2) il resto (es. una S2 nuova che appare senza che tu l'abbia scelta).
+      // Dentro ogni fascia: ordine per recency + progresso.
+      const now = Date.now();
+      const tier = (e: UserMediaEntry) => {
+        const ts = e.lastWatchedAt ? Date.parse(e.lastWatchedAt) : 0;
+        const active = ts > 0 && now - ts < RECENT_ACTIVITY_DAYS * 86_400_000;
+        if (active) return 0;
+        if (e.favorite) return 1;
+        return 2;
+      };
+      const ta = tier(a);
+      const tb = tier(b);
+      if (ta !== tb) return ta - tb;
       const score = (e: UserMediaEntry) => {
         const t = e.lastWatchedAt ? Date.parse(e.lastWatchedAt) : 0;
         const f = maxWatchedFrontier(e);
