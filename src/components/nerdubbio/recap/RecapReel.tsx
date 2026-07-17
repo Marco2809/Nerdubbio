@@ -4,6 +4,7 @@ import { X, Volume2, VolumeX } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { SceneView, EpChip } from "./storyScene";
 import { RecapMusic, type Mood } from "./recapMusic";
+import { exportRecapVideo, type ExportHandle } from "./videoExport";
 import type { RecapScene } from "@/lib/php/recap-client";
 
 export interface RecapCastPhoto {
@@ -164,6 +165,65 @@ export function RecapReel({
   const [muted, setMuted] = useState(false);
   const [paused, setPaused] = useState(false);
   const musicRef = useRef<RecapMusic | null>(null);
+
+  // Export video: stato + canvas anteprima + handle di annullamento.
+  const [exportState, setExportState] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [exportPct, setExportPct] = useState(0);
+  const exportCanvasRef = useRef<HTMLCanvasElement>(null);
+  const exportHandleRef = useRef<ExportHandle>({ cancelled: false });
+  const [videoOut, setVideoOut] = useState<{ blob: Blob; ext: string } | null>(null);
+
+  const startExport = async () => {
+    const canvas = exportCanvasRef.current;
+    if (!canvas) return;
+    exportHandleRef.current = { cancelled: false };
+    setExportState("running");
+    setExportPct(0);
+    setVideoOut(null);
+    // Silenzia la musica del player: il video ha la sua traccia.
+    musicRef.current?.setMuted(true);
+    try {
+      const out = await exportRecapVideo({
+        scenes,
+        mood,
+        canvas,
+        photoFor,
+        onProgress: setExportPct,
+        handle: exportHandleRef.current,
+      });
+      if (exportHandleRef.current.cancelled) setExportState("idle");
+      else if (out) { setVideoOut(out); setExportState("done"); }
+      else setExportState("error");
+    } catch {
+      setExportState("error");
+    } finally {
+      musicRef.current?.setMuted(muted);
+    }
+  };
+
+  const cancelExport = () => {
+    exportHandleRef.current.cancelled = true;
+    setExportState("idle");
+  };
+
+  const shareVideo = async () => {
+    if (!videoOut) return;
+    const file = new File([videoOut.blob], `nerdubbio-recap.${videoOut.ext}`, { type: videoOut.blob.type });
+    try {
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title });
+        return;
+      }
+    } catch {
+      /* annullato o non supportato: fallback download */
+    }
+    const url = URL.createObjectURL(videoOut.blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `nerdubbio-recap.${videoOut.ext}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  };
   const holdRef = useRef<{ timer: number; held: boolean }>({ timer: 0, held: false });
 
   // Controlli stile stories: tenere premuto = pausa, tap sinistra/destra =
@@ -351,21 +411,66 @@ export function RecapReel({
 
         {phase === "outro" && (
           <div className="rbx-panel" style={{ zIndex: 9 }}>
-            <div>
-              <div className="rbx-title" style={{ fontSize: 24 }}>
-                {t("recap.outroTitle")}
-              </div>
-              <div className="rbx-sub">{t("recap.outroSub")}</div>
-              <button className="rbx-replay" onClick={start}>
-                {t("recap.replay")}
-              </button>
-              <button
-                className="rbx-replay"
-                style={{ marginLeft: 10 }}
-                onClick={() => void shareRecap()}
-              >
-                {t("recap.shareCta")}
-              </button>
+            <div style={{ width: "100%" }}>
+              {/* Anteprima live dell'export: il canvas È il video in lavorazione */}
+              <canvas
+                ref={exportCanvasRef}
+                style={{
+                  display: exportState === "running" ? "block" : "none",
+                  width: "62%", margin: "0 auto 12px", borderRadius: 14,
+                  border: "1px solid rgba(224,165,46,0.4)",
+                }}
+              />
+              {exportState === "running" ? (
+                <>
+                  <div className="rbx-sub">{t("recap.exporting", { pct: Math.round(exportPct * 100) })}</div>
+                  <div style={{ margin: "10px auto 0", width: "70%", height: 5, borderRadius: 3, background: "rgba(255,255,255,.15)" }}>
+                    <div style={{ width: `${exportPct * 100}%`, height: "100%", borderRadius: 3, background: "#e0a52e", transition: "width .3s linear" }} />
+                  </div>
+                  <button className="rbx-replay" onClick={cancelExport}>
+                    {t("common.cancel")}
+                  </button>
+                </>
+              ) : exportState === "done" && videoOut ? (
+                <>
+                  <div className="rbx-title" style={{ fontSize: 22 }}>{t("recap.exportReady")}</div>
+                  <button className="rbx-replay" onClick={() => void shareVideo()}>
+                    {t("recap.exportShare")}
+                  </button>
+                  <button className="rbx-replay" style={{ marginLeft: 10 }} onClick={() => setExportState("idle")}>
+                    {t("common.close")}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="rbx-title" style={{ fontSize: 24 }}>
+                    {t("recap.outroTitle")}
+                  </div>
+                  <div className="rbx-sub">{t("recap.outroSub")}</div>
+                  {exportState === "error" && (
+                    <div className="rbx-sub" style={{ color: "#f0a5a5" }}>{t("recap.exportError")}</div>
+                  )}
+                  <div>
+                    <button className="rbx-replay" onClick={start}>
+                      {t("recap.replay")}
+                    </button>
+                    <button
+                      className="rbx-replay"
+                      style={{ marginLeft: 10 }}
+                      onClick={() => void shareRecap()}
+                    >
+                      {t("recap.shareCta")}
+                    </button>
+                    <button
+                      className="rbx-replay"
+                      style={{ marginLeft: 10 }}
+                      onClick={() => void startExport()}
+                    >
+                      🎬 {t("recap.exportCta")}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
