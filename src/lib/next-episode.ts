@@ -69,6 +69,11 @@ export function listTvShowsForNextEpisode(media: Record<string, UserMediaEntry>)
       return false;
     })
     .sort((a, b) => {
+      // I preferiti hanno sempre la precedenza: prima smaltisci le serie del
+      // cuore, poi le altre (es. una S2 nuova non ti scavalca i preferiti).
+      const favA = a.favorite ? 1 : 0;
+      const favB = b.favorite ? 1 : 0;
+      if (favA !== favB) return favB - favA;
       const score = (e: UserMediaEntry) => {
         const t = e.lastWatchedAt ? Date.parse(e.lastWatchedAt) : 0;
         const f = maxWatchedFrontier(e);
