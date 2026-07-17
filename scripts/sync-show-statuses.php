@@ -4,7 +4,9 @@
 //   - "in corso"  -> "vista"    se in pari e niente in calendario (nessun
 //                                episodio uscito dopo l'ultimo visto, nessun
 //                                episodio futuro con data)
-//   - "vista"     -> "in corso" se è USCITO un episodio dopo l'ultimo visto
+//   - "vista"     -> "in corso" se dopo l'ultimo visto c'è un episodio uscito
+//                                O anche solo annunciato con una data futura
+//                                (coerente col real-time: "la sto aspettando")
 // Non tocca mai: pausa, abbandonate, da-vedere, entry senza episodi segnati
 // (stati impostati a mano restano tali).
 //
@@ -105,9 +107,10 @@ foreach ($rows as $r) {
         $toCompleted++;
         printf("  VISTA      @%-18s %-38s (in pari, niente in calendario)\n", $r['handle'], mb_substr($r['title'] ?? $r['media_key'], 0, 37));
         if ($apply) $upd->execute(['completed', $r['user_id'], $r['media_key']]);
-    } elseif ($r['status'] === 'completed' && $airedAfter) {
+    } elseif ($r['status'] === 'completed' && ($airedAfter || $datedFuture)) {
         $toWatching++;
-        printf("  IN CORSO   @%-18s %-38s (uscito un episodio dopo S{$fs}E{$fe})\n", $r['handle'], mb_substr($r['title'] ?? $r['media_key'], 0, 37));
+        $why = $airedAfter ? "uscito un episodio dopo S{$fs}E{$fe}" : "nuovo episodio annunciato dopo S{$fs}E{$fe}";
+        printf("  IN CORSO   @%-18s %-38s (%s)\n", $r['handle'], mb_substr($r['title'] ?? $r['media_key'], 0, 37), $why);
         if ($apply) $upd->execute(['watching', $r['user_id'], $r['media_key']]);
     }
 }
