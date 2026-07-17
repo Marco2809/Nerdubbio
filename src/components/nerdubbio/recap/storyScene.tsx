@@ -1,6 +1,42 @@
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { motifSvg } from "./motifs";
 import type { RecapScene } from "@/lib/php/recap-client";
+
+/** Testo che si "scrive" da solo (per le citazioni). */
+function Typewriter({ text, speed = 34 }: { text: string; speed?: number }) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    setN(0);
+    const id = setInterval(() => setN((v) => (v >= text.length ? v : v + 1)), speed);
+    return () => clearInterval(id);
+  }, [text, speed]);
+  return (
+    <>
+      {text.slice(0, n)}
+      {n < text.length && <span style={{ opacity: 0.6 }}>▌</span>}
+    </>
+  );
+}
+
+/** Numero che sale fino al valore (per le stat numeriche). */
+function CountUp({ value }: { value: string }) {
+  const target = parseInt(value, 10);
+  const numeric = Number.isFinite(target) && String(target) === value.trim();
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!numeric) return;
+    setN(0);
+    const steps = 24;
+    let i = 0;
+    const id = setInterval(() => {
+      i++;
+      setN(Math.round((target * i) / steps));
+      if (i >= steps) clearInterval(id);
+    }, 42);
+    return () => clearInterval(id);
+  }, [numeric, target]);
+  return <>{numeric ? n : value}</>;
+}
 
 const GOLD = "#e0a52e";
 const CREAM = "#f2efe4";
@@ -64,6 +100,22 @@ const kicker: CSSProperties = {
   color: GOLD, fontSize: 11, letterSpacing: ".22em", textTransform: "uppercase", fontWeight: 600,
 };
 
+export function EpChip({ ep }: { ep?: number }) {
+  if (!ep) return null;
+  return (
+    <span
+      style={{
+        position: "absolute", top: 46, left: 16, zIndex: 5,
+        fontSize: 10, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase",
+        color: "#0d0f0c", background: GOLD, padding: "3px 9px", borderRadius: 12,
+        animation: "rb-up .5s ease .15s both",
+      }}
+    >
+      Ep. {ep}
+    </span>
+  );
+}
+
 export function SceneView({
   scene,
   photoFor,
@@ -115,11 +167,43 @@ export function SceneView({
     return (
       <div style={wrap}>
         <div style={{ color: GOLD, fontFamily: "Georgia, serif", fontSize: 64, lineHeight: 0.6, height: 30, ...pop() }}>“</div>
-        <blockquote style={{ fontFamily: "Georgia, serif", fontStyle: "italic", fontSize: 21, color: CREAM, lineHeight: 1.4, margin: "8px 0 0", ...pop(0.1) }}>
-          {text}
+        <blockquote style={{ fontFamily: "Georgia, serif", fontStyle: "italic", fontSize: 21, color: CREAM, lineHeight: 1.4, margin: "8px 0 0", minHeight: 60 }}>
+          <Typewriter text={text ?? ""} />
         </blockquote>
-        {speaker && <p style={{ color: GOLD, fontSize: 13, fontWeight: 600, marginTop: 14, ...pop(0.2) }}>— {speaker}</p>}
-        {title && <p style={{ color: DIM, fontSize: 11, marginTop: 6 }}>{title}</p>}
+        {speaker && <p style={{ color: GOLD, fontSize: 13, fontWeight: 600, marginTop: 14, ...pop(0.9) }}>— {speaker}</p>}
+        {title && <p style={{ color: DIM, fontSize: 11, marginTop: 6, ...pop(1) }}>{title}</p>}
+      </div>
+    );
+  }
+
+  if (layout === "threads") {
+    const items = scene.items ?? [];
+    return (
+      <div style={{ ...wrap, alignItems: "stretch", textAlign: "left" }}>
+        <div style={{ textAlign: "center", marginBottom: 14 }}>
+          <span style={{ ...chip, animation: "rb-throb 2.4s ease-in-out infinite" }}>📌 {title}</span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {items.map((it, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex", gap: 10, alignItems: "flex-start",
+                background: "rgba(224,165,46,0.08)", border: "1px solid rgba(224,165,46,0.35)",
+                borderRadius: 14, padding: "10px 12px",
+                animation: `rb-slide .5s ease ${0.15 + i * 0.22}s both`,
+              }}
+            >
+              <span style={{ color: GOLD, fontWeight: 700, fontSize: 13 }}>{i + 1}.</span>
+              <p style={{ color: CREAM, fontSize: 13.5, lineHeight: 1.4 }}>{it}</p>
+            </div>
+          ))}
+        </div>
+        {subtitle && (
+          <p style={{ color: GOLD, fontSize: 13, fontWeight: 600, marginTop: 16, textAlign: "center", animation: `rb-up .6s ease ${0.3 + items.length * 0.22}s both` }}>
+            {subtitle}
+          </p>
+        )}
       </div>
     );
   }
@@ -144,10 +228,10 @@ export function SceneView({
 
   if (layout === "big-reveal") {
     return (
-      <div style={wrap}>
-        {scene.motif && <div style={pop()}><Motif name={scene.motif} size="52%" /></div>}
+      <div style={{ ...wrap, animation: "rb-shake .45s ease .55s 2" }}>
+        {scene.motif && <div style={{ ...pop(), animation: "rb-pop .6s ease both, rb-flash 1.2s ease .5s 1" }}><Motif name={scene.motif} size="52%" /></div>}
         <div style={{ ...chip, background: "#c0392b", color: CREAM, marginTop: 14, ...pop(0.1) }}>{title}</div>
-        {subtitle && <p style={{ color: CREAM, fontSize: 17, fontWeight: 500, marginTop: 14, lineHeight: 1.4, ...pop(0.2) }}>{subtitle}</p>}
+        {subtitle && <p style={{ color: CREAM, fontSize: 17, fontWeight: 500, marginTop: 14, lineHeight: 1.4, ...pop(0.25) }}>{subtitle}</p>}
       </div>
     );
   }
@@ -160,7 +244,7 @@ export function SceneView({
         <div style={{ display: "flex", gap: 18, flexWrap: "wrap", justifyContent: "center" }}>
           {stats.map((s, i) => (
             <div key={i} style={{ minWidth: 72, ...pop(i * 0.12) }}>
-              <div style={{ color: GOLD, fontSize: 40, fontWeight: 700, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ color: GOLD, fontSize: 40, fontWeight: 700, lineHeight: 1 }}><CountUp value={s.value} /></div>
               <div style={{ color: DIM, fontSize: 11, textTransform: "uppercase", letterSpacing: ".06em", marginTop: 6 }}>{s.label}</div>
             </div>
           ))}
@@ -189,7 +273,7 @@ export function SceneView({
             <Avatar name={a} photo={photo(a)} size={60} />
             <span style={{ color: CREAM, fontSize: 13, fontWeight: 600, maxWidth: 80 }}>{a}</span>
           </div>
-          <span style={{ flex: 1, height: 2, minWidth: 34, background: GOLD }} />
+          <span style={{ flex: 1, height: 2, minWidth: 34, background: GOLD, transformOrigin: "left", animation: "rb-grow-x .7s ease .35s both" }} />
           {b && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
               <Avatar name={b} photo={photo(b)} size={60} />
@@ -229,6 +313,23 @@ export function SceneView({
   if (layout === "ending") {
     return (
       <div style={wrap}>
+        {/* Pulviscolo dorato che sale: chiusura calda */}
+        {Array.from({ length: 14 }).map((_, i) => (
+          <span
+            key={i}
+            style={{
+              position: "absolute",
+              left: `${(i * 7.3 + 4) % 100}%`,
+              bottom: -8,
+              width: i % 3 === 0 ? 5 : 3,
+              height: i % 3 === 0 ? 5 : 3,
+              borderRadius: "50%",
+              background: GOLD,
+              opacity: 0,
+              animation: `rb-rise ${(2.6 + (i % 5) * 0.5).toFixed(1)}s ease-out ${(i * 0.28).toFixed(2)}s infinite`,
+            }}
+          />
+        ))}
         <div style={{ ...kicker, ...pop() }}>Fine</div>
         <h1 style={{ fontFamily: "Georgia, serif", fontSize: 26, fontWeight: 600, color: CREAM, margin: "12px 0 0", lineHeight: 1.2, ...pop(0.1) }}>{title}</h1>
         {subtitle && <p style={{ color: DIM, fontSize: 14, marginTop: 10, maxWidth: 260, ...pop(0.2) }}>{subtitle}</p>}

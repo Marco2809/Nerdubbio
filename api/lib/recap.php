@@ -16,7 +16,7 @@ const RECAP_MAX_CAST = 15;
 // Layout dello Story Journey supportati dal renderer (storyScene.tsx).
 const RECAP_LAYOUTS = [
     'hero', 'motif', 'character-card', 'quote', 'timeline', 'big-reveal',
-    'stat', 'map', 'relationship-graph', 'split-screen', 'ending',
+    'stat', 'map', 'relationship-graph', 'split-screen', 'threads', 'ending',
 ];
 
 const RECAP_EMOTIONS = [
@@ -94,6 +94,7 @@ LAYOUTS (vary them — never the same layout twice in a row):
 - map: a key place. Fields: title (location name), subtitle, motif (map->journey/home/city).
 - relationship-graph: a bond between two people. Fields: characters (exactly 2 {name}), subtitle (the relation or what changed between them).
 - split-screen: contrast two forces/characters. Fields: characters (2 {name, note}) or title+subtitle.
+- threads: "where we left off" memory sheet — the open questions and unresolved plot threads the viewer MUST remember before the next season. Fields: title (e.g. "Da ricordare"), items (3-5 short open threads/questions, each naming who/what), subtitle (the single most burning question). Use ONCE, right before the ending. THIS IS THE MOST USEFUL SCENE: be specific.
 - ending: nostalgic closer. Fields: title, subtitle. Use ONCE, last.
 
 RULES:
@@ -105,6 +106,8 @@ RULES:
 - stat: "value" must be a concrete number or short fact ("10", "4 morti"), never a vague word like "molti".
 - quote: only a real verbatim line; keep it in the language it is famous in.
 - title: short. items/notes: short. dur: milliseconds 3500-6500. Optionally set "emotion".
+- ep: when a beat happens in a specific episode, set "ep" to that episode number — it helps the viewer place the memory ("ah, that was episode 4"). Omit it for scenes spanning the whole season (hero, stat, threads, ending).
+- The reel MUST end with: threads (what to remember) then ending.
 
 Respond with ONLY the JSON object matching the schema.
 SYS;
@@ -181,6 +184,7 @@ function recap_output_schema(): array {
             ['label' => ['type' => 'string'], 'value' => ['type' => 'string']], ['label', 'value'],
         )],
         'items'      => ['type' => 'array', 'items' => ['type' => 'string']],
+        'ep'         => ['type' => 'integer'],
         'dur'        => ['type' => 'integer'],
     ], ['layout', 'title', 'subtitle', 'dur']);
 
@@ -302,6 +306,9 @@ function recap_parse_scenes(string $text): ?array {
             if ($it) $scene['items'] = $it;
         }
 
+        $ep = (int) ($s['ep'] ?? 0);
+        if ($ep >= 1 && $ep <= 999) $scene['ep'] = $ep;
+
         $dur = (int) ($s['dur'] ?? 4800);
         $scene['dur'] = max(RECAP_DUR_MIN, min(RECAP_DUR_MAX, $dur));
 
@@ -319,7 +326,9 @@ function recap_get_or_generate(PDO $pdo, array $body, ?string $userId): array {
     $lang   = normalize_locale($body['lang'] ?? 'it');
     if ($tmdbId <= 0) api_err('recap_bad_id', 400);
 
-    $cacheKey = "$type:$tmdbId:$season:$lang";
+    // v2: formato con scena "threads" (da ricordare) + riferimenti episodio.
+    // Il bump rigenera gli storyboard alla prossima apertura (pre-gen inclusa).
+    $cacheKey = "$type:$tmdbId:$season:$lang:v2";
 
     $stmt = $pdo->prepare('SELECT storyboard, model FROM recap_storyboard WHERE cache_key = ?');
     $stmt->execute([$cacheKey]);

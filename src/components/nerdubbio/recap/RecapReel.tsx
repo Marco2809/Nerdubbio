@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Volume2, VolumeX } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import { SceneView } from "./storyScene";
+import { SceneView, EpChip } from "./storyScene";
 import { RecapMusic, type Mood } from "./recapMusic";
 import type { RecapScene } from "@/lib/php/recap-client";
 
@@ -62,6 +62,7 @@ const REEL_CSS = `
 @keyframes rb-slide{from{transform:translateX(-130px);opacity:0}to{transform:translateX(0);opacity:1}}
 @keyframes rb-swing{0%,100%{transform:rotate(-9deg)}50%{transform:rotate(9deg)}}
 @keyframes rb-up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes rb-grow-x{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 `;
 
 type Phase = "gate" | "playing" | "outro";
@@ -328,6 +329,7 @@ export function RecapReel({
           {scene && (
             <div key={idx} style={{ position: "absolute", inset: 0 }}>
               <SceneView scene={scene} photoFor={photoFor} />
+              <EpChip ep={scene.ep} />
             </div>
           )}
         </div>

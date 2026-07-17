@@ -16,6 +16,8 @@ export interface RecapScene {
   quote?: { text: string; speaker?: string };
   stats?: { label: string; value: string }[];
   items?: string[];
+  /** Episodio in cui accade il beat (chip "Ep. N"). */
+  ep?: number;
   dur: number;
   // Retrocompat con i vecchi recap in cache.
   label?: string;
