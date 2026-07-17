@@ -25,7 +25,7 @@ import { NERDACOLO, QUEST } from "@/lib/brand";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { socialApi, SOCIAL_GROUPS_KEY } from "@/lib/php/social-client";
-import { Users } from "lucide-react";
+import { Users, Sparkles } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useI18n, localeToBcp47, pageTitle } from "@/lib/i18n";
 
@@ -33,6 +33,8 @@ export const Route = createFileRoute("/_authenticated/dubbio")({
   head: () => ({ meta: [{ title: pageTitle("dubbio", "it", { name: QUEST.name }) }] }),
   validateSearch: (search: Record<string, unknown>) => ({
     group: typeof search.group === "string" && search.group ? search.group : undefined,
+    seed: typeof search.seed === "string" && /^(tv|movie)-\d+$/.test(search.seed) ? search.seed : undefined,
+    seedTitle: typeof search.seedTitle === "string" && search.seedTitle ? search.seedTitle.slice(0, 80) : undefined,
   }),
   component: DubbioPage,
 });
@@ -43,7 +45,7 @@ function DubbioPage() {
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
   const { state } = useUserStore();
-  const { group: groupId } = Route.useSearch();
+  const { group: groupId, seed: seedKey, seedTitle } = Route.useSearch();
 
   // Dubbio di gruppo: gusti fusi dei membri dal server.
   const groupCtxQ = useQuery({
@@ -110,7 +112,7 @@ function DubbioPage() {
           moodProfile: userContext.moodProfile,
           watchlistIds: userContext.watchlistIds,
           highlyRatedIds: userContext.highlyRatedIds,
-        }, undefined, tmdbLocale);
+        }, undefined, tmdbLocale, seedKey);
         if (!pool.length) throw new Error("empty");
       } catch {
         pool = CATALOG;
@@ -194,6 +196,14 @@ function DubbioPage() {
     return (
       <AppShell subtitle={NERDACOLO.title} title={groupId ? t("dubbio.groupTitle") : t("dubbio.whatTonight")}>
         <NerdacoloTrigger />
+        {seedKey && (
+          <div className="mt-3 flex items-center gap-2 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-3">
+            <Sparkles className="h-4 w-4 shrink-0 text-amber-300" />
+            <p className="text-xs text-amber-100">
+              {t("dubbio.seedBanner", { title: seedTitle ?? seedKey })}
+            </p>
+          </div>
+        )}
         {groupId && (
           <div className="mt-3 flex items-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 p-3">
             <Users className="h-4 w-4 shrink-0 text-cyan-300" />

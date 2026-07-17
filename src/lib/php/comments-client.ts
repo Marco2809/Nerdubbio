@@ -86,6 +86,13 @@ export const commentsApi = {
     );
   },
 
+  /** I MIEI commenti-episodio di una stagione (per le scene personali del recap). */
+  mine(type: 'tv' | 'movie', tmdbId: number, season: number): Promise<{
+    comments: { season: number; episode: number; body: string; rating: number | null; created_at: string }[];
+  }> {
+    return api(`/api/comments.php?action=mine&type=${type}&tmdb_id=${tmdbId}&season=${season}`);
+  },
+
   replies(parentId: string): Promise<{ replies: MediaComment[] }> {
     return api<{ replies: MediaComment[] }>(
       `/api/comments.php?action=replies&parent_id=${encodeURIComponent(parentId)}`,

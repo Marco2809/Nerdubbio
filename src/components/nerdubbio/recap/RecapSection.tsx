@@ -5,6 +5,7 @@ import { toast } from "@/lib/toast";
 import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
 import { tmdbSeason, tmdbCredits, type SeasonSummary, type CastMember } from "@/lib/tmdb/tmdb.functions";
 import { recapApi, type RecapScene, type RecapEpisodeInput } from "@/lib/php/recap-client";
+import { commentsApi } from "@/lib/php/comments-client";
 import { RecapReel } from "./RecapReel";
 import { moodFromGenres } from "./recapMusic";
 
@@ -108,7 +109,39 @@ export function RecapSection({
       episodes,
       cast: cast.length ? cast : undefined,
     });
-    setByKey((prev) => ({ ...prev, [activeKey]: res.scenes }));
+
+    // Scene personali: le TUE reazioni dell'epoca (commenti episodio) entrano
+    // nel reel come citazioni. Solo lato client: lo storyboard in cache è
+    // condiviso, il ricordo personale no.
+    let scenes = res.scenes;
+    if (isTv && effective != null) {
+      try {
+        const { comments } = await commentsApi.mine("tv", tmdbId, effective);
+        const picks = comments
+          .filter((c) => c.body.trim().length >= 3 && c.body.length <= 160)
+          .slice(0, 2);
+        if (picks.length) {
+          scenes = [...scenes];
+          // Inserite prima della scena "threads" (o dell'ending come ripiego).
+          let anchor = scenes.findIndex((s) => s.layout === "threads");
+          if (anchor < 0) anchor = Math.max(scenes.length - 1, 0);
+          const personal = picks.map((c) => ({
+            layout: "quote",
+            title: t("recap.yourReaction", { e: c.episode, date: new Date(c.created_at).toLocaleDateString() }),
+            subtitle: "",
+            quote: { text: c.body.trim(), speaker: t("recap.you") },
+            ep: c.episode,
+            emotion: "joy",
+            dur: 4600,
+          }));
+          scenes.splice(anchor, 0, ...personal);
+        }
+      } catch {
+        // Le scene personali sono un extra: senza, il reel resta valido.
+      }
+    }
+
+    setByKey((prev) => ({ ...prev, [activeKey]: scenes }));
     return true;
   };
 

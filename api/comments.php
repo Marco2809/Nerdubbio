@@ -20,6 +20,13 @@ if ($action === 'list') {
     json_out(comments_list($pdo, $userId, $mediaType, $tmdbId, $scope, $offset, $season, $episode));
 }
 
+if ($action === 'mine') {
+    $mediaType = (string) ($_GET['type'] ?? '');
+    $tmdbId    = (int) ($_GET['tmdb_id'] ?? 0);
+    $season    = (int) ($_GET['season'] ?? 0);
+    json_out(comments_mine_for_season($pdo, $userId, $mediaType, $tmdbId, $season));
+}
+
 if ($action === 'counts') {
     $mediaType = (string) ($_GET['type'] ?? $body['type'] ?? '');
     $tmdbId    = (int) ($_GET['tmdb_id'] ?? $body['tmdb_id'] ?? 0);

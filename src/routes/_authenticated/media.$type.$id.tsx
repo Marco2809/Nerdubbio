@@ -3,7 +3,7 @@ import { AppShell } from "@/components/nerdubbio/AppShell";
 import { OverlayBackButton } from "@/components/nerdubbio/OverlayBackButton";
 import { findById, type CatalogItem } from "@/lib/mock-catalog";
 import { useUserStore, isEpisodeWatched, getEpisodeWatchCount, totalEpisodeWatches, type UserStatus } from "@/lib/user-store";
-import { Plus, Heart, CheckCircle2, Pause, X, Star, Check, Loader2, PlayCircle, Trash2, MessageCircle } from "lucide-react";
+import { Plus, Heart, CheckCircle2, Pause, X, Star, Check, Loader2, PlayCircle, Trash2, MessageCircle, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, tmdbWatchProviders, tmdbVideos, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
@@ -255,6 +255,15 @@ function MediaDetail() {
           posterUrl={tmdbQuery.data?.item.posterUrl}
           year={item.year}
         />
+
+        {/* Nerdacolo in modalità seed: consigli nell'orbita di questo titolo */}
+        <Link
+          to="/dubbio"
+          search={{ seed: item.id, seedTitle: item.title }}
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-accent/40 bg-accent/10 py-3 text-sm font-semibold text-accent transition active:scale-[0.99]"
+        >
+          <Sparkles className="h-4 w-4" /> {t("media.askNerdacolo")}
+        </Link>
 
         <div className="mt-6">
           <div className="flex items-center justify-between">

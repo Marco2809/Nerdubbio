@@ -40,6 +40,30 @@ function comments_friend_ids(PDO $pdo, string $userId): array {
     return array_column($stmt->fetchAll(), 'fid');
 }
 
+/** Commenti-episodio dell'utente per una stagione (per il recap personale). */
+function comments_mine_for_season(PDO $pdo, string $userId, string $mediaType, int $tmdbId, int $season): array {
+    $stmt = $pdo->prepare(
+        'SELECT season, episode, body, rating, created_at
+         FROM media_comments
+         WHERE user_id = ? AND media_type = ? AND tmdb_id = ? AND season = ?
+           AND episode IS NOT NULL AND parent_id IS NULL AND deleted_at IS NULL
+           AND body IS NOT NULL AND body <> ""
+         ORDER BY episode ASC'
+    );
+    $stmt->execute([$userId, $mediaType, $tmdbId, $season]);
+    $out = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $out[] = [
+            'season'     => (int) $r['season'],
+            'episode'    => (int) $r['episode'],
+            'body'       => (string) $r['body'],
+            'rating'     => $r['rating'] !== null ? (int) $r['rating'] : null,
+            'created_at' => $r['created_at'],
+        ];
+    }
+    return ['comments' => $out];
+}
+
 const COMMENT_SELECT = "c.id, c.user_id, c.body, c.media_url, c.spoiler, c.rating, c.parent_id, c.created_at,
                         p.handle, p.display_name, p.avatar_url,
                         um.status AS media_status, um.rating AS media_rating, us.language AS author_language";

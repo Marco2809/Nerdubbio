@@ -84,6 +84,7 @@ export async function fetchDubbioPool(
   profile: UserProfile,
   answers?: QuizAnswers,
   locale?: string,
+  seedKey?: string,
 ): Promise<CatalogItem[]> {
   let moodGenres: string[] | undefined;
   if (answers) {
@@ -103,6 +104,7 @@ export async function fetchDubbioPool(
       watchlistIds: profile.watchlistIds,
       highlyRatedIds: profile.highlyRatedIds,
       excludeIds: [...(profile.seenIds ?? []), ...(profile.dismissedIds ?? [])],
+      seedKey,
       locale,
     },
   });

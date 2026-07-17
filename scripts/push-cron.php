@@ -92,14 +92,21 @@ foreach ($byShow as $mediaKey => $show) {
     }
     if (!$ep) continue;
 
-    $label = 'S' . (int) ($ep['season_number'] ?? 0) . 'E' . (int) ($ep['episode_number'] ?? 0);
+    $epSeason = (int) ($ep['season_number'] ?? 0);
+    $epNumber = (int) ($ep['episode_number'] ?? 0);
+    $label = 'S' . $epSeason . 'E' . $epNumber;
+    // Premiere di stagione (E1 di una S>1): invito a ripassare la stagione
+    // precedente col recap in 60 secondi — il rituale pre-episodio.
+    $body = $epNumber === 1 && $epSeason > 1
+        ? "Parte la S{$epSeason} di {$show['title']}! 🍿 Ripassa la S" . ($epSeason - 1) . ' col recap in 60 secondi.'
+        : $label . ' di ' . $show['title'] . ' esce oggi!';
     foreach (array_unique($show['users']) as $uid) {
         // INSERT IGNORE come gate: se la riga esiste già (run delle 9), salta.
         $logIns->execute([$uid, $mediaKey, $today]);
         if ($logIns->rowCount() === 0) continue;
         $airSent += wp_send_to_user($pdo, $uid, [
             'title' => 'Nerdubbio 🍿',
-            'body'  => $label . ' di ' . $show['title'] . ' esce oggi!',
+            'body'  => $body,
             'url'   => '/media/tv/' . $tmdbId,
         ]);
     }

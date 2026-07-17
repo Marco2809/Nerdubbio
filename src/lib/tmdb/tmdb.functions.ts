@@ -1358,6 +1358,8 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
         watchlistIds: z.array(z.string()).optional(),
         highlyRatedIds: z.array(z.string()).optional(),
         excludeIds: z.array(z.string()).optional(),
+        /** Chiave "tv-123"/"movie-45": pool = simili+raccomandati di QUESTO titolo. */
+        seedKey: z.string().optional(),
         locale: z.string().optional(),
       })
       .parse(data),
@@ -1377,6 +1379,22 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
       if (exclude.has(key)) return;
       byKey.set(key, tmdbToCatalogItem(t, { fromWatchlist }));
     };
+
+    // Modalità seed ("Nerdacolo su questo titolo"): il pool sono i parenti
+    // stretti del titolo — simili e raccomandati — e nient'altro.
+    const seed = data.seedKey ? parseMediaKey(data.seedKey) : null;
+    if (seed) {
+      try {
+        const rec = await recommendationItems(seed.type, seed.tmdbId, 20);
+        rec.forEach(s => add(s));
+        const sim = await similarItems(seed.type, seed.tmdbId, 20);
+        sim.forEach(s => add(s));
+      } catch {
+        /* fallback sul pool normale */
+      }
+      if (byKey.size >= 8) return { items: [...byKey.values()] };
+      // Troppo pochi parenti: prosegui col pool standard per riempire.
+    }
 
     // Trending TMDB
     try {
