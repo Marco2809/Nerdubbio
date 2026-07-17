@@ -595,10 +595,13 @@ function MediaDetail() {
 function SeriesRating({ value, onChange }: { value: number | undefined; onChange: (r: number | undefined) => void }) {
   const { t } = useI18n();
   const trackRef = useRef<HTMLDivElement>(null);
-  // Durante il drag si aggiorna solo lo stato locale: il salvataggio (chiamata
-  // API) avviene UNA volta sola, al rilascio.
-  const [drag, setDrag] = useState<number | null>(null);
-  const shown = drag ?? value;
+  // `local` = valore mostrato durante il drag e in attesa di conferma server.
+  // `draggingRef` distingue "dito giù" dal semplice pending: la pulizia dello
+  // stato NON deve mai avvenire a metà trascinamento (uccideva il drag appena
+  // si passava sopra il valore già salvato).
+  const [local, setLocal] = useState<number | null>(null);
+  const draggingRef = useRef(false);
+  const shown = local ?? value;
 
   const valueFromClientX = (clientX: number): number => {
     const el = trackRef.current;
@@ -609,19 +612,19 @@ function SeriesRating({ value, onChange }: { value: number | undefined; onChange
   };
 
   const commit = () => {
-    setDrag((d) => {
-      if (d == null || d === value) return null;
-      onChange(d);
-      // Tieni il valore trascinato a schermo finché il salvataggio non
-      // riporta il nuovo `value`: azzerare subito faceva lampeggiare il
-      // voto vecchio per un frame.
-      return d;
+    draggingRef.current = false;
+    setLocal((l) => {
+      if (l == null || l === value) return null;
+      onChange(l);
+      // Resta a schermo finché il salvataggio non riporta il nuovo `value`
+      // (azzerare subito lampeggiava il voto vecchio).
+      return l;
     });
   };
 
   useEffect(() => {
-    if (drag != null && value === drag) setDrag(null);
-  }, [value, drag]);
+    if (!draggingRef.current && local != null && value === local) setLocal(null);
+  }, [value, local]);
 
   const pct = shown != null ? (shown / 10) * 100 : 0;
 
@@ -650,13 +653,17 @@ function SeriesRating({ value, onChange }: { value: number | undefined; onChange
             tabIndex={0}
             onPointerDown={(e) => {
               e.currentTarget.setPointerCapture(e.pointerId);
-              setDrag(valueFromClientX(e.clientX));
+              draggingRef.current = true;
+              setLocal(valueFromClientX(e.clientX));
             }}
             onPointerMove={(e) => {
-              if (drag != null && (e.buttons === 1 || e.pressure > 0)) setDrag(valueFromClientX(e.clientX));
+              if (draggingRef.current) setLocal(valueFromClientX(e.clientX));
             }}
             onPointerUp={commit}
-            onPointerCancel={() => setDrag(null)}
+            onPointerCancel={() => {
+              draggingRef.current = false;
+              setLocal(null);
+            }}
             onKeyDown={(e) => {
               if (e.key === "ArrowLeft") onChange(Math.max(0.5, (value ?? 0.5) - 0.5));
               else if (e.key === "ArrowRight") onChange(Math.min(10, (value ?? 0) + 0.5));
