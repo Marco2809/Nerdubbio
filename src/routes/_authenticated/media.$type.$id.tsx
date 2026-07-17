@@ -640,8 +640,8 @@ function SeriesRating({ value, onChange }: { value: number | undefined; onChange
       </div>
 
       <div className="mt-2 flex items-center gap-3">
-        <span className={`w-14 shrink-0 text-3xl font-extrabold tabular-nums ${shown != null ? "text-gradient" : "text-muted-foreground"}`}>
-          {shown != null ? shown.toFixed(1) : "–"}
+        <span className={`min-w-[2.5rem] shrink-0 text-right text-3xl font-extrabold tabular-nums leading-none ${shown != null ? "text-gradient" : "text-muted-foreground"}`}>
+          {shown != null ? (shown % 1 === 0 ? shown.toFixed(0) : shown.toFixed(1)) : "–"}
         </span>
         <div className="flex-1">
           <div
