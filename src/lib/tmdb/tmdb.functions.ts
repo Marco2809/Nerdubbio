@@ -1145,13 +1145,16 @@ async function analyzeShowProgress(
   } else if (!hasProgress) {
     inferredStatus = "plan_to_watch";
   } else if (next?.aired) {
+    // C'è un episodio già uscito da vedere.
     inferredStatus = "watching";
-  } else if (next) {
+  } else if (next?.airDate) {
+    // Episodio futuro con data: la stai aspettando, resta in corso.
     inferredStatus = "watching";
-  } else if (seriesEnded) {
-    inferredStatus = "completed";
   } else {
-    inferredStatus = "watching";
+    // In pari e NIENTE in calendario: serie conclusa, cancellata, o stagione
+    // solo annunciata senza date. Tenerla "in corso" intasa la lista — va in
+    // Vista; quando usciranno date/episodi il sync la riporta in corso.
+    inferredStatus = "completed";
   }
 
   const shouldAutoComplete =

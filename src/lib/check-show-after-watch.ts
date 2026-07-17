@@ -19,10 +19,12 @@ function formatAirDate(iso: string | null): string {
 
 function progressToast(result: ShowProgressResult, title: string): { title: string; description: string } | null {
   if (result.shouldAutoComplete) {
-    return {
-      title: `${title} — serie conclusa`,
-      description: "Spostata in Vista.",
-    };
+    return result.seriesEnded
+      ? { title: `${title} — serie conclusa`, description: "Spostata in Vista." }
+      : {
+          title: `${title} — tutto visto`,
+          description: "Nessun episodio in programma: spostata in Vista. Tornerà in corso quando ci saranno date.",
+        };
   }
   if (!result.caughtUp) return null;
 
