@@ -379,7 +379,9 @@ export default {
     rateN: "Nota {{n}}/10",
     trailer: "Tráiler",
     watchTrailer: "Ver tráiler",
-    hideTrailer: "Ocultar tráiler",
+    hideTrailer: "Ocultar",
+    otherTrailer: "Otro tráiler",
+    openYoutube: "Abrir en YouTube",
   },
   time: {
     today: "Hoy",

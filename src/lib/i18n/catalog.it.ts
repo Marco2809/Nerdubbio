@@ -379,7 +379,9 @@ export default {
     rateN: "Vota {{n}}/10",
     trailer: "Trailer",
     watchTrailer: "Guarda il trailer",
-    hideTrailer: "Nascondi trailer",
+    hideTrailer: "Nascondi",
+    otherTrailer: "Altro trailer",
+    openYoutube: "Apri su YouTube",
   },
   time: {
     today: "Oggi",

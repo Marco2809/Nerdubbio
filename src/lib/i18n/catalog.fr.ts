@@ -380,6 +380,8 @@ export default {
     trailer: "Bande-annonce",
     watchTrailer: "Voir la bande-annonce",
     hideTrailer: "Masquer",
+    otherTrailer: "Autre trailer",
+    openYoutube: "Ouvrir sur YouTube",
   },
   time: {
     today: "Aujourd'hui",

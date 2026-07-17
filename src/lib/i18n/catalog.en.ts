@@ -379,7 +379,9 @@ export default {
     rateN: "Rate {{n}}/10",
     trailer: "Trailer",
     watchTrailer: "Watch trailer",
-    hideTrailer: "Hide trailer",
+    hideTrailer: "Hide",
+    otherTrailer: "Other trailer",
+    openYoutube: "Open on YouTube",
   },
   time: {
     today: "Today",
