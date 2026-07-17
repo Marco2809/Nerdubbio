@@ -610,10 +610,18 @@ function SeriesRating({ value, onChange }: { value: number | undefined; onChange
 
   const commit = () => {
     setDrag((d) => {
-      if (d != null && d !== value) onChange(d);
-      return null;
+      if (d == null || d === value) return null;
+      onChange(d);
+      // Tieni il valore trascinato a schermo finché il salvataggio non
+      // riporta il nuovo `value`: azzerare subito faceva lampeggiare il
+      // voto vecchio per un frame.
+      return d;
     });
   };
+
+  useEffect(() => {
+    if (drag != null && value === drag) setDrag(null);
+  }, [value, drag]);
 
   const pct = shown != null ? (shown / 10) * 100 : 0;
 
