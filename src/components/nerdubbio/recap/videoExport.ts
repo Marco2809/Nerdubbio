@@ -616,10 +616,30 @@ export async function exportRecapVideo(opts: {
   const done = new Promise<void>((resolve) => { rec.onstop = () => resolve(); });
   rec.start(500);
 
+  // Se l'app va in background (cambio tab/schermo bloccato) rAF si ferma ma il
+  // wall-clock no: senza pausa il video uscirebbe con lunghi tratti congelati.
+  // Qui mettiamo in pausa la registrazione e scaliamo il tempo perso.
+  let pausedTotal = 0;
+  let hiddenAt = 0;
+  const onVisibility = () => {
+    try {
+      if (document.hidden) {
+        hiddenAt = performance.now();
+        if (rec.state === "recording") rec.pause();
+      } else {
+        if (hiddenAt) pausedTotal += performance.now() - hiddenAt;
+        hiddenAt = 0;
+        if (rec.state === "paused") rec.resume();
+      }
+    } catch { /* best effort */ }
+  };
+  document.addEventListener("visibilitychange", onVisibility);
+
   const t0 = performance.now();
   await new Promise<void>((resolve) => {
     const tick = () => {
-      const elapsed = performance.now() - t0;
+      if (document.hidden) { setTimeout(tick, 250); return; }
+      const elapsed = performance.now() - t0 - pausedTotal;
       if (handle.cancelled || elapsed >= totalMs + 300) { resolve(); return; }
       drawFrame(ctx, scenes, Math.min(elapsed, totalMs - 1), totalMs, assets);
       onProgress(clamp01(elapsed / totalMs));
@@ -628,6 +648,8 @@ export async function exportRecapVideo(opts: {
     tick();
   });
 
+  document.removeEventListener("visibilitychange", onVisibility);
+  if (rec.state === "paused") { try { rec.resume(); } catch { /* ignore */ } }
   rec.stop();
   await done;
   try { await audioCtx?.close(); } catch { /* ignore */ }
