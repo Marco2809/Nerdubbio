@@ -86,8 +86,11 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
           }
         },
         enabled: !!payload,
-        staleTime: 0,
-        refetchOnMount: "always" as const,
+        // La query key include già la frontiera (stagione/episodio visti): dopo
+        // un "visto" la chiave cambia e la fetch si rifà da sola. Quindi niente
+        // refetch forzato a ogni visita — teniamo in cache 30 min e la home
+        // non rispara 24 chiamate TMDB ogni volta che ci torni.
+        staleTime: 1000 * 60 * 30,
       };
     }),
   });
