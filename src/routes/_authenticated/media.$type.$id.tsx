@@ -3,7 +3,7 @@ import { AppShell } from "@/components/nerdubbio/AppShell";
 import { OverlayBackButton } from "@/components/nerdubbio/OverlayBackButton";
 import { findById, type CatalogItem } from "@/lib/mock-catalog";
 import { useUserStore, isEpisodeWatched, getEpisodeWatchCount, totalEpisodeWatches, type UserStatus } from "@/lib/user-store";
-import { Plus, Heart, CheckCircle2, Pause, X, Star, Check, Loader2, PlayCircle, Trash2, MessageCircle, Sparkles } from "lucide-react";
+import { Plus, Heart, CheckCircle2, Pause, X, Star, Check, Loader2, PlayCircle, Trash2, MessageCircle, Sparkles, Radio, Clock } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, tmdbWatchProviders, tmdbVideos, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
@@ -498,6 +498,7 @@ function MediaDetail() {
             commentCounts={commentCountsQuery.data?.counts ?? {}}
             from={returnPath}
             totalSeasons={item.seasons ?? 0}
+            seriesStatus={tmdbQuery.data?.item.seriesStatus}
             watched={entry?.watchedEpisodes ?? []}
             entry={entry}
             onToggle={async (s, e, epsInSeason, opts) => {
@@ -702,13 +703,14 @@ function SeriesRating({ value, onChange }: { value: number | undefined; onChange
 }
 
 function SeasonsTracker({
-  item, tmdbId, commentCounts, from, totalSeasons, watched, entry, onToggle, onMarkSeasonWatched,
+  item, tmdbId, commentCounts, from, totalSeasons, seriesStatus, watched, entry, onToggle, onMarkSeasonWatched,
 }: {
   item: NonNullable<ReturnType<typeof findById>>;
   tmdbId: number | undefined;
   commentCounts: Record<string, number>;
   from: string;
   totalSeasons: number;
+  seriesStatus?: string;
   watched: string[];
   entry: ReturnType<typeof useUserStore>["state"]["media"][string] | undefined;
   onToggle: (
@@ -767,7 +769,54 @@ function SeasonsTracker({
           {t("media.lastEpisode", { s: entry!.currentSeason!, e: entry!.currentEpisode! })}
         </p>
       ) : null}
+      <SeriesStatusBadge status={seriesStatus} />
     </section>
+  );
+}
+
+/** Stato serie sempre visibile sotto le stagioni: conclusa / in onda / in arrivo. */
+function SeriesStatusBadge({ status }: { status?: string }) {
+  const { t } = useI18n();
+  if (!status) return null;
+  const s = status.toLowerCase();
+
+  let tone: "ended" | "ongoing" | "upcoming";
+  let label: string;
+  let Icon = CheckCircle2;
+  if (s === "ended") {
+    tone = "ended"; label = t("media.statusEnded"); Icon = CheckCircle2;
+  } else if (s === "canceled" || s === "cancelled") {
+    tone = "ended"; label = t("media.statusCanceled"); Icon = X;
+  } else if (s === "returning series") {
+    tone = "ongoing"; label = t("media.statusReturning"); Icon = Radio;
+  } else if (s === "in production") {
+    tone = "upcoming"; label = t("media.statusProduction"); Icon = Clock;
+  } else if (s === "planned") {
+    tone = "upcoming"; label = t("media.statusPlanned"); Icon = Clock;
+  } else {
+    return null; // stato sconosciuto: meglio niente che una scritta grezza
+  }
+
+  const toneClass =
+    tone === "ended"
+      ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+      : tone === "ongoing"
+        ? "border-accent/40 bg-accent/10 text-accent"
+        : "border-sky-400/30 bg-sky-400/10 text-sky-300";
+
+  return (
+    <div className="mt-4 flex justify-center">
+      <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${toneClass}`}>
+        {tone === "ongoing" && (
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
+          </span>
+        )}
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </span>
+    </div>
   );
 }
 
