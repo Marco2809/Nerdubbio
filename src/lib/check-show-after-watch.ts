@@ -6,6 +6,7 @@ import {
   type ShowProgressResult,
 } from "@/lib/tmdb/tmdb.functions";
 import { toast } from "@/lib/toast";
+import { showCelebration } from "@/lib/celebration-store";
 import type { MediaMeta, UserMediaEntry, UserStatus } from "@/lib/user-store";
 
 function formatAirDate(iso: string | null): string {
@@ -79,7 +80,32 @@ export async function applyShowProgressAfterWatch(opts: {
     await opts.setStatus(opts.entry.id, "completed", opts.meta);
   }
 
-  const msg = progressToast(result, opts.title ?? opts.entry.title ?? "Serie");
+  const title = opts.title ?? opts.entry.title ?? "Serie";
+
+  // Traguardo? Modal celebrativo. Altrimenti (in pari settimanale) toast leggero.
+  const finishedAvailable =
+    !result.next || (!!frontier && result.next.season > frontier.season);
+
+  if (result.seriesEnded && (result.caughtUp || result.shouldAutoComplete)) {
+    showCelebration({ kind: "ended", title });
+    return;
+  }
+  if (finishedAvailable && result.caughtUp) {
+    if (result.next?.airDate) {
+      showCelebration({
+        kind: "nextSeasonDated",
+        title,
+        airDate: result.next.airDate,
+        season: result.next.season,
+        episode: result.next.episode,
+      });
+    } else {
+      showCelebration({ kind: "caughtUpOpen", title });
+    }
+    return;
+  }
+
+  const msg = progressToast(result, title);
   if (msg) {
     if (result.shouldAutoComplete) {
       toast.success(msg.title, { description: msg.description, duration: 6000 });

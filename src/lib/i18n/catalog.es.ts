@@ -306,6 +306,15 @@ export default {
     episodesMarked: " {{n}} episodios marcados en biblioteca.",
     noEpisodesYet: " Ningún episodio marcado aún.",
   },
+  celebration: {
+    endedTitle: "¡Ya está! 🎉",
+    endedBody: "Terminaste {{title}}. La serie está completa: disfruta los créditos, te lo ganaste.",
+    seasonTitle: "¡Temporada completa!",
+    nextSeasonBody: "Estás al día con {{title}}. El próximo episodio se estrena el {{date}} — te espera.",
+    caughtUpTitle: "¡Estás al día! ✅",
+    caughtUpBody: "Has visto todo lo estrenado de {{title}}. Nada nuevo programado aún: la movemos a Vistas y volverá cuando haya fechas.",
+    close: "¡Genial!",
+  },
   availability: {
     cinema: "Cine",
     inTheaters: "En cines ahora",

@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { getToken } from "@/lib/php/client";
 import { useAuth } from "@/lib/auth";
 import { LocalMigrationDialog } from "@/components/nerdubbio/LocalMigrationDialog";
+import { CelebrationModal } from "@/components/nerdubbio/CelebrationModal";
 import { I18nProvider, normalizeLocale, useI18n } from "@/lib/i18n";
 import { useUserStore } from "@/lib/user-store";
 
@@ -36,6 +37,7 @@ function AuthenticatedLayout() {
   return (
     <I18nProvider locale={normalizeLocale(state.language)}>
       <LocalMigrationDialog />
+      <CelebrationModal />
       <Outlet />
     </I18nProvider>
   );

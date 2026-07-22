@@ -306,6 +306,15 @@ export default {
     episodesMarked: " {{n}} épisodes marqués en bibliothèque.",
     noEpisodesYet: " Aucun épisode marqué encore.",
   },
+  celebration: {
+    endedTitle: "Ça y est ! 🎉",
+    endedBody: "Tu as terminé {{title}}. La série est bouclée : savoure le générique, tu l'as mérité.",
+    seasonTitle: "Saison terminée !",
+    nextSeasonBody: "Tu es à jour sur {{title}}. Le prochain épisode sort le {{date}} — il t'attend.",
+    caughtUpTitle: "Tu es à jour ! ✅",
+    caughtUpBody: "Tu as vu tout ce qui est sorti de {{title}}. Rien de nouveau au programme pour l'instant : on la met dans Vus et elle reviendra dès qu'il y aura des dates.",
+    close: "Génial !",
+  },
   availability: {
     cinema: "Cinéma",
     inTheaters: "Au cinéma maintenant",
