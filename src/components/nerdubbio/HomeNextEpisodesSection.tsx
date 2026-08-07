@@ -106,6 +106,20 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
       if (!tmdbId) continue;
       out.push({ ...row, tmdbId });
     }
+    // Ordine finale: 1) episodi GIÀ USCITI da vedere prima dei futuri;
+    // 2) dentro ogni gruppo, preferiti prima; 3) usciti → serie toccata più di
+    // recente in cima; futuri → data di uscita più vicina in cima.
+    const airedRank = (r: (typeof out)[number]) => (r.next.aired ? 0 : 1);
+    const favRank = (r: (typeof out)[number]) => (r.entry.favorite ? 0 : 1);
+    const recency = (r: (typeof out)[number]) =>
+      r.entry.lastWatchedAt ? Date.parse(r.entry.lastWatchedAt) : 0;
+    const airTime = (r: (typeof out)[number]) =>
+      r.next.airDate ? Date.parse(r.next.airDate) : Number.POSITIVE_INFINITY;
+    out.sort((a, b) => {
+      if (airedRank(a) !== airedRank(b)) return airedRank(a) - airedRank(b);
+      if (favRank(a) !== favRank(b)) return favRank(a) - favRank(b);
+      return a.next.aired ? recency(b) - recency(a) : airTime(a) - airTime(b);
+    });
     return out;
   }, [nextQueries]);
 
