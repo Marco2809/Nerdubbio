@@ -15,12 +15,13 @@ import {
   type UpcomingMovie,
   type NextEpisodeInfo,
 } from "@/lib/tmdb/tmdb.functions";
-import { ReleaseCalendar } from "@/components/nerdubbio/ReleaseCalendar";
+import { ReleaseCalendar, type CalendarMode } from "@/components/nerdubbio/ReleaseCalendar";
 import {
   eventsFromMovies,
   eventsFromNextEpisodes,
   filterCalendarByProvider,
   groupCalendarEvents,
+  type CalendarEvent,
 } from "@/lib/release-calendar";
 import { listTvShowsForNextEpisode, tmdbIdFromMediaKey } from "@/lib/next-episode";
 import { CalendarDays, Film, Popcorn, MapPin, Sparkles, X } from "lucide-react";
@@ -55,7 +56,9 @@ function ProssimiPage() {
   const { t, locale } = useI18n();
   const { provider: providerId } = Route.useSearch();
   const navigate = useNavigate({ from: "/prossimi" });
-  const [calendarMovies, setCalendarMovies] = useState(true);
+  const [calendarMode, setCalendarMode] = useState<CalendarMode>("all");
+  const showSeries = calendarMode !== "cinema";
+  const showCinema = calendarMode !== "series";
 
   const calendarTvEntries = useMemo(
     () => listTvShowsForNextEpisode(state.media).slice(0, 30),
@@ -161,16 +164,20 @@ function ProssimiPage() {
   const activeProvider = availableProviders.find(p => p.id === providerId);
 
   const calendarEvents = useMemo(() => {
-    const tvItems = calendarEpQuery.data?.items ?? [];
-    let events = eventsFromNextEpisodes(tvItems, followedSet, undefined, locale);
-    if (calendarMovies && filters.includeMovies) {
+    let events: CalendarEvent[] = [];
+    if (showSeries) {
+      const tvItems = calendarEpQuery.data?.items ?? [];
+      events = eventsFromNextEpisodes(tvItems, followedSet, undefined, locale);
+    }
+    if (showCinema && filters.includeMovies) {
       events = [...events, ...eventsFromMovies(upcomingQuery.data?.items ?? [], undefined, locale)];
     }
     events = filterCalendarByProvider(events, providerId);
     return groupCalendarEvents(events, undefined, locale);
   }, [
     calendarEpQuery.data,
-    calendarMovies,
+    showSeries,
+    showCinema,
     filters.includeMovies,
     followedSet,
     providerId,
@@ -179,8 +186,8 @@ function ProssimiPage() {
   ]);
 
   const calendarLoading =
-    (calendarTvIds.length > 0 && calendarEpQuery.isLoading)
-    || (calendarMovies && filters.includeMovies && upcomingQuery.isLoading);
+    (showSeries && calendarTvIds.length > 0 && calendarEpQuery.isLoading)
+    || (showCinema && filters.includeMovies && upcomingQuery.isLoading);
 
   return (
     <AppShell title={t("prossimi.title")} subtitle={t("prossimi.subtitle")}
@@ -189,8 +196,8 @@ function ProssimiPage() {
       <ReleaseCalendar
         days={calendarEvents}
         loading={calendarLoading}
-        showMovies={calendarMovies}
-        onToggleMovies={setCalendarMovies}
+        mode={calendarMode}
+        onModeChange={setCalendarMode}
         hasLibraryShows={calendarTvIds.length > 0}
       />
 
@@ -243,6 +250,7 @@ function ProssimiPage() {
       )}
 
       {/* Serie in arrivo: nuove serie (S1) + nuove stagioni delle serie che segui */}
+      {showSeries && (
       <section className="mb-6">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -272,9 +280,10 @@ function ProssimiPage() {
           />
         )}
       </section>
+      )}
 
 
-      {filters.includeMovies && (
+      {showCinema && filters.includeMovies && (
         <section className="mb-8">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">

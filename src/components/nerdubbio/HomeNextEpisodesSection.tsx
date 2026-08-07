@@ -106,18 +106,30 @@ export function HomeNextEpisodesSection({ media, from }: Props) {
       if (!tmdbId) continue;
       out.push({ ...row, tmdbId });
     }
-    // Ordine finale: 1) episodi GIÀ USCITI da vedere prima dei futuri;
-    // 2) dentro ogni gruppo, preferiti prima; 3) usciti → serie toccata più di
-    // recente in cima; futuri → data di uscita più vicina in cima.
-    const airedRank = (r: (typeof out)[number]) => (r.next.aired ? 0 : 1);
-    const favRank = (r: (typeof out)[number]) => (r.entry.favorite ? 0 : 1);
+    // Ordine finale a fasce:
+    //   0) sto guardando ORA + preferito      (episodio uscito, attività recente)
+    //   1) sto guardando ORA + non preferito
+    //   2) episodi usciti da vedere + preferito   (arretrato, non in binge attivo)
+    //   3) episodi usciti da vedere + non preferito
+    //   4) futuri (premiere / con data)
+    // Dentro ogni fascia "uscita" → più recente in cima; nei futuri → data più vicina.
+    const now = Date.now();
+    const RECENT_MS = 14 * 86_400_000;
     const recency = (r: (typeof out)[number]) =>
       r.entry.lastWatchedAt ? Date.parse(r.entry.lastWatchedAt) : 0;
     const airTime = (r: (typeof out)[number]) =>
       r.next.airDate ? Date.parse(r.next.airDate) : Number.POSITIVE_INFINITY;
+    const rank = (r: (typeof out)[number]) => {
+      if (!r.next.aired) return 4;
+      const active = recency(r) > 0 && now - recency(r) < RECENT_MS;
+      const fav = !!r.entry.favorite;
+      if (active) return fav ? 0 : 1;
+      return fav ? 2 : 3;
+    };
     out.sort((a, b) => {
-      if (airedRank(a) !== airedRank(b)) return airedRank(a) - airedRank(b);
-      if (favRank(a) !== favRank(b)) return favRank(a) - favRank(b);
+      const ra = rank(a);
+      const rb = rank(b);
+      if (ra !== rb) return ra - rb;
       return a.next.aired ? recency(b) - recency(a) : airTime(a) - airTime(b);
     });
     return out;

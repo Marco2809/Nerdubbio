@@ -3,23 +3,31 @@ import { CalendarDays, Film, Sparkles, Tv } from "lucide-react";
 import type { CalendarDayGroup, CalendarEvent } from "@/lib/release-calendar";
 import { useI18n } from "@/lib/i18n";
 
+export type CalendarMode = "all" | "series" | "cinema";
+
 type Props = {
   days: CalendarDayGroup[];
   loading?: boolean;
-  showMovies: boolean;
-  onToggleMovies: (v: boolean) => void;
+  mode: CalendarMode;
+  onModeChange: (m: CalendarMode) => void;
   hasLibraryShows: boolean;
 };
 
 export function ReleaseCalendar({
   days,
   loading,
-  showMovies,
-  onToggleMovies,
+  mode,
+  onModeChange,
   hasLibraryShows,
 }: Props) {
   const { t } = useI18n();
   const totalEvents = days.reduce((n, d) => n + d.events.length, 0);
+
+  const tabs: { key: CalendarMode; label: string }[] = [
+    { key: "series", label: t("calendar.series") },
+    { key: "cinema", label: t("calendar.cinema") },
+    { key: "all", label: t("common.all") },
+  ];
 
   return (
     <section className="mb-8">
@@ -32,24 +40,18 @@ export function ReleaseCalendar({
           <p className="mt-0.5 text-[11px] text-muted-foreground">{t("calendar.subtitle")}</p>
         </div>
         <div className="flex rounded-xl border border-border bg-surface/40 p-0.5 text-[10px]">
-          <button
-            type="button"
-            onClick={() => onToggleMovies(false)}
-            className={`rounded-lg px-2 py-1 font-semibold transition ${
-              !showMovies ? "bg-hero text-primary-foreground" : "text-muted-foreground"
-            }`}
-          >
-            {t("calendar.series")}
-          </button>
-          <button
-            type="button"
-            onClick={() => onToggleMovies(true)}
-            className={`rounded-lg px-2 py-1 font-semibold transition ${
-              showMovies ? "bg-hero text-primary-foreground" : "text-muted-foreground"
-            }`}
-          >
-            {t("calendar.plusCinema")}
-          </button>
+          {tabs.map(tab => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => onModeChange(tab.key)}
+              className={`rounded-lg px-2 py-1 font-semibold transition ${
+                mode === tab.key ? "bg-hero text-primary-foreground" : "text-muted-foreground"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -67,7 +69,7 @@ export function ReleaseCalendar({
       {!loading && totalEvents === 0 && (
         <div className="glass rounded-2xl p-4 text-sm text-muted-foreground">
           {hasLibraryShows ? t("calendar.emptyPeriod") : t("calendar.emptyShows")}
-          {showMovies ? t("calendar.emptyCinema") : null}
+          {mode !== "series" ? t("calendar.emptyCinema") : null}
         </div>
       )}
 
