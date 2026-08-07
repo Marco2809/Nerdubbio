@@ -614,6 +614,11 @@ function library_mark_all_watched(PDO $pdo, string $userId, string $id, array $s
         $sn = (int) ($se['seasonNumber'] ?? 0);
         $count = (int) ($se['episodeCount'] ?? 0);
         $air = $se['airDate'] ?? null;
+        // Guardia anti-fantasmi: mai generare stagioni/episodi impossibili.
+        // Senza questi limiti un episodeCount gonfiato dal client creava righe
+        // inesistenti (es. S5E24 su una serie di 2 stagioni).
+        if ($sn < 1 || $sn > 100 || $count < 1) continue;
+        if ($count > 200) $count = 200;
         if ($onlyAired && $air && $air > $today) continue;
         for ($ep = 1; $ep <= $count; $ep++) {
             $k = library_episode_key($sn, $ep);
