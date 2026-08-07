@@ -500,8 +500,18 @@ function library_set_favorite(PDO $pdo, string $userId, string $id, bool $favori
 }
 
 function library_remove_from_list(PDO $pdo, string $userId, string $id): array {
+    // Simmetria XP: togliere dalla lista restituisce gli XP guadagnati
+    // (episodi 15/ep, +10 dell'aggiunta, +15 se film già visto).
+    $entry = library_get_entry($pdo, $userId, $id);
+    $eps = count($entry['watchedEpisodes'] ?? []);
+    $wasInList = !empty($entry['status']) || !empty($entry['addedAt']);
+    $movieWatched = (($entry['type'] ?? '') === 'movie' || str_starts_with($id, 'movie-'))
+        && ($entry['status'] ?? '') === 'completed';
+    $xpBack = $eps * 15 + ($wasInList ? 10 : 0) + ($movieWatched ? 15 : 0);
+
     $pdo->prepare('DELETE FROM user_episodes WHERE user_id = ? AND media_key = ?')->execute([$userId, $id]);
     $pdo->prepare('DELETE FROM user_media WHERE user_id = ? AND media_key = ?')->execute([$userId, $id]);
+    if ($xpBack > 0) library_apply_xp($pdo, $userId, -$xpBack, false);
     return library_fetch_state($pdo, $userId);
 }
 
@@ -660,6 +670,9 @@ function library_mark_all_watched(PDO $pdo, string $userId, string $id, array $s
 
 function library_clear_watched(PDO $pdo, string $userId, string $id, ?string $restoreStatus): array {
     $entry = library_get_entry($pdo, $userId, $id);
+    // Simmetria XP: rimuovere gli episodi restituisce gli XP guadagnati (15/ep),
+    // così non si può barare con "segna tutto" → cancella.
+    $removed = count($entry['watchedEpisodes'] ?? []);
     $entry['watchedEpisodes'] = [];
     $entry['episodeWatchCounts'] = null;
     $entry['currentSeason'] = null;
@@ -667,6 +680,7 @@ function library_clear_watched(PDO $pdo, string $userId, string $id, ?string $re
     $entry['status'] = $restoreStatus ?? ($entry['status'] ?? 'watching');
     library_upsert_media($pdo, $userId, $id, $entry);
     library_sync_entry_episodes($pdo, $userId, $id, $entry);
+    if ($removed > 0) library_apply_xp($pdo, $userId, -($removed * 15), false);
     return library_fetch_state($pdo, $userId);
 }
 
