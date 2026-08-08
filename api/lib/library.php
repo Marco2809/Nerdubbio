@@ -185,6 +185,38 @@ function library_fetch_state(PDO $pdo, string $userId): array {
     ];
 }
 
+/**
+ * Risposta LEGGERA per il toggle episodio: solo la serie toccata + gli stat,
+ * non l'intera libreria. Su librerie grandi (migliaia di serie / decine di
+ * migliaia di episodi) rimandare tutto lo stato a ogni spunta costava MB e
+ * centinaia di ms. Il client fonde questa entry nella cache.
+ */
+function library_toggle_result(PDO $pdo, string $userId, string $mediaKey): array {
+    $stats = library_fetch_stats($pdo, $userId);
+    $rowStmt = $pdo->prepare('SELECT * FROM user_media WHERE user_id = ? AND media_key = ?');
+    $rowStmt->execute([$userId, $mediaKey]);
+    $mediaRow = $rowStmt->fetch();
+
+    $entry = null;
+    if ($mediaRow) {
+        $epStmt = $pdo->prepare(
+            'SELECT media_key, season, episode, watched_at, watch_count FROM user_episodes WHERE user_id = ? AND media_key = ? ORDER BY season, episode'
+        );
+        $epStmt->execute([$userId, $mediaKey]);
+        $entry = library_row_to_entry($mediaRow, $epStmt->fetchAll());
+    }
+
+    return [
+        'patch'         => true,
+        'mediaKey'      => $mediaKey,
+        'entry'         => $entry,
+        'xp'            => (int) ($stats['xp'] ?? 0),
+        'level'         => (int) ($stats['level'] ?? 1),
+        'streak'        => (int) ($stats['streak_days'] ?? 0),
+        'lastActiveDay' => $stats['last_active_day'] ?? null,
+    ];
+}
+
 function library_upsert_media(PDO $pdo, string $userId, string $mediaKey, array $entry): void {
     $parsed = library_parse_media_key($mediaKey);
     $type = $entry['type'] ?? ($parsed['type'] ?? null);
@@ -555,7 +587,7 @@ function library_toggle_episode(
     $seasonWasComplete = library_is_season_complete($watched, $season, $episodesPerSeason);
 
     if ($unwatch) {
-        if (!$wasWatched) return library_fetch_state($pdo, $userId);
+        if (!$wasWatched) return library_toggle_result($pdo, $userId, $id);
         $currentCount = max(1, (int) ($counts[$key] ?? 1));
         if ($currentCount > 1) {
             $counts[$key] = $currentCount - 1;
@@ -610,7 +642,7 @@ function library_toggle_episode(
     library_upsert_media($pdo, $userId, $id, $entry);
     library_sync_entry_episodes($pdo, $userId, $id, $entry);
     library_apply_xp($pdo, $userId, $xpDelta, $bumpStreak);
-    return library_fetch_state($pdo, $userId);
+    return library_toggle_result($pdo, $userId, $id);
 }
 
 function library_mark_all_watched(PDO $pdo, string $userId, string $id, array $seasons, bool $onlyAired, ?array $meta, bool $complete = true): array {

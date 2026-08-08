@@ -6,6 +6,7 @@ import {
   libraryApi,
   LIBRARY_QUERY_KEY,
   type LibraryState,
+  type LibraryEpisodePatch,
 } from '@/lib/php/library-client';
 import { NEXT_UNWATCHED_BATCH_KEY } from '@/lib/next-episode';
 
@@ -85,6 +86,37 @@ export function useUserStore() {
     [queryClient],
   );
 
+  // Come apply(), ma per la risposta LEGGERA del toggle episodio: fonde la
+  // singola serie nella cache invece di sostituire l'intera libreria (che su
+  // account grandi pesa MB a ogni spunta). Ritorna lo stato completo aggiornato.
+  const applyEpisodePatch = useCallback(
+    async (fn: () => Promise<LibraryEpisodePatch>) => {
+      const run = mutationQueue.current
+        .catch(() => undefined)
+        .then(fn)
+        .then(patch => {
+          queryClient.setQueryData<LibraryState>(LIBRARY_QUERY_KEY, old => {
+            const base = old ?? initial;
+            const media = { ...base.media };
+            if (patch.entry) media[patch.mediaKey] = patch.entry;
+            else delete media[patch.mediaKey];
+            return {
+              ...base,
+              media,
+              xp: patch.xp,
+              level: patch.level,
+              streak: patch.streak,
+              lastActiveDay: patch.lastActiveDay,
+            };
+          });
+          return queryClient.getQueryData<LibraryState>(LIBRARY_QUERY_KEY) ?? initial;
+        });
+      mutationQueue.current = run.catch(() => undefined);
+      return run;
+    },
+    [queryClient],
+  );
+
   const update = useCallback(
     (patch: Partial<LibraryState> | ((s: LibraryState) => LibraryState)) => {
       const payload = typeof patch === 'function' ? patch(state) : { ...state, ...patch };
@@ -135,13 +167,13 @@ export function useUserStore() {
       meta?: MediaMeta,
       opts?: { unwatch?: boolean },
     ) =>
-      apply(() =>
+      applyEpisodePatch(() =>
         libraryApi.toggleEpisode(id, season, episode, episodesPerSeason, totalSeasons, meta, opts),
       ).then(next => {
         queryClient.invalidateQueries({ queryKey: NEXT_UNWATCHED_BATCH_KEY });
         return next;
       }),
-    [apply, queryClient],
+    [applyEpisodePatch, queryClient],
   );
 
   const unwatchEpisode = useCallback(
@@ -153,13 +185,13 @@ export function useUserStore() {
       totalSeasons: number,
       meta?: MediaMeta,
     ) =>
-      apply(() =>
+      applyEpisodePatch(() =>
         libraryApi.toggleEpisode(id, season, episode, episodesPerSeason, totalSeasons, meta, { unwatch: true }),
       ).then(next => {
         queryClient.invalidateQueries({ queryKey: NEXT_UNWATCHED_BATCH_KEY });
         return next;
       }),
-    [apply, queryClient],
+    [applyEpisodePatch, queryClient],
   );
 
   const logMovieWatch = useCallback(

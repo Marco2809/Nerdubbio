@@ -31,6 +31,17 @@ export interface LibraryState {
   importPending: TvTimePendingItem[];
 }
 
+/** Risposta leggera del toggle episodio: solo la serie toccata + stat. */
+export interface LibraryEpisodePatch {
+  patch: true;
+  mediaKey: string;
+  entry: UserMediaEntry | null;
+  xp: number;
+  level: number;
+  streak: number;
+  lastActiveDay?: string;
+}
+
 export const libraryApi = {
   get(): Promise<LibraryState> {
     return api<LibraryState>('/api/library.php?action=get').then(syncApiLocale);
@@ -68,8 +79,8 @@ export const libraryApi = {
     totalSeasons: number,
     meta?: MediaMeta,
     opts?: { unwatch?: boolean },
-  ): Promise<LibraryState> {
-    return api<LibraryState>('/api/library.php?action=toggle_episode', 'POST', {
+  ): Promise<LibraryEpisodePatch> {
+    return api<LibraryEpisodePatch>('/api/library.php?action=toggle_episode', 'POST', {
       id,
       season,
       episode,
