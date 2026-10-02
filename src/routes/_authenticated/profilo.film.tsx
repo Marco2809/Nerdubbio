@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { LibraryGrid } from "@/components/nerdubbio/LibraryGrid";
 import { LibrarySortSelect, usePersistentSort } from "@/components/nerdubbio/LibrarySortSelect";
@@ -30,7 +30,12 @@ function ProfiloFilmPage() {
   const { tab } = Route.useSearch();
   const [sort, setSort] = usePersistentSort("nb_lib_sort_film");
   const [query, setQuery] = useState("");
-  const items = filterByQuery(applyLibrarySort(filterByMovieTab(state.media, tab), sort), query);
+  // Memo: su librerie grandi filtro+ordinamento costano; non rifarli a ogni render/tasto.
+  const sorted = useMemo(
+    () => applyLibrarySort(filterByMovieTab(state.media, tab), sort),
+    [state.media, tab, sort],
+  );
+  const items = useMemo(() => filterByQuery(sorted, query), [sorted, query]);
 
   const tabLabels: Record<string, string> = {
     da_vedere: t("library.tabMoviesToWatch"),
@@ -41,10 +46,17 @@ function ProfiloFilmPage() {
     visti: t("library.emptyMoviesCompleted"),
   };
 
+  const counts = useMemo(
+    () => ({
+      da_vedere: countMovieTab(state.media, "da_vedere"),
+      visti: countMovieTab(state.media, "visti"),
+    }),
+    [state.media],
+  );
   const tabs = (["da_vedere", "visti"] as const).map(id => ({
     id,
     label: tabLabels[id]!,
-    count: countMovieTab(state.media, id),
+    count: counts[id],
   }));
 
   return (

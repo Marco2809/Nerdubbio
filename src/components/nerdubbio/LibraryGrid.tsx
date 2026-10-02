@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { LibraryDisplayItem } from "@/lib/library-display";
 import { mediaRouteParams } from "@/lib/library-display";
 import { useReturnPath } from "@/lib/media-nav";
@@ -18,16 +19,41 @@ export function LibraryGrid({
   const from = useReturnPath();
   const { setFavorite } = useUserStore();
 
+  // Rendering progressivo: su librerie da migliaia di titoli renderizzare
+  // tutto insieme bloccava lo scroll. Mostriamo un blocco alla volta e
+  // aggiungiamo il successivo quando la sentinella in fondo entra in vista.
+  const [visible, setVisible] = useState(PAGE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const resetKey = `${items.length}:${items[0]?.id ?? ""}`;
+  useEffect(() => setVisible(PAGE), [resetKey]);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || visible >= items.length) return;
+    const io = new IntersectionObserver(
+      entries => {
+        if (entries.some(e => e.isIntersecting)) setVisible(v => Math.min(v + PAGE, items.length));
+      },
+      { rootMargin: "800px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visible, items.length]);
+  const shown = items.slice(0, visible);
+
   // Dove si vede ogni titolo: una sola chiamata batch per tutta la griglia.
-  const availItems: AvailabilityItem[] = items
-    .map((i) => {
-      const p = mediaRouteParams(i);
-      const tmdbId = Number(p.id);
-      return Number.isFinite(tmdbId) && tmdbId > 0
-        ? { type: p.type as "movie" | "tv", tmdbId }
-        : null;
-    })
-    .filter((x): x is AvailabilityItem => !!x);
+  const availItems: AvailabilityItem[] = useMemo(
+    () =>
+      items
+        .map((i) => {
+          const p = mediaRouteParams(i);
+          const tmdbId = Number(p.id);
+          return Number.isFinite(tmdbId) && tmdbId > 0
+            ? { type: p.type as "movie" | "tv", tmdbId }
+            : null;
+        })
+        .filter((x): x is AvailabilityItem => !!x),
+    [items],
+  );
   const availability = useAvailability(availItems);
 
   if (items.length === 0) {
@@ -40,8 +66,9 @@ export function LibraryGrid({
   }
 
   return (
+    <>
     <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {items.map(item => {
+      {shown.map(item => {
         const params = mediaRouteParams(item);
         const epCount = item.entry.watchedEpisodes?.length ?? 0;
         return (
@@ -108,5 +135,9 @@ export function LibraryGrid({
         );
       })}
     </div>
+    {visible < items.length && <div ref={sentinelRef} className="h-10" aria-hidden />}
+    </>
   );
 }
+
+const PAGE = 48;

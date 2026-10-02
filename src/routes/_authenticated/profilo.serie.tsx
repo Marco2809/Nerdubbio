@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { LibraryGrid } from "@/components/nerdubbio/LibraryGrid";
 import { LibrarySortSelect, usePersistentSort } from "@/components/nerdubbio/LibrarySortSelect";
@@ -30,7 +30,12 @@ function ProfiloSeriePage() {
   const { tab } = Route.useSearch();
   const [sort, setSort] = usePersistentSort("nb_lib_sort_serie");
   const [query, setQuery] = useState("");
-  const items = filterByQuery(applyLibrarySort(filterBySeriesTab(state.media, tab), sort), query);
+  // Memo: su librerie grandi filtro+ordinamento costano; non rifarli a ogni render/tasto.
+  const sorted = useMemo(
+    () => applyLibrarySort(filterBySeriesTab(state.media, tab), sort),
+    [state.media, tab, sort],
+  );
+  const items = useMemo(() => filterByQuery(sorted, query), [sorted, query]);
 
   const tabLabels: Record<string, string> = {
     in_corso: t("library.tabInProgress"),
@@ -43,10 +48,18 @@ function ProfiloSeriePage() {
     viste: t("library.emptySeriesCompleted"),
   };
 
+  const counts = useMemo(
+    () => ({
+      in_corso: countSeriesTab(state.media, "in_corso"),
+      da_vedere: countSeriesTab(state.media, "da_vedere"),
+      viste: countSeriesTab(state.media, "viste"),
+    }),
+    [state.media],
+  );
   const tabs = (["in_corso", "da_vedere", "viste"] as const).map(id => ({
     id,
     label: tabLabels[id]!,
-    count: countSeriesTab(state.media, id),
+    count: counts[id],
   }));
 
   return (

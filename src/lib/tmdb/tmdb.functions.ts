@@ -115,6 +115,34 @@ const tmdbCache = new Map<string, { text: Promise<string>; expires: number }>();
  * riproviamo, rispettando Retry-After.
  */
 async function fetchWithRateLimitRetry(url: URL, headers: Record<string, string>): Promise<Response> {
+  await acquireTmdbSlot();
+  try {
+    return await fetchWithRetryInner(url, headers);
+  } finally {
+    releaseTmdbSlot();
+  }
+}
+
+/**
+ * Limite globale di fetch TMDB contemporanee (per processo): così i chiamanti
+ * possono usare Promise.all liberamente senza far scattare il 429.
+ */
+const TMDB_MAX_CONCURRENT = 10;
+let tmdbInFlight = 0;
+const tmdbWaiters: (() => void)[] = [];
+function acquireTmdbSlot(): Promise<void> {
+  if (tmdbInFlight < TMDB_MAX_CONCURRENT) {
+    tmdbInFlight++;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => tmdbWaiters.push(() => { tmdbInFlight++; resolve(); }));
+}
+function releaseTmdbSlot() {
+  tmdbInFlight--;
+  tmdbWaiters.shift()?.();
+}
+
+async function fetchWithRetryInner(url: URL, headers: Record<string, string>): Promise<Response> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const res = await fetch(url, { headers });
     if (res.status !== 429) return res;
@@ -1414,11 +1442,22 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
     // Modalità seed ("Nerdacolo su questo titolo"): il pool sono i parenti
     // stretti del titolo — simili e raccomandati — e nient'altro.
     const seed = data.seedKey ? parseMediaKey(data.seedKey) : null;
+    // Le fetch di ogni fase partono in parallelo (il limite globale di
+    // concorrenza in tmdb() evita il 429); gli add() restano nello STESSO
+    // ordine di prima, quindi il pool risultante è identico — solo più veloce.
+    // Prima erano centinaia di chiamate una dopo l'altra.
+    const inMode = (t: "movie" | "tv") =>
+      !(data.mode === "movie" && t !== "movie") && !(data.mode === "tv" && t !== "tv");
+    const enrichRows = (rows: { r: any; type: "movie" | "tv" }[]) =>
+      Promise.all(rows.map(({ r, type }) => enrichDiscoverRow(r, type)));
+
     if (seed) {
       try {
-        const rec = await recommendationItems(seed.type, seed.tmdbId, 20);
+        const [rec, sim] = await Promise.all([
+          recommendationItems(seed.type, seed.tmdbId, 20),
+          similarItems(seed.type, seed.tmdbId, 20),
+        ]);
         rec.forEach(s => add(s));
-        const sim = await similarItems(seed.type, seed.tmdbId, 20);
         sim.forEach(s => add(s));
       } catch {
         /* fallback sul pool normale */
@@ -1430,80 +1469,77 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
     // Trending TMDB
     try {
       const trend = await tmdb<any>("/trending/all/week");
-      for (const r of (trend.results ?? []).slice(0, 25)) {
-        const mt = r.media_type === "movie" || r.media_type === "tv" ? r.media_type : null;
-        if (!mt || !types.includes(mt)) continue;
-        add(await enrichDiscoverRow(r, mt));
-      }
+      const rows = (trend.results ?? []).slice(0, 25)
+        .map((r: any) => ({ r, type: r.media_type }))
+        .filter((x: any) => (x.type === "movie" || x.type === "tv") && types.includes(x.type));
+      (await enrichRows(rows)).forEach(t => add(t));
     } catch {
       /* skip */
     }
 
     // Watchlist utente (priorità)
-    const wl = (data.watchlistIds ?? []).slice(0, 12);
-    for (const id of wl) {
-      const parsed = parseMediaKey(id);
-      if (!parsed) continue;
-      if (data.mode === "movie" && parsed.type !== "movie") continue;
-      if (data.mode === "tv" && parsed.type !== "tv") continue;
+    const wl = (data.watchlistIds ?? []).slice(0, 12)
+      .map(parseMediaKey)
+      .filter((p): p is NonNullable<typeof p> => !!p && inMode(p.type));
+    const wlResults = await Promise.all(wl.map(async (parsed) => {
       try {
-        const det = await tmdb<any>(`/${parsed.type}/${parsed.tmdbId}`);
-        add(mapDetail(det, parsed.type), true);
-        const sim = await similarItems(parsed.type, parsed.tmdbId, 5);
-        sim.forEach(s => add(s));
-        const rec = await recommendationItems(parsed.type, parsed.tmdbId, 5);
-        rec.forEach(s => add(s));
+        const [det, sim, rec] = await Promise.all([
+          tmdb<any>(`/${parsed.type}/${parsed.tmdbId}`),
+          similarItems(parsed.type, parsed.tmdbId, 5),
+          recommendationItems(parsed.type, parsed.tmdbId, 5),
+        ]);
+        return { main: mapDetail(det, parsed.type), sim, rec };
       } catch {
-        /* skip */
+        return null; // come prima: se il dettaglio fallisce si salta il titolo
       }
+    }));
+    for (const res of wlResults) {
+      if (!res) continue;
+      add(res.main, true);
+      res.sim.forEach(s => add(s));
+      res.rec.forEach(s => add(s));
     }
 
     // Recommendations da titoli votati bene
-    const rated = (data.highlyRatedIds ?? []).slice(0, 8);
-    for (const id of rated) {
-      const parsed = parseMediaKey(id);
-      if (!parsed) continue;
-      if (data.mode === "movie" && parsed.type !== "movie") continue;
-      if (data.mode === "tv" && parsed.type !== "tv") continue;
-      try {
-        const rec = await recommendationItems(parsed.type, parsed.tmdbId, 6);
-        rec.forEach(s => add(s));
-        const sim = await similarItems(parsed.type, parsed.tmdbId, 4);
-        sim.forEach(s => add(s));
-      } catch {
-        /* skip */
-      }
+    const rated = (data.highlyRatedIds ?? []).slice(0, 8)
+      .map(parseMediaKey)
+      .filter((p): p is NonNullable<typeof p> => !!p && inMode(p.type));
+    const ratedResults = await Promise.all(rated.map((parsed) => Promise.all([
+      recommendationItems(parsed.type, parsed.tmdbId, 6),
+      similarItems(parsed.type, parsed.tmdbId, 4),
+    ])));
+    for (const [rec, sim] of ratedResults) {
+      rec.forEach(s => add(s));
+      sim.forEach(s => add(s));
     }
 
-    // Discover TMDB per genere
-    for (const type of types) {
+    // Discover TMDB per genere + hidden gems: tutte le pagine in parallelo.
+    const discoverJobs = types.flatMap(type => {
       const ids = tmdbGenreIds(genreNames, type);
-      for (const page of [1, 2, 3, 4]) {
-        const rows = await discoverPage(type, ids, page);
-        for (const r of rows) {
-          add(await enrichDiscoverRow(r, type));
+      return [1, 2, 3, 4].map(page => ({ type, load: () => discoverPage(type, ids, page) }));
+    });
+    const gemJobs = types.flatMap(type =>
+      [1, 2].map(page => ({ type, load: () => hiddenGemPage(type, page) })));
+    const pageRows = async (jobs: { type: "movie" | "tv"; load: () => Promise<any[]> }[]) => {
+      const pages = await Promise.all(jobs.map(async j => {
+        try {
+          return (await j.load()).map((r: any) => ({ r, type: j.type }));
+        } catch {
+          return [];
         }
-      }
-    }
-
-    // Hidden gems — buon rating, popolarità media
-    for (const type of types) {
-      for (const page of [1, 2]) {
-        const rows = await hiddenGemPage(type, page);
-        for (const r of rows) {
-          add(await enrichDiscoverRow(r, type));
-        }
-      }
-    }
+      }));
+      return pages.flat();
+    };
+    const [discoverRows, gemRows] = await Promise.all([pageRows(discoverJobs), pageRows(gemJobs)]);
+    const [discoverItems, gemItems] = await Promise.all([enrichRows(discoverRows), enrichRows(gemRows)]);
+    discoverItems.forEach(t => add(t));
+    gemItems.forEach(t => add(t));
 
     // Fallback popolari se pool troppo piccolo
     if (byKey.size < 40) {
-      for (const type of types) {
-        for (const page of [1, 2, 3]) {
-          const rows = await discoverPage(type, [], page);
-          for (const r of rows) add(await enrichDiscoverRow(r, type));
-        }
-      }
+      const fallbackJobs = types.flatMap(type =>
+        [1, 2, 3].map(page => ({ type, load: () => discoverPage(type, [], page) })));
+      (await enrichRows(await pageRows(fallbackJobs))).forEach(t => add(t));
     }
 
     const items = [...byKey.values()].slice(0, 150);

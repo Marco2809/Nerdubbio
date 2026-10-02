@@ -13,7 +13,7 @@ import { SentRecommendationsNotice } from "@/components/nerdubbio/SentRecommenda
 import { NERDACOLO } from "@/lib/brand";
 import { useReturnPath } from "@/lib/media-nav";
 import { useAuthUser } from "@/hooks/use-auth-user";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useI18n, pageTitle } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -70,15 +70,19 @@ function HomeDashboard() {
     if (loading) return;
     if (!state.onboardingDone) navigate({ to: "/onboarding", replace: true });
   }, [navigate, loading, state.onboardingDone]);
-  const stats = computeStats(state);
-
-  const watching = Object.values(state.media)
-    .filter(m => m.status === "watching")
-    .map(entryToCard).filter((c): c is LibCard => !!c);
-  const plan = Object.values(state.media)
-    .filter(m => m.status === "plan_to_watch")
-    .map(entryToCard).filter((c): c is LibCard => !!c);
-  const hasTvTimeImport = Object.values(state.media).some(m => m.source === "tvtime");
+  // Memo: statistiche e liste derivate dalla libreria si ricalcolano solo
+  // quando la libreria cambia, non a ogni render (su account grandi pesavano).
+  const stats = useMemo(() => computeStats(state), [state]);
+  const { watching, plan, hasTvTimeImport } = useMemo(() => {
+    const all = Object.values(state.media);
+    return {
+      watching: all.filter(m => m.status === "watching")
+        .map(entryToCard).filter((c): c is LibCard => !!c),
+      plan: all.filter(m => m.status === "plan_to_watch")
+        .map(entryToCard).filter((c): c is LibCard => !!c),
+      hasTvTimeImport: all.some(m => m.source === "tvtime"),
+    };
+  }, [state.media]);
 
   const trending = useQuery({
     queryKey: ["tmdb", "trending", locale],
