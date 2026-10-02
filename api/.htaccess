@@ -5,3 +5,9 @@ RewriteRule ^lib/ - [F,L]
 <FilesMatch "^config\.php$">
     Require all denied
 </FilesMatch>
+
+# Comprimi le risposte JSON dell'API: la config globale di Apache comprime solo
+# HTML/JS/CSS. La libreria di un account grande passa da ~2.7MB a ~280KB.
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/json
+</IfModule>

@@ -510,7 +510,7 @@ function OnboardingInner({ lang, setLang }: { lang: Locale; setLang: (l: Locale)
                 <div className="mt-6 overflow-hidden rounded-3xl border border-fuchsia-400/30 bg-white/[0.03]">
                   <div className="relative h-40">
                     {(firstPick.backdropUrl || firstPick.posterUrl) && (
-                      <img
+                      <img loading="lazy"
                         src={firstPick.backdropUrl ?? firstPick.posterUrl!}
                         alt={firstPick.title}
                         className="absolute inset-0 h-full w-full object-cover"

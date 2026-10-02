@@ -223,7 +223,7 @@ function NerdacoloRollPage() {
               }`}
             >
               {item.posterUrl ? (
-                <img src={item.posterUrl} alt="" className="h-full w-full object-cover" />
+                <img src={item.posterUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
               ) : (
                 <div className="h-full w-full" style={{ background: item.poster }} />
               )}

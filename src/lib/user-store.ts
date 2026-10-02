@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { getToken } from '@/lib/php/client';
 import type { TvTimePendingItem } from '@/lib/tvtime-import';
 import {
@@ -58,6 +58,25 @@ const initial: LibraryState = {
   importPending: [],
 };
 
+/** Fonde una risposta leggera (singolo titolo + stat) nella cache della libreria. */
+export function mergeLibraryPatch(queryClient: QueryClient, patch: LibraryEpisodePatch): LibraryState {
+  queryClient.setQueryData<LibraryState>(LIBRARY_QUERY_KEY, old => {
+    const base = old ?? initial;
+    const media = { ...base.media };
+    if (patch.entry) media[patch.mediaKey] = patch.entry;
+    else delete media[patch.mediaKey];
+    return {
+      ...base,
+      media,
+      xp: patch.xp,
+      level: patch.level,
+      streak: patch.streak,
+      lastActiveDay: patch.lastActiveDay,
+    };
+  });
+  return queryClient.getQueryData<LibraryState>(LIBRARY_QUERY_KEY) ?? initial;
+}
+
 export function useUserStore() {
   const queryClient = useQueryClient();
   const enabled = typeof window !== 'undefined' && !!getToken();
@@ -86,31 +105,15 @@ export function useUserStore() {
     [queryClient],
   );
 
-  // Come apply(), ma per la risposta LEGGERA del toggle episodio: fonde la
-  // singola serie nella cache invece di sostituire l'intera libreria (che su
-  // account grandi pesa MB a ogni spunta). Ritorna lo stato completo aggiornato.
+  // Come apply(), ma per le risposte LEGGERE (azioni su un singolo titolo):
+  // fonde la singola entry nella cache invece di sostituire l'intera libreria
+  // (che su account grandi pesa MB a ogni azione). Ritorna lo stato completo.
   const applyEpisodePatch = useCallback(
     async (fn: () => Promise<LibraryEpisodePatch>) => {
       const run = mutationQueue.current
         .catch(() => undefined)
         .then(fn)
-        .then(patch => {
-          queryClient.setQueryData<LibraryState>(LIBRARY_QUERY_KEY, old => {
-            const base = old ?? initial;
-            const media = { ...base.media };
-            if (patch.entry) media[patch.mediaKey] = patch.entry;
-            else delete media[patch.mediaKey];
-            return {
-              ...base,
-              media,
-              xp: patch.xp,
-              level: patch.level,
-              streak: patch.streak,
-              lastActiveDay: patch.lastActiveDay,
-            };
-          });
-          return queryClient.getQueryData<LibraryState>(LIBRARY_QUERY_KEY) ?? initial;
-        });
+        .then(patch => mergeLibraryPatch(queryClient, patch));
       mutationQueue.current = run.catch(() => undefined);
       return run;
     },
@@ -119,7 +122,21 @@ export function useUserStore() {
 
   const update = useCallback(
     (patch: Partial<LibraryState> | ((s: LibraryState) => LibraryState)) => {
-      const payload = typeof patch === 'function' ? patch(state) : { ...state, ...patch };
+      // Invia SOLO i campi cambiati: prima partiva l'intero stato (libreria
+      // compresa, MB) e il server risalvava anche xp/level/streak presi dalla
+      // cache del client, che se vecchia riportava indietro gli XP.
+      let payload: Partial<LibraryState>;
+      if (typeof patch === 'function') {
+        const next = patch(state);
+        payload = {};
+        for (const k of Object.keys(next) as (keyof LibraryState)[]) {
+          if (k === 'media') continue;
+          if (next[k] !== state[k]) (payload as Record<string, unknown>)[k] = next[k];
+        }
+      } else {
+        const { media: _media, ...rest } = patch;
+        payload = rest;
+      }
       void apply(() => libraryApi.patchSettings(payload));
     },
     [apply, state],
@@ -127,20 +144,20 @@ export function useUserStore() {
 
   const addToList = useCallback(
     (id: string, status: UserStatus, meta?: MediaMeta) =>
-      apply(() => libraryApi.addToList(id, status, meta)),
-    [apply],
+      applyEpisodePatch(() => libraryApi.addToList(id, status, meta)),
+    [applyEpisodePatch],
   );
 
   const setStatus = useCallback(
     (id: string, status: UserStatus, meta?: MediaMeta) =>
-      apply(() => libraryApi.setStatus(id, status, meta)),
-    [apply],
+      applyEpisodePatch(() => libraryApi.setStatus(id, status, meta)),
+    [applyEpisodePatch],
   );
 
   const setFavorite = useCallback(
     (id: string, favorite: boolean, meta?: MediaMeta) =>
-      apply(() => libraryApi.setFavorite(id, favorite, meta)),
-    [apply],
+      applyEpisodePatch(() => libraryApi.setFavorite(id, favorite, meta)),
+    [applyEpisodePatch],
   );
 
   const dismiss = useCallback(
@@ -152,9 +169,9 @@ export function useUserStore() {
 
   const removeFromList = useCallback(
     (id: string) => {
-      void apply(() => libraryApi.removeFromList(id));
+      void applyEpisodePatch(() => libraryApi.removeFromList(id));
     },
-    [apply],
+    [applyEpisodePatch],
   );
 
   const toggleEpisode = useCallback(
@@ -196,9 +213,9 @@ export function useUserStore() {
 
   const logMovieWatch = useCallback(
     (id: string, meta?: MediaMeta) => {
-      void apply(() => libraryApi.logMovieWatch(id, meta));
+      void applyEpisodePatch(() => libraryApi.logMovieWatch(id, meta));
     },
-    [apply],
+    [applyEpisodePatch],
   );
 
   const markAllSeriesWatched = useCallback(
@@ -207,34 +224,34 @@ export function useUserStore() {
       seasons: { seasonNumber: number; episodeCount: number; airDate?: string | null }[],
       opts: { onlyAired?: boolean; meta?: MediaMeta; complete?: boolean } = {},
     ) =>
-      apply(() => libraryApi.markAllSeriesWatched(id, seasons, opts)).then((next) => {
+      applyEpisodePatch(() => libraryApi.markAllSeriesWatched(id, seasons, opts)).then((next) => {
         queryClient.invalidateQueries({ queryKey: NEXT_UNWATCHED_BATCH_KEY });
         return next;
       }),
-    [apply, queryClient],
+    [applyEpisodePatch, queryClient],
   );
 
   const clearWatchedEpisodes = useCallback(
     (id: string, restoreStatus?: UserStatus) => {
-      void apply(() => libraryApi.clearWatchedEpisodes(id, restoreStatus)).then(() => {
+      void applyEpisodePatch(() => libraryApi.clearWatchedEpisodes(id, restoreStatus)).then(() => {
         queryClient.invalidateQueries({ queryKey: NEXT_UNWATCHED_BATCH_KEY });
       });
     },
-    [apply, queryClient],
+    [applyEpisodePatch, queryClient],
   );
 
   const setRating = useCallback(
     (id: string, rating: number | undefined) => {
-      void apply(() => libraryApi.setRating(id, rating));
+      void applyEpisodePatch(() => libraryApi.setRating(id, rating));
     },
-    [apply],
+    [applyEpisodePatch],
   );
 
   const setReaction = useCallback(
     (id: string, season: number, episode: number, emoji: string | null) => {
-      void apply(() => libraryApi.setReaction(id, season, episode, emoji));
+      void applyEpisodePatch(() => libraryApi.setReaction(id, season, episode, emoji));
     },
-    [apply],
+    [applyEpisodePatch],
   );
 
   const bulkImport = useCallback(

@@ -2,7 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { OverlayBackButton } from "@/components/nerdubbio/OverlayBackButton";
 import { findById, type CatalogItem } from "@/lib/mock-catalog";
-import { useUserStore, isEpisodeWatched, getEpisodeWatchCount, totalEpisodeWatches, type UserStatus } from "@/lib/user-store";
+import { useUserStore, isEpisodeWatched, getEpisodeWatchCount, totalEpisodeWatches, type UserStatus, mergeLibraryPatch } from "@/lib/user-store";
 import { Plus, Heart, CheckCircle2, Pause, X, Star, Check, Loader2, PlayCircle, Trash2, MessageCircle, Sparkles, Radio, Clock } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,7 +18,7 @@ import { MediaRatingsSection } from "@/components/nerdubbio/MediaRatingsSection"
 import { RecapSection } from "@/components/nerdubbio/recap/RecapSection";
 import { RecommendDialog } from "@/components/nerdubbio/RecommendDialog";
 import { commentsApi, commentCountsKey } from "@/lib/php/comments-client";
-import { libraryApi, LIBRARY_QUERY_KEY } from "@/lib/php/library-client";
+import { libraryApi } from "@/lib/php/library-client";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -1215,8 +1215,8 @@ function EntryNotes({ entryId, initial }: { entryId: string; initial: string }) 
   const save = async () => {
     setSaving(true);
     try {
-      const next = await libraryApi.setNotes(entryId, value.trim());
-      queryClient.setQueryData(LIBRARY_QUERY_KEY, next);
+      const patch = await libraryApi.setNotes(entryId, value.trim());
+      mergeLibraryPatch(queryClient, patch);
       toast.success(t("media.notesSaved"));
     } catch {
       toast.error(t("media.notesError"));

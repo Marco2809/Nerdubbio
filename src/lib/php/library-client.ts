@@ -51,20 +51,20 @@ export const libraryApi = {
     return api<LibraryState>('/api/library.php?action=patch_settings', 'PATCH', patch).then(syncApiLocale);
   },
 
-  addToList(id: string, status: UserStatus, meta?: MediaMeta): Promise<LibraryState> {
-    return api<LibraryState>('/api/library.php?action=add_to_list', 'POST', { id, status, meta });
+  addToList(id: string, status: UserStatus, meta?: MediaMeta): Promise<LibraryEpisodePatch> {
+    return api<LibraryEpisodePatch>('/api/library.php?action=add_to_list', 'POST', { id, status, meta });
   },
 
-  setStatus(id: string, status: UserStatus, meta?: MediaMeta): Promise<LibraryState> {
-    return api<LibraryState>('/api/library.php?action=set_status', 'POST', { id, status, meta });
+  setStatus(id: string, status: UserStatus, meta?: MediaMeta): Promise<LibraryEpisodePatch> {
+    return api<LibraryEpisodePatch>('/api/library.php?action=set_status', 'POST', { id, status, meta });
   },
 
-  setFavorite(id: string, favorite: boolean, meta?: MediaMeta): Promise<LibraryState> {
-    return api<LibraryState>('/api/library.php?action=set_favorite', 'POST', { id, favorite, meta });
+  setFavorite(id: string, favorite: boolean, meta?: MediaMeta): Promise<LibraryEpisodePatch> {
+    return api<LibraryEpisodePatch>('/api/library.php?action=set_favorite', 'POST', { id, favorite, meta });
   },
 
-  removeFromList(id: string): Promise<LibraryState> {
-    return api<LibraryState>('/api/library.php?action=remove_from_list', 'POST', { id });
+  removeFromList(id: string): Promise<LibraryEpisodePatch> {
+    return api<LibraryEpisodePatch>('/api/library.php?action=remove_from_list', 'POST', { id });
   },
 
   dismiss(id: string): Promise<LibraryState> {
@@ -91,16 +91,16 @@ export const libraryApi = {
     });
   },
 
-  logMovieWatch(id: string, meta?: MediaMeta): Promise<LibraryState> {
-    return api<LibraryState>('/api/library.php?action=log_movie_watch', 'POST', { id, meta });
+  logMovieWatch(id: string, meta?: MediaMeta): Promise<LibraryEpisodePatch> {
+    return api<LibraryEpisodePatch>('/api/library.php?action=log_movie_watch', 'POST', { id, meta });
   },
 
   markAllSeriesWatched(
     id: string,
     seasons: { seasonNumber: number; episodeCount: number; airDate?: string | null }[],
     opts: { onlyAired?: boolean; meta?: MediaMeta; complete?: boolean } = {},
-  ): Promise<LibraryState> {
-    return api<LibraryState>('/api/library.php?action=mark_all_watched', 'POST', {
+  ): Promise<LibraryEpisodePatch> {
+    return api<LibraryEpisodePatch>('/api/library.php?action=mark_all_watched', 'POST', {
       id,
       seasons,
       onlyAired: opts.onlyAired ?? false,
@@ -109,23 +109,23 @@ export const libraryApi = {
     });
   },
 
-  clearWatchedEpisodes(id: string, restoreStatus?: UserStatus): Promise<LibraryState> {
-    return api<LibraryState>('/api/library.php?action=clear_watched', 'POST', {
+  clearWatchedEpisodes(id: string, restoreStatus?: UserStatus): Promise<LibraryEpisodePatch> {
+    return api<LibraryEpisodePatch>('/api/library.php?action=clear_watched', 'POST', {
       id,
       restoreStatus,
     });
   },
 
-  setRating(id: string, rating: number | undefined): Promise<LibraryState> {
-    return api<LibraryState>('/api/library.php?action=set_rating', 'POST', { id, rating });
+  setRating(id: string, rating: number | undefined): Promise<LibraryEpisodePatch> {
+    return api<LibraryEpisodePatch>('/api/library.php?action=set_rating', 'POST', { id, rating });
   },
 
-  setNotes(id: string, notes: string): Promise<LibraryState> {
-    return api<LibraryState>('/api/library.php?action=set_notes', 'POST', { id, notes });
+  setNotes(id: string, notes: string): Promise<LibraryEpisodePatch> {
+    return api<LibraryEpisodePatch>('/api/library.php?action=set_notes', 'POST', { id, notes });
   },
 
-  setReaction(id: string, season: number, episode: number, emoji: string | null): Promise<LibraryState> {
-    return api<LibraryState>('/api/library.php?action=set_reaction', 'POST', {
+  setReaction(id: string, season: number, episode: number, emoji: string | null): Promise<LibraryEpisodePatch> {
+    return api<LibraryEpisodePatch>('/api/library.php?action=set_reaction', 'POST', {
       id,
       season,
       episode,

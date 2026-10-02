@@ -462,7 +462,7 @@ function library_add_to_list(PDO $pdo, string $userId, string $id, string $statu
         library_sync_entry_episodes($pdo, $userId, $id, $entry);
     }
     library_apply_xp($pdo, $userId, 10, false);
-    return library_fetch_state($pdo, $userId);
+    return library_toggle_result($pdo, $userId, $id);
 }
 
 function library_set_status(PDO $pdo, string $userId, string $id, string $status, ?array $meta): array {
@@ -504,7 +504,7 @@ function library_set_status(PDO $pdo, string $userId, string $id, string $status
         'UPDATE user_media SET ' . implode(', ', $sets) . ' WHERE user_id = ? AND media_key = ?'
     )->execute($vals);
 
-    return library_fetch_state($pdo, $userId);
+    return library_toggle_result($pdo, $userId, $id);
 }
 
 /** Preferito come flag indipendente: NON tocca lo stato. Crea l'entry se manca. */
@@ -521,14 +521,14 @@ function library_set_favorite(PDO $pdo, string $userId, string $id, bool $favori
             }
         }
         library_upsert_media($pdo, $userId, $id, $entry);
-        return library_fetch_state($pdo, $userId);
+        return library_toggle_result($pdo, $userId, $id);
     }
 
     $pdo->prepare(
         'UPDATE user_media SET is_favorite = ?, updated_at = NOW() WHERE user_id = ? AND media_key = ?'
     )->execute([$favorite ? 1 : 0, $userId, $id]);
 
-    return library_fetch_state($pdo, $userId);
+    return library_toggle_result($pdo, $userId, $id);
 }
 
 function library_remove_from_list(PDO $pdo, string $userId, string $id): array {
@@ -544,7 +544,7 @@ function library_remove_from_list(PDO $pdo, string $userId, string $id): array {
     $pdo->prepare('DELETE FROM user_episodes WHERE user_id = ? AND media_key = ?')->execute([$userId, $id]);
     $pdo->prepare('DELETE FROM user_media WHERE user_id = ? AND media_key = ?')->execute([$userId, $id]);
     if ($xpBack > 0) library_apply_xp($pdo, $userId, -$xpBack, false);
-    return library_fetch_state($pdo, $userId);
+    return library_toggle_result($pdo, $userId, $id);
 }
 
 function library_dismiss(PDO $pdo, string $userId, string $id): array {
@@ -697,7 +697,7 @@ function library_mark_all_watched(PDO $pdo, string $userId, string $id, array $s
     if ($added > 0) {
         library_apply_xp($pdo, $userId, $added * 15 + 100, true);
     }
-    return library_fetch_state($pdo, $userId);
+    return library_toggle_result($pdo, $userId, $id);
 }
 
 function library_clear_watched(PDO $pdo, string $userId, string $id, ?string $restoreStatus): array {
@@ -713,7 +713,7 @@ function library_clear_watched(PDO $pdo, string $userId, string $id, ?string $re
     library_upsert_media($pdo, $userId, $id, $entry);
     library_sync_entry_episodes($pdo, $userId, $id, $entry);
     if ($removed > 0) library_apply_xp($pdo, $userId, -($removed * 15), false);
-    return library_fetch_state($pdo, $userId);
+    return library_toggle_result($pdo, $userId, $id);
 }
 
 function library_set_rating(PDO $pdo, string $userId, string $id, ?float $rating): array {
@@ -722,7 +722,7 @@ function library_set_rating(PDO $pdo, string $userId, string $id, ?float $rating
     if (empty($entry['status'])) $entry['status'] = 'plan_to_watch';
     library_upsert_media($pdo, $userId, $id, $entry);
     library_sync_entry_episodes($pdo, $userId, $id, $entry);
-    return library_fetch_state($pdo, $userId);
+    return library_toggle_result($pdo, $userId, $id);
 }
 
 function library_set_notes(PDO $pdo, string $userId, string $id, string $notes): array {
@@ -732,7 +732,7 @@ function library_set_notes(PDO $pdo, string $userId, string $id, string $notes):
     $entry['notes'] = mb_substr($notes, 0, 1000);
     if (empty($entry['status'])) $entry['status'] = 'plan_to_watch';
     library_upsert_media($pdo, $userId, $id, $entry);
-    return library_fetch_state($pdo, $userId);
+    return library_toggle_result($pdo, $userId, $id);
 }
 
 function library_log_movie_watch(PDO $pdo, string $userId, string $id, ?array $meta = null): array {
@@ -757,7 +757,7 @@ function library_log_movie_watch(PDO $pdo, string $userId, string $id, ?array $m
     $entry['lastWatchedAt'] = date('c');
     library_upsert_media($pdo, $userId, $id, $entry);
     library_apply_xp($pdo, $userId, 15, true);
-    return library_fetch_state($pdo, $userId);
+    return library_toggle_result($pdo, $userId, $id);
 }
 
 function library_set_reaction(PDO $pdo, string $userId, string $id, int $season, int $episode, ?string $emoji): array {
@@ -768,7 +768,7 @@ function library_set_reaction(PDO $pdo, string $userId, string $id, int $season,
     $entry['reactions'] = $reactions;
     library_upsert_media($pdo, $userId, $id, $entry);
     library_sync_entry_episodes($pdo, $userId, $id, $entry);
-    return library_fetch_state($pdo, $userId);
+    return library_toggle_result($pdo, $userId, $id);
 }
 
 /**

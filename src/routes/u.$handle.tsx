@@ -158,7 +158,7 @@ function MediaGrid({
             className="glass overflow-hidden rounded-2xl"
           >
             {item.posterUrl ? (
-              <img src={item.posterUrl} alt="" className="aspect-[2/3] w-full object-cover" />
+              <img src={item.posterUrl} alt="" loading="lazy" className="aspect-[2/3] w-full object-cover" />
             ) : (
               <div className="grid aspect-[2/3] place-items-center bg-surface-2 text-[10px] text-muted-foreground">
                 {item.title ?? "N/A"}

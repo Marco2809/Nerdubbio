@@ -442,7 +442,7 @@ function TmdbPickGrid({ items, onPick }: { items: TmdbItem[]; onPick: (item: Tmd
           className="flex items-center gap-2 rounded-xl border border-border bg-surface-2/60 p-2 text-left transition hover:border-accent hover:bg-surface-2"
         >
           {item.posterUrl
-            ? <img src={item.posterUrl} alt="" className="h-12 w-8 shrink-0 rounded object-cover" />
+            ? <img src={item.posterUrl} alt="" loading="lazy" className="h-12 w-8 shrink-0 rounded object-cover" />
             : <div className="grid h-12 w-8 shrink-0 place-items-center rounded bg-surface-2 text-[10px] text-muted-foreground">?</div>}
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold">{item.title}</p>
@@ -547,7 +547,7 @@ function MatchedRow({ m, onToggle }: { m: MatchRow; onToggle: () => void }) {
   return (
     <div className={`glass flex items-center gap-3 rounded-2xl p-2.5 transition ${m.accept ? "" : "opacity-50"}`}>
       {m.match?.posterUrl
-        ? <img src={m.match.posterUrl} alt="" className="h-14 w-10 rounded-lg object-cover" />
+        ? <img src={m.match.posterUrl} alt="" loading="lazy" className="h-14 w-10 rounded-lg object-cover" />
         : <div className="grid h-14 w-10 place-items-center rounded-lg bg-surface-2">
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </div>}

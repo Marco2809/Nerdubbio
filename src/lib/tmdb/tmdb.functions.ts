@@ -75,10 +75,38 @@ async function tmdb<T = any>(path: string, params: Record<string, string | numbe
   const headers: Record<string, string> = { Accept: "application/json" };
   if (bearer) headers.Authorization = `Bearer ${bearer}`;
 
-  const res = await fetchWithRateLimitRetry(url, headers);
-  if (!res.ok) throw new Error(`TMDB ${res.status}: ${await res.text()}`);
-  return res.json() as Promise<T>;
+  const key = url.toString();
+  const hit = tmdbCache.get(key);
+  if (hit && hit.expires > Date.now()) return JSON.parse(await hit.text) as T;
+
+  const text = (async () => {
+    const res = await fetchWithRateLimitRetry(url, headers);
+    if (!res.ok) throw new Error(`TMDB ${res.status}: ${await res.text()}`);
+    return res.text();
+  })();
+  tmdbCache.set(key, { text, expires: Date.now() + TMDB_CACHE_TTL_MS });
+  if (tmdbCache.size > TMDB_CACHE_MAX) {
+    // Map mantiene l'ordine di inserimento: via la voce più vecchia.
+    tmdbCache.delete(tmdbCache.keys().next().value as string);
+  }
+  try {
+    return JSON.parse(await text) as T;
+  } catch (e) {
+    tmdbCache.delete(key); // mai tenere in cache un errore
+    throw e;
+  }
 }
+
+/**
+ * Cache in memoria delle risposte TMDB (processo server). Ogni utente e ogni
+ * richiesta rifacevano le stesse fetch (/tv/{id}, stagioni…), anche due volte
+ * nella stessa operazione. Salviamo il TESTO e lo ri-parsiamo a ogni uso: così
+ * nessun chiamante può modificare un oggetto condiviso. Le richieste in volo
+ * sono deduplicate (stessa promise). TTL breve: le date TMDB cambiano piano.
+ */
+const TMDB_CACHE_TTL_MS = 10 * 60 * 1000;
+const TMDB_CACHE_MAX = 3000;
+const tmdbCache = new Map<string, { text: Promise<string>; expires: number }>();
 
 /**
  * TMDB risponde 429 quando una schermata fa molte richieste insieme (es. la
