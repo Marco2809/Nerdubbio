@@ -299,6 +299,7 @@ export default {
     premiere: "Estreno",
     toWatch: "Por ver",
     releases: "Sale {{date}}",
+    airedOn: "Emitido el {{date}}",
     upcoming: "Próximamente",
     localEstimate: "estimación local",
     lastMarked: " Último marcado: S{{s}}E{{e}}",

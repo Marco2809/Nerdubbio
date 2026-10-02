@@ -229,14 +229,17 @@ function NextEpisodeRow({
 }) {
   const { t } = useI18n();
   const label = `S${next.season} · E${next.episode}`;
+  // Il nome episodio è già nella riga sopra (S·E — nome): qui mostriamo la data
+  // di messa in onda invece di ripeterlo. Fallback "Da vedere" se TMDB non la ha.
   const badge = next.kind === "premiere"
     ? t("nextEpisodes.premiere")
     : next.aired
-      ? (next.name || t("nextEpisodes.toWatch"))
+      ? (next.airDate ? t("nextEpisodes.airedOn", { date: formatShortDate(next.airDate) }) : t("nextEpisodes.toWatch"))
       : next.airDate
         ? t("nextEpisodes.releases", { date: formatShortDate(next.airDate) })
         : t("nextEpisodes.upcoming");
   const isFuture = !next.aired && !!next.airDate;
+  const showDateIcon = isFuture || (next.aired && !!next.airDate);
 
   return (
     <div className="glass flex items-center gap-3 rounded-2xl p-3">
@@ -266,7 +269,7 @@ function NextEpisodeRow({
             : null}
         </p>
         <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-accent">
-          {isFuture && <CalendarDays className="h-3 w-3" />}
+          {showDateIcon && <CalendarDays className="h-3 w-3" />}
           {badge}
           {fromLocal && (
             <span className="rounded-full border border-border px-1.5 text-[9px] text-muted-foreground">
