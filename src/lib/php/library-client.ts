@@ -3,6 +3,7 @@ import { setApiLocale } from '@/lib/php/api-errors';
 import { api } from '@/lib/php/client';
 import type { MediaMeta, UserMediaEntry, UserStatus } from '@/lib/user-store';
 import type { TvTimePendingItem } from '@/lib/tvtime-import';
+import type { NerdacoloFeedbackBias } from '@/lib/recommendation/nerdacolo-types';
 
 function syncApiLocale(state: LibraryState): LibraryState {
   if (state.language) setApiLocale(state.language);
@@ -29,6 +30,8 @@ export interface LibraryState {
   };
   localMigrated: boolean;
   importPending: TvTimePendingItem[];
+  /** Gusti imparati dal Nerdacolo (feedback), sincronizzati tra dispositivi. */
+  nerdacoloBias?: NerdacoloFeedbackBias | null;
 }
 
 /** Risposta leggera del toggle episodio: solo la serie toccata + stat. */

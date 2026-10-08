@@ -119,8 +119,7 @@ export function loadFeedbackBias(): NerdacoloFeedbackBias {
 /** Registra feedback dell'utente sul risultato. "perfect" fa decadere i bias. */
 export function recordNerdacoloFeedback(
   kind: keyof NerdacoloFeedbackBias | "perfect",
-) {
-  if (typeof localStorage === "undefined") return;
+): NerdacoloFeedbackBias {
   const bias = loadFeedbackBias();
   if (kind === "perfect") {
     for (const k of Object.keys(bias) as (keyof NerdacoloFeedbackBias)[]) {
@@ -129,7 +128,26 @@ export function recordNerdacoloFeedback(
   } else {
     bias[kind] = Math.min(3, bias[kind] + 1);
   }
-  localStorage.setItem(FEEDBACK_BIAS_KEY, JSON.stringify(bias));
+  if (typeof localStorage !== "undefined") localStorage.setItem(FEEDBACK_BIAS_KEY, JSON.stringify(bias));
+  // Il chiamante lo salva anche sull'account (sincronizzato tra dispositivi).
+  return bias;
+}
+
+/**
+ * Allinea il bias del dispositivo con quello dell'account: se l'account ne ha
+ * uno vince lui. Se l'account è vuoto ma il dispositivo ha già imparato
+ * qualcosa (prima della sincronizzazione), lo restituisce da caricare.
+ */
+export function reconcileFeedbackBias(
+  server: NerdacoloFeedbackBias | null | undefined,
+): NerdacoloFeedbackBias | null {
+  if (typeof localStorage === "undefined") return null;
+  if (server) {
+    localStorage.setItem(FEEDBACK_BIAS_KEY, JSON.stringify({ ...EMPTY_BIAS, ...server }));
+    return null;
+  }
+  const local = loadFeedbackBias();
+  return Object.values(local).some(v => v > 0) ? local : null;
 }
 
 /** Applica il bias accumulato allo score iniziale dei candidati (effetto soft, max ±9). */

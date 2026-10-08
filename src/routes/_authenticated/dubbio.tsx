@@ -15,6 +15,7 @@ import {
   answerQuestion,
   buildNerdacoloUserContext,
   generateFinalRecommendation,
+  reconcileFeedbackBias,
   saveNerdacoloResult,
   saveNerdacoloSession,
   startNerdacoloSession,
@@ -44,7 +45,7 @@ function DubbioPage() {
   const tmdbLocale = localeToBcp47(locale);
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
-  const { state } = useUserStore();
+  const { state, update } = useUserStore();
   const { group: groupId, seed: seedKey, seedTitle } = Route.useSearch();
 
   // Dubbio di gruppo: gusti fusi dei membri dal server.
@@ -122,6 +123,10 @@ function DubbioPage() {
       }
 
       saveDubbioPool(pool);
+      // Gusti imparati: l'account vince sul dispositivo; se l'account è vuoto
+      // ma il telefono aveva già imparato qualcosa, lo carichiamo.
+      const localBias = reconcileFeedbackBias(state.nerdacoloBias);
+      if (localBias) update({ nerdacoloBias: localBias });
       const started = startNerdacoloSession({
         mode: m,
         userProfile: userContext,

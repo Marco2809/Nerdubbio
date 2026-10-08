@@ -35,14 +35,18 @@ import { useI18n, pageTitle, type Locale } from "@/lib/i18n";
 const LOCALE_COUNTRY: Record<Locale, string> = { it: "IT", en: "US", es: "ES", fr: "FR", de: "DE" };
 
 // Match "Prime Video" (utente) vs "Amazon Prime Video" (TMDB), "Sky / NOW" vs "Now TV", ecc.
+// Stessa logica del filtro piattaforme lato server: niente parole generiche
+// ("video", "plus"…) e niente "channel" (abbonamenti extra dentro un'altra app).
+const PLATFORM_STOP = new Set(["video", "plus", "channel", "store"]);
 function providerMatchesUser(providerName: string, userPlatforms: string[]): boolean {
+  if (/channel/i.test(providerName)) return false;
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
   const p = norm(providerName);
   return userPlatforms.some((u) => {
-    const tokens = u.split(/[\s/]+/).map(norm).filter((tk) => tk.length >= 3);
-    if (tokens.length === 0) return false;
     const whole = norm(u);
-    return p.includes(whole) || whole.includes(p) || tokens.some((tk) => p.includes(tk));
+    const tokens = u.split(/[\s/]+/).map(norm).filter((tk) => tk.length >= 3 && !PLATFORM_STOP.has(tk));
+    return p === whole || p.includes(whole) ||
+      tokens.some((tk) => (tk.length >= 4 ? p.includes(tk) : p === tk || p.startsWith(tk)));
   });
 }
 
@@ -310,10 +314,14 @@ function ResultPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // Ogni feedback aggiorna i gusti imparati e li salva anche sull'account.
+  const learn = (kind: Parameters<typeof recordNerdacoloFeedback>[0]) =>
+    update({ nerdacoloBias: recordNerdacoloFeedback(kind) });
+
   const handleFeedback = (action: FeedbackAction) => {
     switch (action) {
       case "perfect":
-        recordNerdacoloFeedback("perfect");
+        learn("perfect");
         toast.success(t("dubbio.perfectToast"));
         unlockAchievement();
         break;
@@ -328,33 +336,33 @@ function ResultPage() {
         nextPick();
         break;
       case "heavy":
-        recordNerdacoloFeedback("lighter");
+        learn("lighter");
         dismiss(mediaId);
         toast(t("dubbio.lighterNext"));
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
         break;
       case "light":
-        recordNerdacoloFeedback("heavier");
+        learn("heavier");
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
         toast(t("dubbio.heavierRetry"));
         break;
       case "long":
-        recordNerdacoloFeedback("shorter");
+        learn("shorter");
         dismiss(mediaId);
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
         toast(t("dubbio.shorterSearch"));
         break;
       case "action":
-        recordNerdacoloFeedback("action");
+        learn("action");
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
         toast(t("dubbio.actionRetry"));
         break;
       case "niche":
-        recordNerdacoloFeedback("niche");
+        learn("niche");
         clearNerdacoloSession();
         navigate({ to: "/dubbio" });
         toast(t("dubbio.nicheRetry"));

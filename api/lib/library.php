@@ -69,14 +69,14 @@ function library_save_stats(PDO $pdo, string $userId, array $patch): void {
     $allowed = [
         'xp', 'level', 'streak_days', 'last_active_day', 'onboarding_done', 'language',
         'favorite_genres', 'mood_profile', 'platforms', 'upcoming_filters', 'dismissed', 'achievements', 'local_migrated',
-        'import_pending',
+        'import_pending', 'nerdacolo_bias',
     ];
     $sets = [];
     $vals = [];
     foreach ($allowed as $k) {
         if (!array_key_exists($k, $patch)) continue;
         $v = $patch[$k];
-        if (in_array($k, ['favorite_genres', 'mood_profile', 'platforms', 'upcoming_filters', 'dismissed', 'achievements', 'import_pending'], true)) {
+        if (in_array($k, ['favorite_genres', 'mood_profile', 'platforms', 'upcoming_filters', 'dismissed', 'achievements', 'import_pending', 'nerdacolo_bias'], true)) {
             $v = to_json($v);
         }
         if ($k === 'onboarding_done' || $k === 'local_migrated') {
@@ -182,6 +182,7 @@ function library_fetch_state(PDO $pdo, string $userId): array {
         'upcomingFilters'  => $filters,
         'localMigrated'    => !empty($stats['local_migrated']),
         'importPending'    => parse_json($stats['import_pending'] ?? null, []),
+        'nerdacoloBias'    => parse_json($stats['nerdacolo_bias'] ?? null, null),
     ];
 }
 
@@ -962,6 +963,7 @@ function library_patch_settings(PDO $pdo, string $userId, array $patch): array {
         'lastActiveDay'   => 'last_active_day',
         'localMigrated'   => 'local_migrated',
         'importPending'   => 'import_pending',
+        'nerdacoloBias'   => 'nerdacolo_bias',
     ];
     $dbPatch = [];
     foreach ($map as $client => $db) {
@@ -969,6 +971,15 @@ function library_patch_settings(PDO $pdo, string $userId, array $patch): array {
     }
     if (isset($patch['xp']) && !isset($patch['level'])) {
         $dbPatch['level'] = library_level_from_xp((int) $patch['xp']);
+    }
+    // Bias del Nerdacolo: solo i 5 assi noti, interi 0–3.
+    if (array_key_exists('nerdacolo_bias', $dbPatch)) {
+        $in = is_array($dbPatch['nerdacolo_bias']) ? $dbPatch['nerdacolo_bias'] : [];
+        $clean = [];
+        foreach (['lighter', 'heavier', 'shorter', 'action', 'niche'] as $k) {
+            $clean[$k] = max(0, min(3, (int) ($in[$k] ?? 0)));
+        }
+        $dbPatch['nerdacolo_bias'] = $clean;
     }
     library_save_stats($pdo, $userId, $dbPatch);
     return library_fetch_state($pdo, $userId);
