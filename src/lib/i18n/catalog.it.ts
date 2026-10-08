@@ -102,6 +102,8 @@ export default {
     syncCompleted: "{{count}} segnate come concluse",
     syncError: "Errore sincronizzazione stati",
     librarySection: "Libreria",
+    platformsSection: "Le tue piattaforme",
+    platformsHint: "Il Nerdacolo ti consiglia solo ciò che puoi vedere qui.",
     about: "Nerdubbio è un progetto indipendente di Marco — gratuito, senza pubblicità.",
     notificationsSection: "Notifiche",
     pushLabel: "Notifiche push",

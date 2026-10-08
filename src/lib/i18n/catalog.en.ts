@@ -102,6 +102,8 @@ export default {
     syncCompleted: "{{count}} marked as finished",
     syncError: "Status sync failed",
     librarySection: "Library",
+    platformsSection: "Your platforms",
+    platformsHint: "The Nerdacolo only suggests what you can watch here.",
     about: "Nerdubbio is an independent project by Marco — free, no ads.",
     notificationsSection: "Notifications",
     pushLabel: "Push notifications",

@@ -1,3 +1,4 @@
+import { PLATFORMS } from "@/lib/platforms";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useUserStore, type UserMediaEntry } from "@/lib/user-store";
@@ -43,11 +44,6 @@ const GENRES = [
 
 /** Domande "Dubbio nerd" — locale in onboarding-dubbio.ts */
 
-// Nomi brand, non tradotti.
-const PLATFORMS = [
-  "Netflix", "Prime Video", "Disney+", "Apple TV+", "Sky / NOW",
-  "Paramount+", "Crunchyroll", "RaiPlay", "Mediaset Infinity",
-];
 
 type StepKey = "welcome" | "lang" | "genres" | "platforms" | "dubbio" | "seen" | "done";
 const STEPS: StepKey[] = ["welcome", "lang", "genres", "platforms", "dubbio", "seen", "done"];

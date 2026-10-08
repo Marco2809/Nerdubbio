@@ -13,6 +13,7 @@ import { TvTimeReimportCard } from "@/components/nerdubbio/TvTimeReimportCard";
 import { pushSupported, getPushSubscription, enablePush, disablePush, sendTestPush } from "@/lib/push-client";
 import { ArrowLeft, Globe, Trash2, Download, Sparkles, PlayCircle, Popcorn, CheckCircle2, Loader2, BellRing } from "lucide-react";
 import { auth as phpAuth } from "@/lib/php/client";
+import { PLATFORMS } from "@/lib/platforms";
 import { useAuth } from "@/lib/auth";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -137,6 +138,30 @@ function Settings() {
           })}
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground">{t("settings.languageHint")}</p>
+      </section>
+
+      <section className="mt-6">
+        <p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">{t("settings.platformsSection")}</p>
+        <p className="mb-2 text-[11px] text-muted-foreground">{t("settings.platformsHint")}</p>
+        <div className="flex flex-wrap gap-2">
+          {PLATFORMS.map(p => {
+            const mine = state.platforms ?? [];
+            const on = mine.includes(p);
+            return (
+              <button
+                key={p}
+                type="button"
+                aria-pressed={on}
+                onClick={() => update({ platforms: on ? mine.filter(x => x !== p) : [...mine, p] })}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  on ? "bg-hero text-primary-foreground shadow-glow" : "glass text-foreground/80"
+                }`}
+              >
+                {p}
+              </button>
+            );
+          })}
+        </div>
       </section>
 
       <section className="mt-6">
