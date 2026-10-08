@@ -40,8 +40,12 @@ export function buildDubbioProfile(state: LibraryState): UserProfile {
     .filter(([, m]) => m.status === "completed" || m.status === "dropped")
     .map(([k]) => k);
 
+  // Le serie già in corso non si ripropongono: escluse dal pool, non boostate.
+  const watchingIds = Object.entries(state.media)
+    .filter(([, m]) => m.status === "watching")
+    .map(([k]) => k);
   const watchlistIds = Object.entries(state.media)
-    .filter(([, m]) => m.favorite || m.status === "plan_to_watch" || m.status === "watching")
+    .filter(([, m]) => m.status !== "watching" && (m.favorite || m.status === "plan_to_watch"))
     .map(([k]) => k);
 
   const highlyRatedIds = Object.entries(state.media)
@@ -55,6 +59,8 @@ export function buildDubbioProfile(state: LibraryState): UserProfile {
     moodProfile: state.moodProfile ?? undefined,
     watchlistIds,
     highlyRatedIds,
+    watchingIds,
+    platforms: state.platforms ?? [],
   };
 }
 
@@ -103,7 +109,12 @@ export async function fetchDubbioPool(
       moodGenres,
       watchlistIds: profile.watchlistIds,
       highlyRatedIds: profile.highlyRatedIds,
-      excludeIds: [...(profile.seenIds ?? []), ...(profile.dismissedIds ?? [])],
+      excludeIds: [
+        ...(profile.seenIds ?? []),
+        ...(profile.dismissedIds ?? []),
+        ...(profile.watchingIds ?? []),
+      ],
+      platforms: profile.platforms?.length ? profile.platforms : undefined,
       seedKey,
       locale,
     },

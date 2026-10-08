@@ -76,10 +76,13 @@ export function buildNerdacoloUserContext(
     .filter(([, m]) => m.status === "completed" || m.status === "dropped")
     .map(([k]) => k);
 
+  // Le serie che stai già guardando NON sono "watchlist": proporle come cosa
+  // guardare stasera è inutile (lo sai già). Le escludiamo dal pool.
+  const watchingIds = Object.entries(state.media)
+    .filter(([, m]) => m.status === "watching")
+    .map(([k]) => k);
   const watchlistIds = Object.entries(state.media)
-    .filter(([, m]) =>
-      m.favorite || ["plan_to_watch", "watching"].includes(m.status),
-    )
+    .filter(([, m]) => m.status !== "watching" && (m.favorite || m.status === "plan_to_watch"))
     .map(([k]) => k);
 
   const highlyRated = Object.entries(state.media).filter(([, m]) => (m.rating ?? 0) >= 8);
@@ -94,6 +97,8 @@ export function buildNerdacoloUserContext(
     seenIds,
     dismissedIds: state.dismissed,
     watchlistIds,
+    watchingIds,
+    platforms: state.platforms ?? [],
     favoriteGenres: state.favoriteGenres,
     excludedGenres: [],
     moodProfile: state.moodProfile ?? [],

@@ -577,6 +577,8 @@ export default {
     alreadySeen: "Already watched",
     notForMe: "Not for me",
     openDetail: "Open page",
+    anotherPick: "Another one",
+    noMorePicks: "Out of candidates: let's redo the quiz.",
     feedbackTitle: "Feedback for the sphere",
     perfect: "Perfect",
     tooHeavy: "Too heavy",

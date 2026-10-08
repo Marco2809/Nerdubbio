@@ -15,6 +15,8 @@ export interface UserProfile {
   watchlistIds?: string[];
   excludedGenres?: string[];
   highlyRatedIds?: string[];
+  watchingIds?: string[];
+  platforms?: string[];
 }
 
 export interface RecommendationResult {

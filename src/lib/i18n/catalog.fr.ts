@@ -577,6 +577,8 @@ export default {
     alreadySeen: "Déjà vu",
     notForMe: "Pas pour moi",
     openDetail: "Ouvrir la fiche",
+    anotherPick: "Un autre",
+    noMorePicks: "Plus de candidats : on refait le quiz.",
     feedbackTitle: "Feedback pour la sphère",
     perfect: "Parfait",
     tooHeavy: "Trop lourd",

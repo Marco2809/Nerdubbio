@@ -4,9 +4,12 @@ import { BrandIcon } from "@/components/nerdubbio/BrandIcon";
 import { NerdacoloLoader } from "@/components/nerdubbio/NerdacoloLoader";
 import {
   clearNerdacoloSession,
+  generateFinalRecommendation,
   loadNerdacoloResult,
   loadNerdacoloSession,
   recordNerdacoloFeedback,
+  saveNerdacoloResult,
+  saveNerdacoloSession,
 } from "@/lib/recommendation/nerdacoloEngine";
 import type { NerdacoloCandidate, NerdacoloFinalResult } from "@/lib/recommendation/nerdacolo-types";
 import { useUserStore, type MediaMeta } from "@/lib/user-store";
@@ -287,6 +290,26 @@ function ResultPage() {
     }
   };
 
+  // "Un altro": scarta il titolo dai candidati della sessione e ricalcola il
+  // consiglio finale con il motore — istantaneo, senza rifare il quiz, e con
+  // la spiegazione corretta per il nuovo titolo.
+  const nextPick = () => {
+    const s = loadNerdacoloSession();
+    const remaining = s?.candidates.filter(c => c.mediaKey !== pick.mediaKey) ?? [];
+    if (!s || remaining.length === 0) {
+      toast(t("dubbio.noMorePicks"));
+      clearNerdacoloSession();
+      navigate({ to: "/dubbio" });
+      return;
+    }
+    const nextSession = { ...s, candidates: remaining };
+    const next = generateFinalRecommendation(nextSession);
+    saveNerdacoloSession(nextSession);
+    saveNerdacoloResult(next);
+    setResult(next);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const handleFeedback = (action: FeedbackAction) => {
     switch (action) {
       case "perfect":
@@ -297,10 +320,12 @@ function ResultPage() {
       case "seen":
         addToList(mediaId, "completed", meta);
         toast.success(t("dubbio.markedSeen"));
+        nextPick();
         break;
       case "nope":
         dismiss(mediaId);
         toast(t("dubbio.dismissed"));
+        nextPick();
         break;
       case "heavy":
         recordNerdacoloFeedback("lighter");
@@ -496,6 +521,13 @@ function ResultPage() {
           {pick.mediaType === "tv" ? <Tv className="mr-1 inline h-4 w-4" /> : <Film className="mr-1 inline h-4 w-4" />}
           {t("dubbio.openDetail")}
         </Link>
+        <button
+          type="button"
+          onClick={nextPick}
+          className="col-span-2 rounded-2xl border border-accent/40 bg-surface/60 py-3 text-sm font-bold text-accent"
+        >
+          <RotateCcw className="mr-1 inline h-4 w-4" /> {t("dubbio.anotherPick")}
+        </button>
       </div>
 
       <div className="mt-4">

@@ -577,6 +577,8 @@ export default {
     alreadySeen: "Schon gesehen",
     notForMe: "Nichts für mich",
     openDetail: "Seite öffnen",
+    anotherPick: "Noch einer",
+    noMorePicks: "Keine Kandidaten mehr: Quiz neu starten.",
     feedbackTitle: "Feedback für die Sphäre",
     perfect: "Perfekt",
     tooHeavy: "Zu schwer",

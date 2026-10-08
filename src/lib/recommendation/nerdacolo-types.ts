@@ -59,6 +59,10 @@ export type NerdacoloUserContext = {
   seenIds: string[];
   dismissedIds: string[];
   watchlistIds: string[];
+  /** Serie che stai già guardando: mai riproposte come "cosa guardo stasera". */
+  watchingIds?: string[];
+  /** Piattaforme streaming dell'utente (nomi, es. "Netflix"): il pool si limita a ciò che è visibile lì. */
+  platforms?: string[];
   favoriteGenres: string[];
   excludedGenres: string[];
   moodProfile: string[];
@@ -211,10 +215,10 @@ export type NerdacoloFinalResult = {
   similarTo: string[];
 };
 
-export const MAX_QUESTIONS = 10;
+export const MAX_QUESTIONS = 6;
 /** Sotto questa soglia di domande non si chiude per confidence/gap: il gap
     iniziale viene dal pool, non dalle risposte dell'utente. */
-export const MIN_QUESTIONS = 4;
+export const MIN_QUESTIONS = 3;
 export const MIN_CANDIDATES = 5;
 export const CONFIDENCE_STOP = 85;
 export const SCORE_GAP_STOP = 15;

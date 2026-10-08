@@ -1337,10 +1337,64 @@ function parseMediaKey(key: string): { type: "movie" | "tv"; tmdbId: number } | 
   return { type: m[1] as "movie" | "tv", tmdbId: Number(m[2]) };
 }
 
+/** Disponibilità IT (flatrate/free/ads) dei titoli arricchiti dal Nerdacolo. */
+const providersOf = new WeakMap<object, number[]>();
+
+function itProviderIds(det: any): number[] {
+  const it = det?.["watch/providers"]?.results?.IT;
+  if (!it) return [];
+  return [...(it.flatrate ?? []), ...(it.free ?? []), ...(it.ads ?? [])]
+    .map((p: any) => Number(p.provider_id))
+    .filter((n: number) => Number.isFinite(n));
+}
+
+/**
+ * Nomi piattaforme dell'utente ("Prime Video", "Sky / NOW"…) → ID provider
+ * TMDB in Italia, confrontando con l'elenco ufficiale (niente ID a mano).
+ */
+async function resolveProviderIds(names: string[]): Promise<Set<number>> {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  // Parole troppo generiche per identificare un servizio ("Prime Video" non
+  // deve prendere "Raro Video Amazon Channel").
+  const STOP = new Set(["video", "plus", "channel", "store"]);
+  const wanted = names.map(n => ({
+    whole: norm(n),
+    tokens: n.split(/[\s/]+/).map(norm).filter(t => t.length >= 3 && !STOP.has(t)),
+  }));
+  const matches = (providerName: string) => {
+    // I "channel" sono abbonamenti aggiuntivi dentro un'altra piattaforma:
+    // averne una non significa vederli.
+    if (/channel/i.test(providerName)) return false;
+    const p = norm(providerName);
+    return wanted.some(w =>
+      p === w.whole || p.includes(w.whole) ||
+      w.tokens.some(t => (t.length >= 4 ? p.includes(t) : p === t || p.startsWith(t))));
+  };
+  const ids = new Set<number>();
+  const lists = await Promise.all((["movie", "tv"] as const).map(t =>
+    tmdb<any>(`/watch/providers/${t}`, { watch_region: "IT" }).catch(() => ({ results: [] }))));
+  for (const list of lists) {
+    for (const p of list.results ?? []) {
+      if (matches(String(p.provider_name ?? ""))) ids.add(Number(p.provider_id));
+    }
+  }
+  return ids;
+}
+
+function providerParams(providerIds?: Set<number>): Record<string, string> {
+  if (!providerIds?.size) return {};
+  return {
+    with_watch_providers: [...providerIds].join("|"),
+    watch_region: "IT",
+    with_watch_monetization_types: "flatrate|free|ads",
+  };
+}
+
 async function discoverPage(
   type: "movie" | "tv",
   genreIds: number[],
   page: number,
+  providerIds?: Set<number>,
 ): Promise<any[]> {
   const params: Record<string, string | number> = {
     sort_by: "popularity.desc",
@@ -1348,6 +1402,7 @@ async function discoverPage(
     "vote_count.gte": 80,
     "vote_average.gte": 6.2,
     page,
+    ...providerParams(providerIds),
   };
   if (genreIds.length) params.with_genres = genreIds.slice(0, 4).join("|");
   if (type === "movie") params.region = "IT";
@@ -1360,8 +1415,11 @@ async function discoverPage(
 
 async function enrichDiscoverRow(r: any, type: "movie" | "tv"): Promise<TmdbItem | null> {
   try {
-    const det = await tmdb<any>(`/${type}/${r.id}`);
-    return mapDetail(det, type);
+    // La disponibilità IT arriva nella stessa chiamata (append_to_response).
+    const det = await tmdb<any>(`/${type}/${r.id}`, { append_to_response: "watch/providers" });
+    const item = mapDetail(det, type);
+    if (item) providersOf.set(item, itProviderIds(det));
+    return item;
   } catch {
     const base = mapMulti({ ...r, media_type: type });
     return base;
@@ -1388,13 +1446,14 @@ async function recommendationItems(type: "movie" | "tv", tmdbId: number, limit =
   }
 }
 
-async function hiddenGemPage(type: "movie" | "tv", page: number): Promise<any[]> {
+async function hiddenGemPage(type: "movie" | "tv", page: number, providerIds?: Set<number>): Promise<any[]> {
   const params: Record<string, string | number> = {
     sort_by: "vote_average.desc",
     include_adult: "false",
     "vote_count.gte": 120,
     "vote_average.gte": 7.4,
     page,
+    ...providerParams(providerIds),
   };
   if (type === "movie") {
     params.region = "IT";
@@ -1419,6 +1478,8 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
         excludeIds: z.array(z.string()).optional(),
         /** Chiave "tv-123"/"movie-45": pool = simili+raccomandati di QUESTO titolo. */
         seedKey: z.string().optional(),
+        /** Piattaforme dell'utente (nomi): il pool si limita a ciò che è visibile lì in IT. */
+        platforms: z.array(z.string()).optional(),
         locale: z.string().optional(),
       })
       .parse(data),
@@ -1432,11 +1493,33 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
 
     const byKey = new Map<string, ReturnType<typeof tmdbToCatalogItem>>();
 
-    const add = (t: TmdbItem | null, fromWatchlist = false) => {
+    // "Solo cosa puoi vedere stasera": se l'utente ha indicato le piattaforme,
+    // scartiamo i titoli non disponibili lì (gli scartati restano di riserva).
+    const providerIds = data.platforms?.length ? await resolveProviderIds(data.platforms) : undefined;
+    const notAvailable: { t: TmdbItem; fromWatchlist: boolean }[] = [];
+    const isAvailable = (t: TmdbItem) => {
+      if (!providerIds?.size) return true;
+      const p = providersOf.get(t);
+      return !!p && p.some(id => providerIds.has(id));
+    };
+
+    const add = (t: TmdbItem | null, fromWatchlist = false, force = false) => {
       if (!t) return;
       const key = `${t.type}-${t.tmdb_id}`;
       if (exclude.has(key)) return;
+      if (!force && !isAvailable(t)) {
+        notAvailable.push({ t, fromWatchlist });
+        return;
+      }
       byKey.set(key, tmdbToCatalogItem(t, { fromWatchlist }));
+    };
+    // Se il filtro piattaforme lascia troppo poco, meglio un consiglio da
+    // noleggiare che nessun consiglio: si riempie con gli scartati.
+    const refillIfThin = (min: number) => {
+      for (const { t, fromWatchlist } of notAvailable) {
+        if (byKey.size >= min) break;
+        add(t, fromWatchlist, true);
+      }
     };
 
     // Modalità seed ("Nerdacolo su questo titolo"): il pool sono i parenti
@@ -1462,6 +1545,7 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
       } catch {
         /* fallback sul pool normale */
       }
+      refillIfThin(8);
       if (byKey.size >= 8) return { items: [...byKey.values()] };
       // Troppo pochi parenti: prosegui col pool standard per riempire.
     }
@@ -1484,11 +1568,13 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
     const wlResults = await Promise.all(wl.map(async (parsed) => {
       try {
         const [det, sim, rec] = await Promise.all([
-          tmdb<any>(`/${parsed.type}/${parsed.tmdbId}`),
+          tmdb<any>(`/${parsed.type}/${parsed.tmdbId}`, { append_to_response: "watch/providers" }),
           similarItems(parsed.type, parsed.tmdbId, 5),
           recommendationItems(parsed.type, parsed.tmdbId, 5),
         ]);
-        return { main: mapDetail(det, parsed.type), sim, rec };
+        const main = mapDetail(det, parsed.type);
+        if (main) providersOf.set(main, itProviderIds(det));
+        return { main, sim, rec };
       } catch {
         return null; // come prima: se il dettaglio fallisce si salta il titolo
       }
@@ -1516,10 +1602,10 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
     // Discover TMDB per genere + hidden gems: tutte le pagine in parallelo.
     const discoverJobs = types.flatMap(type => {
       const ids = tmdbGenreIds(genreNames, type);
-      return [1, 2, 3, 4].map(page => ({ type, load: () => discoverPage(type, ids, page) }));
+      return [1, 2, 3, 4].map(page => ({ type, load: () => discoverPage(type, ids, page, providerIds) }));
     });
     const gemJobs = types.flatMap(type =>
-      [1, 2].map(page => ({ type, load: () => hiddenGemPage(type, page) })));
+      [1, 2].map(page => ({ type, load: () => hiddenGemPage(type, page, providerIds) })));
     const pageRows = async (jobs: { type: "movie" | "tv"; load: () => Promise<any[]> }[]) => {
       const pages = await Promise.all(jobs.map(async j => {
         try {
@@ -1538,9 +1624,10 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
     // Fallback popolari se pool troppo piccolo
     if (byKey.size < 40) {
       const fallbackJobs = types.flatMap(type =>
-        [1, 2, 3].map(page => ({ type, load: () => discoverPage(type, [], page) })));
+        [1, 2, 3].map(page => ({ type, load: () => discoverPage(type, [], page, providerIds) })));
       (await enrichRows(await pageRows(fallbackJobs))).forEach(t => add(t));
     }
+    refillIfThin(20);
 
     const items = [...byKey.values()].slice(0, 150);
     return { items, count: items.length };

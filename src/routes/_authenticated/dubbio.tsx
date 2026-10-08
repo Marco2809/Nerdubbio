@@ -112,6 +112,8 @@ function DubbioPage() {
           moodProfile: userContext.moodProfile,
           watchlistIds: userContext.watchlistIds,
           highlyRatedIds: userContext.highlyRatedIds,
+          watchingIds: userContext.watchingIds,
+          platforms: userContext.platforms,
         }, undefined, tmdbLocale, seedKey);
         if (!pool.length) throw new Error("empty");
       } catch {
@@ -169,7 +171,7 @@ function DubbioPage() {
       if (result.nextQuestion) {
         setCurrentQuestion(result.nextQuestion);
       }
-    }, 700);
+    }, 250);
   };
 
   const goBack = () => {
