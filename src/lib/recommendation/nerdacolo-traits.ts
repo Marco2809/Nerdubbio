@@ -1,3 +1,5 @@
+import type { Locale } from "@/lib/i18n";
+import { ncTexts } from "./nerdacolo-texts";
 import type { CatalogItem } from "@/lib/mock-catalog";
 import type {
   CommitmentLevel,
@@ -251,28 +253,30 @@ export function buildHighlyRatedGenreSet(
   return genres;
 }
 
-export function commitmentLabel(c: NerdacoloCandidate): string {
+export function commitmentLabel(c: NerdacoloCandidate, lang?: Locale): string {
+  const T = ncTexts(lang).commitment;
   if (c.mediaType === "movie") {
     const m = c.runtimeMinutes ?? 110;
-    if (m <= 95) return `~${m} min`;
-    if (m <= 130) return `~${m} min (serata intera)`;
-    return `~${m} min (epico)`;
+    if (m <= 95) return T.movie(m);
+    if (m <= 130) return T.movieLong(m);
+    return T.movieEpic(m);
   }
   const eps = c.episodeRuntime ?? 45;
   const s = c.numberOfSeasons ?? 1;
-  if (s <= 1) return `Miniserie · ~${eps} min/ep`;
-  if (s <= 3) return `${s} stagioni · ~${eps} min/ep`;
-  return `${s}+ stagioni · impegno lungo`;
+  if (s <= 1) return T.mini(eps);
+  if (s <= 3) return T.seasons(s, eps);
+  return T.long(s);
 }
 
-export function moodLabelFromTraits(traits: NerdacoloTraits): string {
-  if (traits.comedyLevel === "high") return "Leggero e divertente";
-  if (traits.horrorLevel === "high" || traits.violenceLevel === "high") return "Dark e intenso";
-  if (traits.mysteryLevel === "high") return "Mistero e suspense";
-  if (traits.emotionalImpact === "heavy") return "Emotivo e profondo";
-  if (traits.pace === "fast") return "Ritmo serrato";
-  if (traits.pace === "slow") return "Lento e contemplativo";
-  return "Equilibrato";
+export function moodLabelFromTraits(traits: NerdacoloTraits, lang?: Locale): string {
+  const T = ncTexts(lang).mood;
+  if (traits.comedyLevel === "high") return T.comedy;
+  if (traits.horrorLevel === "high" || traits.violenceLevel === "high") return T.dark;
+  if (traits.mysteryLevel === "high") return T.mystery;
+  if (traits.emotionalImpact === "heavy") return T.emotional;
+  if (traits.pace === "fast") return T.fast;
+  if (traits.pace === "slow") return T.slow;
+  return T.balanced;
 }
 
 export const LEVEL_ORDER: Record<string, number> = {

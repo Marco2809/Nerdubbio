@@ -7,7 +7,8 @@
 import type { CatalogItem } from "@/lib/mock-catalog";
 import { CATALOG } from "@/lib/mock-catalog";
 import type { LibraryState } from "@/lib/php/library-client";
-import { normalizeLocale } from "@/lib/i18n";
+import { normalizeLocale, type Locale } from "@/lib/i18n";
+import { ncTexts, localizedPenalty } from "./nerdacolo-texts";
 import {
   questionById,
   questionsForMode,
@@ -45,26 +46,14 @@ import {
   SCORE_GAP_STOP,
 } from "./nerdacolo-types";
 
-const ORACLE_LINES = [
-  "La sfera ha visto troppi thriller scarsi. Li sto eliminando.",
-  "Interessante. Il tuo divano chiede qualcosa di meno traumatico.",
-  "Ho scartato le serie da 12 stagioni. Non siamo qui per firmare un mutuo emotivo.",
-  "La tua watchlist è lunga, ma oggi serve precisione.",
-  "Sto cercando qualcosa che non ti faccia scrollare il telefono dopo 8 minuti.",
-  "La sfera suggerisce mistero, ma senza farti dormire con la luce accesa.",
-  "Ho capito: vuoi soffrire, ma con una bella fotografia.",
-  "Il dubbio si restringe…",
-  "Sto eliminando le scelte pigre…",
-  "Restano pochi sospetti. La sfera sta per parlare.",
-];
-
 function randomId(): string {
   return `nc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function pickOracleLine(extra?: string): string {
+function pickOracleLine(lang: Locale, extra?: string): string {
   if (extra) return extra;
-  return ORACLE_LINES[Math.floor(Math.random() * ORACLE_LINES.length)]!;
+  const lines = ncTexts(lang).oracleLines;
+  return lines[Math.floor(Math.random() * lines.length)]!;
 }
 
 /** Costruisce contesto utente dalla libreria Nerdubbio. */
@@ -175,7 +164,7 @@ function filterPoolByMode(
   mode: NerdacoloMode,
   profile: NerdacoloUserContext,
 ): CatalogItem[] {
-  const seen = new Set([...profile.seenIds, ...profile.dismissedIds]);
+  const seen = new Set([...profile.seenIds, ...profile.dismissedIds, ...(profile.watchingIds ?? [])]);
   let pool = items.filter(c => {
     const key = `${c.type}-${c.tmdb_id}`;
     return !seen.has(c.id) && !seen.has(key);
@@ -552,9 +541,7 @@ export function startNerdacoloSession(params: NerdacoloStartParams): NerdacoloSt
     candidatePool: sessionState.candidates,
     firstQuestion,
     sessionState,
-    oracleLine: pickOracleLine(
-      "Nerdacolo apre la sfera. Ho raccolto i candidati dalla watchlist, TMDB e i tuoi gusti.",
-    ),
+    oracleLine: pickOracleLine(lang, ncTexts(lang).opening),
   };
 }
 
@@ -614,7 +601,7 @@ export function answerQuestion(
       updatedSessionState: updated,
       nextQuestion: null,
       finalRecommendation: generateFinalRecommendation(updated),
-      oracleLine: pickOracleLine("La sfera ha parlato."),
+      oracleLine: pickOracleLine(updated.language, ncTexts(updated.language).spoken),
       shouldStop: true,
     };
   }
@@ -625,14 +612,15 @@ export function answerQuestion(
       updatedSessionState: updated,
       nextQuestion: null,
       finalRecommendation: generateFinalRecommendation(updated),
-      oracleLine: pickOracleLine(),
+      oracleLine: pickOracleLine(updated.language),
       shouldStop: true,
     };
   }
 
   const remaining = updated.candidates.length;
   const oracleLine = pickOracleLine(
-    `Restano ${remaining} sospetti. ${answer.funnyReaction}`,
+    updated.language,
+    `${ncTexts(updated.language).remaining(remaining)} ${answer.funnyReaction}`,
   );
 
   return {
@@ -655,15 +643,16 @@ function traitLabelsFromAnswers(session: NerdacoloSessionState): string[] {
 }
 
 /** Differenza chiave alt vs main — per un "perché no" concreto invece dei punti. */
-function keyDifference(main: NerdacoloCandidate, alt: NerdacoloCandidate): string {
-  if (alt.traits.commitment === "long" && main.traits.commitment !== "long") return "impegno troppo lungo";
-  if (alt.traits.emotionalImpact === "heavy" && main.traits.emotionalImpact !== "heavy") return "più pesante di quel che cercavi";
-  if (alt.traits.horrorLevel === "high" && main.traits.horrorLevel !== "high") return "troppo horror per stasera";
-  if (alt.traits.comedyLevel === "high" && main.traits.comedyLevel !== "high") return "troppo leggero rispetto al mood";
-  if (alt.traits.complexity === "complex" && main.traits.complexity !== "complex") return "chiede più neuroni di quelli dichiarati";
-  if (alt.traits.pace === "slow" && main.traits.pace !== "slow") return "ritmo più lento";
-  if (alt.traits.mainstreamLevel === "mainstream" && main.traits.mainstreamLevel !== "mainstream") return "troppo mainstream per la richiesta";
-  return "meno allineato alle tue risposte";
+function keyDifference(main: NerdacoloCandidate, alt: NerdacoloCandidate, lang: Locale): string {
+  const k = ncTexts(lang).keyDiff;
+  if (alt.traits.commitment === "long" && main.traits.commitment !== "long") return k.long;
+  if (alt.traits.emotionalImpact === "heavy" && main.traits.emotionalImpact !== "heavy") return k.heavy;
+  if (alt.traits.horrorLevel === "high" && main.traits.horrorLevel !== "high") return k.horror;
+  if (alt.traits.comedyLevel === "high" && main.traits.comedyLevel !== "high") return k.light;
+  if (alt.traits.complexity === "complex" && main.traits.complexity !== "complex") return k.complex;
+  if (alt.traits.pace === "slow" && main.traits.pace !== "slow") return k.slow;
+  if (alt.traits.mainstreamLevel === "mainstream" && main.traits.mainstreamLevel !== "mainstream") return k.mainstream;
+  return k.generic;
 }
 
 /** Per le scelte audaci: 3 alternative massimamente diverse tra loro (greedy sui generi). */
@@ -698,13 +687,7 @@ function recoveredTraits(session: NerdacoloSessionState, main: NerdacoloCandidat
     const opt = q?.options.find(o => o.id === a.answerId);
     for (const k of Object.keys(opt?.effects.penalizeTraits ?? {})) penalized.add(k);
   }
-  const labels: Record<string, string> = {
-    violenceLevel: "un po' di violenza",
-    horrorLevel: "qualche brivido",
-    emotionalImpact: "momenti intensi",
-    complexity: "qualche incastro di trama",
-    romanceLevel: "una vena romantica",
-  };
+  const labels: Record<string, string> = ncTexts(session.language).recovered;
   const out: string[] = [];
   for (const [k, label] of Object.entries(labels)) {
     if (!penalized.has(k)) continue;
@@ -733,32 +716,42 @@ export function generateFinalRecommendation(
     score: Math.max(40, Math.min(mainPercent - 3, Math.round(mainPercent * (main.score > 0 ? alt.score / main.score : 0.8)))),
   }));
 
+  const lang = sessionState.language;
+  const T = ncTexts(lang);
   const answerLabels = traitLabelsFromAnswers(sessionState);
   const matchedTraits: string[] = [];
-  if (main.traits.mysteryLevel === "high") matchedTraits.push("mistero");
-  if (main.traits.comedyLevel === "high") matchedTraits.push("comedy");
-  if (main.traits.emotionalImpact === "heavy") matchedTraits.push("emotivo");
-  if (main.traits.pace === "fast") matchedTraits.push("ritmo veloce");
-  if (main.traits.complexity === "complex") matchedTraits.push("cerebrale");
-  if (main.traits.horrorLevel === "high") matchedTraits.push("horror");
-  if (main.traits.comfortLevel === "high") matchedTraits.push("comfort");
+  if (main.traits.mysteryLevel === "high") matchedTraits.push(T.matched.mystery);
+  if (main.traits.comedyLevel === "high") matchedTraits.push(T.matched.comedy);
+  if (main.traits.emotionalImpact === "heavy") matchedTraits.push(T.matched.emotional);
+  if (main.traits.pace === "fast") matchedTraits.push(T.matched.fast);
+  if (main.traits.complexity === "complex") matchedTraits.push(T.matched.cerebral);
+  if (main.traits.horrorLevel === "high") matchedTraits.push(T.matched.horror);
+  if (main.traits.comfortLevel === "high") matchedTraits.push(T.matched.comfort);
 
   const whyNotOthers = alternatives.map(alt => {
-    const reason = alt.penalties[0] ?? keyDifference(main, alt);
-    return `${alt.title}: ${reason}`;
+    const penalty = alt.penalties[0] ? localizedPenalty(alt.penalties[0], lang) : null;
+    return `${alt.title}: ${penalty ?? keyDifference(main, alt, lang)}`;
   });
 
-  // Spiegazione concreta: risposte date + titoli che l'utente ha votato alto.
-  const likedTitles = sessionState.answers.length > 0 ? answerLabels.join(", ") : "il mood della serata";
-  const genreStr = main.genres.slice(0, 3).join(", ");
+  // Spiegazione con fatti veri del titolo (non la ripetizione delle risposte):
+  // genere/anno, durata o forma della serie, se era in lista, titoli amati
+  // affini, voto, e solo in coda il richiamo alle risposte.
   const rated = sessionState.ratedTitles ?? [];
-  const ratedHint =
-    rated.length && main.reasons.includes("simile a titoli che hai amato")
-      ? ` È nella stessa corrente di ${rated.slice(0, 2).join(" e ")}, che hai votato alto.`
-      : "";
-  const explanation = isBoldPick
-    ? `Scelta audace: ti consiglio ${main.title} (${genreStr}). Con le risposte su ${likedTitles} nessun titolo domina davvero, ma questo è il miglior match tra i ${sessionState.initialPoolSize} candidati.${ratedHint} Le alternative sotto sono volutamente molto diverse.`
-    : `Ti consiglio ${main.title} perché hai scelto ${likedTitles}. Ha ${matchedTraits.join(", ") || "un profilo coerente"} e voto TMDB ${main.tmdbRating.toFixed(1)}.${ratedHint} Ho scartato ${sessionState.eliminatedCount} titoli incompatibili con le tue risposte.`;
+  const parts: string[] = [isBoldPick ? T.explain.openBold(main.title) : T.explain.open(main.title)];
+  const genreStr = main.genres.slice(0, 3).join(", ");
+  if (genreStr) parts.push(T.explain.genreYear(genreStr, main.releaseYear));
+  if (main.mediaType === "movie" && main.runtimeMinutes) parts.push(T.explain.runtime(main.runtimeMinutes));
+  if (main.mediaType === "tv" && main.numberOfSeasons) {
+    parts.push(T.explain.seriesShape(main.numberOfSeasons, main.numberOfEpisodes, main.episodeRuntime));
+  }
+  if (main.reasons.includes("in watchlist")) parts.push(T.explain.watchlist);
+  if (rated.length && main.reasons.includes("simile a titoli che hai amato")) {
+    parts.push(T.explain.lovedSimilar(rated.slice(0, 2).join(" / ")));
+  }
+  if (main.tmdbRating >= 7) parts.push(T.explain.rating(main.tmdbRating.toFixed(1)));
+  if (answerLabels.length) parts.push(T.explain.answers(answerLabels.join(", ")));
+  parts.push(isBoldPick ? T.explain.bold : T.explain.discarded(sessionState.eliminatedCount));
+  const explanation = parts.join(" ");
 
   return {
     mainRecommendation: mainForUi,
@@ -770,8 +763,8 @@ export function generateFinalRecommendation(
     whyNotOthers,
     confidence,
     isBoldPick,
-    commitmentLabel: commitmentLabel(main),
-    moodLabel: moodLabelFromTraits(main.traits),
+    commitmentLabel: commitmentLabel(main, lang),
+    moodLabel: moodLabelFromTraits(main.traits, lang),
     similarTo: main.genres.slice(0, 2),
   };
 }
