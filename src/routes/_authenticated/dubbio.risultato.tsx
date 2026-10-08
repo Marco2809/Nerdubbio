@@ -25,11 +25,13 @@ import {
   ThumbsUp,
   Tv,
   Zap,
+  Loader2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { tmdbWatchProviders } from "@/lib/tmdb/tmdb.functions";
 import { toast } from "@/lib/toast";
+import { nerdacoloApi } from "@/lib/php/nerdacolo-client";
 import { useI18n, pageTitle, type Locale } from "@/lib/i18n";
 
 const LOCALE_COUNTRY: Record<Locale, string> = { it: "IT", en: "US", es: "ES", fr: "FR", de: "DE" };
@@ -209,6 +211,7 @@ function ResultPage() {
   const { state, addToList, dismiss, update } = useUserStore();
   const [result, setResult] = useState<NerdacoloFinalResult | null>(null);
   const [ready, setReady] = useState(false);
+  const [creatingVote, setCreatingVote] = useState(false);
 
   const pickForQuery = result?.mainRecommendation ?? null;
   const providersQ = useQuery({
@@ -384,13 +387,43 @@ function ResultPage() {
     { id: "niche" as const, label: t("dubbio.lessMainstream"), icon: null },
   ];
 
-  let groupBadge: { name: string; count: number } | null = null;
+  let groupBadge: { id?: string; name: string; count: number } | null = null;
   try {
     const raw = sessionStorage.getItem("nb_group_dubbio");
-    if (raw) groupBadge = JSON.parse(raw) as { name: string; count: number };
+    if (raw) groupBadge = JSON.parse(raw) as { id?: string; name: string; count: number };
   } catch {
     /* ignore */
   }
+
+  // Gruppo: i migliori 6 candidati diventano una votazione 👍/👎 per tutti.
+  const startGroupVote = async () => {
+    if (!groupBadge?.id || creatingVote) return;
+    setCreatingVote(true);
+    try {
+      const ordered = [
+        result.mainRecommendation,
+        ...result.alternativeRecommendations,
+        ...[...(session?.candidates ?? [])].sort((a, b) => b.score - a.score),
+      ];
+      const seen = new Set<string>();
+      const candidates = ordered
+        .filter(c => (seen.has(c.mediaKey) ? false : (seen.add(c.mediaKey), true)))
+        .slice(0, 6)
+        .map(c => ({
+          mediaKey: c.mediaKey,
+          tmdbId: c.tmdbId,
+          mediaType: c.mediaType,
+          title: c.title,
+          releaseYear: c.releaseYear ?? null,
+          posterPath: c.posterPath ?? null,
+        }));
+      const { id } = await nerdacoloApi.createVote(groupBadge.id, candidates);
+      navigate({ to: "/voto/$id", params: { id } });
+    } catch {
+      toast.error(t("vote.createError"));
+      setCreatingVote(false);
+    }
+  };
 
   return (
     <AppShell subtitle={t("dubbio.spoken", { name: NERDACOLO.name })} title={t("dubbio.tonightPick")}>
@@ -398,6 +431,16 @@ function ResultPage() {
         <p className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-200">
           👥 {t("dubbio.groupResultBadge", { name: groupBadge.name, count: groupBadge.count })}
         </p>
+      )}
+      {groupBadge?.id && (
+        <button
+          type="button"
+          onClick={() => void startGroupVote()}
+          disabled={creatingVote}
+          className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-hero py-3 text-sm font-bold text-primary-foreground shadow-glow disabled:opacity-60"
+        >
+          {creatingVote ? <Loader2 className="h-4 w-4 animate-spin" /> : "🗳️"} {t("vote.cta")}
+        </button>
       )}
       {session && (
         <p className="mb-3 text-[10px] uppercase tracking-widest text-muted-foreground">

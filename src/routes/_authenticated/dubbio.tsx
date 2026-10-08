@@ -96,7 +96,7 @@ function DubbioPage() {
     if (groupId && groupCtxQ.data) {
       sessionStorage.setItem(
         "nb_group_dubbio",
-        JSON.stringify({ name: groupName ?? "", count: groupCtxQ.data.memberCount }),
+        JSON.stringify({ id: groupId, name: groupName ?? "", count: groupCtxQ.data.memberCount }),
       );
     } else {
       sessionStorage.removeItem("nb_group_dubbio");

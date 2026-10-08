@@ -31,6 +31,7 @@ import { Route as AuthenticatedAmiciRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedProfiloSerieRouteImport } from './routes/_authenticated/profilo.serie'
 import { Route as AuthenticatedProfiloFilmRouteImport } from './routes/_authenticated/profilo.film'
 import { Route as AuthenticatedPersonIdRouteImport } from './routes/_authenticated/person.$id'
+import { Route as AuthenticatedVotoIdRouteImport } from './routes/_authenticated/voto.$id'
 import { Route as AuthenticatedDubbioRisultatoRouteImport } from './routes/_authenticated/dubbio.risultato'
 import { Route as AuthenticatedMediaTypeIdRouteImport } from './routes/_authenticated/media.$type.$id'
 import { Route as AuthenticatedEpisodeIdSeasonEpisodeRouteImport } from './routes/_authenticated/episode.$id.$season.$episode'
@@ -147,6 +148,11 @@ const AuthenticatedPersonIdRoute = AuthenticatedPersonIdRouteImport.update({
   path: '/person/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedVotoIdRoute = AuthenticatedVotoIdRouteImport.update({
+  id: '/voto/$id',
+  path: '/voto/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDubbioRisultatoRoute =
   AuthenticatedDubbioRisultatoRouteImport.update({
     id: '/risultato',
@@ -187,6 +193,7 @@ export interface FileRoutesByFullPath {
   '/u/$handle': typeof UHandleRoute
   '/dubbio/risultato': typeof AuthenticatedDubbioRisultatoRoute
   '/person/$id': typeof AuthenticatedPersonIdRoute
+  '/voto/$id': typeof AuthenticatedVotoIdRoute
   '/profilo/film': typeof AuthenticatedProfiloFilmRoute
   '/profilo/serie': typeof AuthenticatedProfiloSerieRoute
   '/media/$type/$id': typeof AuthenticatedMediaTypeIdRoute
@@ -213,6 +220,7 @@ export interface FileRoutesByTo {
   '/u/$handle': typeof UHandleRoute
   '/dubbio/risultato': typeof AuthenticatedDubbioRisultatoRoute
   '/person/$id': typeof AuthenticatedPersonIdRoute
+  '/voto/$id': typeof AuthenticatedVotoIdRoute
   '/profilo/film': typeof AuthenticatedProfiloFilmRoute
   '/profilo/serie': typeof AuthenticatedProfiloSerieRoute
   '/media/$type/$id': typeof AuthenticatedMediaTypeIdRoute
@@ -241,6 +249,7 @@ export interface FileRoutesById {
   '/u/$handle': typeof UHandleRoute
   '/_authenticated/dubbio/risultato': typeof AuthenticatedDubbioRisultatoRoute
   '/_authenticated/person/$id': typeof AuthenticatedPersonIdRoute
+  '/_authenticated/voto/$id': typeof AuthenticatedVotoIdRoute
   '/_authenticated/profilo/film': typeof AuthenticatedProfiloFilmRoute
   '/_authenticated/profilo/serie': typeof AuthenticatedProfiloSerieRoute
   '/_authenticated/media/$type/$id': typeof AuthenticatedMediaTypeIdRoute
@@ -269,6 +278,7 @@ export interface FileRouteTypes {
     | '/u/$handle'
     | '/dubbio/risultato'
     | '/person/$id'
+    | '/voto/$id'
     | '/profilo/film'
     | '/profilo/serie'
     | '/media/$type/$id'
@@ -295,6 +305,7 @@ export interface FileRouteTypes {
     | '/u/$handle'
     | '/dubbio/risultato'
     | '/person/$id'
+    | '/voto/$id'
     | '/profilo/film'
     | '/profilo/serie'
     | '/media/$type/$id'
@@ -322,6 +333,7 @@ export interface FileRouteTypes {
     | '/u/$handle'
     | '/_authenticated/dubbio/risultato'
     | '/_authenticated/person/$id'
+    | '/_authenticated/voto/$id'
     | '/_authenticated/profilo/film'
     | '/_authenticated/profilo/serie'
     | '/_authenticated/media/$type/$id'
@@ -492,6 +504,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPersonIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/voto/$id': {
+      id: '/_authenticated/voto/$id'
+      path: '/voto/$id'
+      fullPath: '/voto/$id'
+      preLoaderRoute: typeof AuthenticatedVotoIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dubbio/risultato': {
       id: '/_authenticated/dubbio/risultato'
       path: '/risultato'
@@ -543,6 +562,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedStatisticheRoute: typeof AuthenticatedStatisticheRoute
   AuthenticatedWatchlistRoute: typeof AuthenticatedWatchlistRoute
   AuthenticatedPersonIdRoute: typeof AuthenticatedPersonIdRoute
+  AuthenticatedVotoIdRoute: typeof AuthenticatedVotoIdRoute
   AuthenticatedProfiloFilmRoute: typeof AuthenticatedProfiloFilmRoute
   AuthenticatedProfiloSerieRoute: typeof AuthenticatedProfiloSerieRoute
   AuthenticatedMediaTypeIdRoute: typeof AuthenticatedMediaTypeIdRoute
@@ -565,6 +585,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedStatisticheRoute: AuthenticatedStatisticheRoute,
   AuthenticatedWatchlistRoute: AuthenticatedWatchlistRoute,
   AuthenticatedPersonIdRoute: AuthenticatedPersonIdRoute,
+  AuthenticatedVotoIdRoute: AuthenticatedVotoIdRoute,
   AuthenticatedProfiloFilmRoute: AuthenticatedProfiloFilmRoute,
   AuthenticatedProfiloSerieRoute: AuthenticatedProfiloSerieRoute,
   AuthenticatedMediaTypeIdRoute: AuthenticatedMediaTypeIdRoute,

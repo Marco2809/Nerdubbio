@@ -175,6 +175,7 @@ if ($action === 'export') {
         'friendships'     => $rows('SELECT * FROM friendships WHERE user_id = ? OR friend_id = ?', [$uid, $uid]),
         'recommendations' => $rows('SELECT * FROM recommendations WHERE from_user = ? OR to_user = ?', [$uid, $uid]),
         'reminders'       => $rows('SELECT * FROM user_reminders WHERE user_id = ?', [$uid]),
+        'groupVotes'      => $rows('SELECT * FROM nerdacolo_votes WHERE user_id = ?', [$uid]),
     ]);
 }
 
