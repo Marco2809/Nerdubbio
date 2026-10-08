@@ -156,6 +156,62 @@ if ($action === 'profile') {
     json_out(fetch_profile($pdo, $jwt['sub']) ?? ['ok' => true]);
 }
 
+// Esportazione dati (GDPR art. 20): tutto ciò che l'utente ha in Nerdubbio.
+if ($action === 'export') {
+    require_once __DIR__ . '/lib/library.php';
+    $jwt = require_auth();
+    $uid = $jwt['sub'];
+    $rows = function (string $sql, array $args) use ($pdo): array {
+        $s = $pdo->prepare($sql);
+        $s->execute($args);
+        return $s->fetchAll(PDO::FETCH_ASSOC);
+    };
+    header('Content-Disposition: attachment; filename="nerdubbio-export.json"');
+    json_out([
+        'exportedAt'      => date('c'),
+        'profile'         => fetch_profile($pdo, $uid),
+        'library'         => library_fetch_state($pdo, $uid),
+        'comments'        => $rows('SELECT * FROM media_comments WHERE user_id = ?', [$uid]),
+        'friendships'     => $rows('SELECT * FROM friendships WHERE user_id = ? OR friend_id = ?', [$uid, $uid]),
+        'recommendations' => $rows('SELECT * FROM recommendations WHERE from_user = ? OR to_user = ?', [$uid, $uid]),
+        'reminders'       => $rows('SELECT * FROM user_reminders WHERE user_id = ?', [$uid]),
+    ]);
+}
+
+// Eliminazione account (richiesta da Apple e dal GDPR). Irreversibile: il
+// client chiede conferma esplicita e manda il token 'DELETE_MY_ACCOUNT'.
+if ($action === 'delete_account') {
+    $jwt = require_auth();
+    $uid = $jwt['sub'];
+    if (($body['confirm'] ?? '') !== 'DELETE_MY_ACCOUNT') api_err('confirm_required', 400);
+
+    $avatar = $pdo->prepare('SELECT avatar_url FROM profiles WHERE id = ?');
+    $avatar->execute([$uid]);
+    $avatarUrl = (string) ($avatar->fetchColumn() ?: '');
+
+    $pdo->beginTransaction();
+    try {
+        // Tabelle senza vincolo a cascata verso users:
+        $pdo->prepare('DELETE FROM recommendations WHERE from_user = ? OR to_user = ?')->execute([$uid, $uid]);
+        $pdo->prepare('DELETE FROM push_airing_log WHERE user_id = ?')->execute([$uid]);
+        // I recap sono una cache condivisa: si tengono, ma senza autore.
+        $pdo->prepare('UPDATE recap_storyboard SET created_by = NULL WHERE created_by = ?')->execute([$uid]);
+        // Tutto il resto (profilo, libreria, episodi, commenti, amicizie,
+        // gruppi, push, promemoria, statistiche) va via a cascata.
+        $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$uid]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        api_err('delete_failed', 500);
+    }
+
+    // Avatar caricato da noi: /api/uploads/<uuid>.<ext>
+    if (preg_match('#^/api/uploads/([a-f0-9-]{36}\.(?:jpg|jpeg|png|webp|gif))$#i', $avatarUrl, $m)) {
+        @unlink(__DIR__ . '/uploads/' . $m[1]);
+    }
+    json_out(['ok' => true]);
+}
+
 if ($action === 'forgot') {
     $email = strtolower(trim($body['email'] ?? ''));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {

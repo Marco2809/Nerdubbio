@@ -120,6 +120,16 @@ export const auth = {
   logout(): void {
     clearToken();
   },
+
+  /** Tutti i dati dell'utente in JSON (GDPR art. 20). */
+  exportData(): Promise<unknown> {
+    return api('/api/auth.php?action=export');
+  },
+
+  /** Elimina definitivamente l'account e tutti i dati collegati. */
+  deleteAccount(): Promise<{ ok: true }> {
+    return api('/api/auth.php?action=delete_account', 'POST', { confirm: 'DELETE_MY_ACCOUNT' });
+  },
 };
 
 export { api };

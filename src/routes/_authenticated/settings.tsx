@@ -11,7 +11,13 @@ import { LOCALES, LOCALE_NAMES, useI18n, pageTitle, type Locale } from "@/lib/i1
 import { FlagIcon } from "@/components/nerdubbio/FlagIcon";
 import { TvTimeReimportCard } from "@/components/nerdubbio/TvTimeReimportCard";
 import { pushSupported, getPushSubscription, enablePush, disablePush, sendTestPush } from "@/lib/push-client";
-import { ArrowLeft, Globe, Shield, Trash2, Download, Sparkles, PlayCircle, Popcorn, CheckCircle2, Loader2, BellRing } from "lucide-react";
+import { ArrowLeft, Globe, Trash2, Download, Sparkles, PlayCircle, Popcorn, CheckCircle2, Loader2, BellRing } from "lucide-react";
+import { auth as phpAuth } from "@/lib/php/client";
+import { useAuth } from "@/lib/auth";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: pageTitle("settings") }] }),
@@ -23,6 +29,26 @@ function Settings() {
   const { state, update } = useUserStore();
   const { t } = useI18n();
   const [syncing, setSyncing] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const exportData = async () => {
+    setExporting(true);
+    try {
+      const data = await phpAuth.exportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `nerdubbio-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(t("settings.exportDone"));
+    } catch {
+      toast.error(t("settings.exportError"));
+    } finally {
+      setExporting(false);
+    }
+  };
   const filters = state.upcomingFilters ?? { newSeries: true, seasonPremieres: true, includeMovies: true };
   const setFilter = (patch: Partial<typeof filters>) =>
     update({ upcomingFilters: { ...filters, ...patch } });
@@ -186,10 +212,17 @@ function Settings() {
       </section>
 
       <section className="mt-6 space-y-2">
-        <Row icon={<Globe className="h-4 w-4"/>} label={t("settings.account")} hint="—" />
-        <Row icon={<Shield className="h-4 w-4"/>} label={t("settings.privacy")} hint="—" />
-        <Row icon={<Download className="h-4 w-4"/>} label={t("settings.exportData")} />
-        <Row icon={<Trash2 className="h-4 w-4"/>} label={t("settings.deleteAccount")} danger />
+        <Link to="/profile" className="glass flex w-full items-center gap-3 rounded-2xl p-3 text-left">
+          <span className="text-accent"><Globe className="h-4 w-4" /></span>
+          <span className="flex-1 text-sm font-semibold">{t("settings.account")}</span>
+        </Link>
+        <Row
+          icon={exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          label={t("settings.exportData")}
+          onClick={() => void exportData()}
+          disabled={exporting}
+        />
+        <DeleteAccountRow />
       </section>
 
       <section className="mt-8">
@@ -203,9 +236,69 @@ function Settings() {
   );
 }
 
-function Row({ icon, label, hint, danger }: { icon: React.ReactNode; label: string; hint?: string; danger?: boolean }) {
+function DeleteAccountRow() {
+  const { t } = useI18n();
+  const { signOut } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const word = t("settings.deleteWord");
+  const ok = typed.trim().toUpperCase() === word.toUpperCase();
+
+  const confirmDelete = async () => {
+    if (!ok || busy) return;
+    setBusy(true);
+    try {
+      await phpAuth.deleteAccount();
+      toast.success(t("settings.deleteDone"));
+      await signOut();
+      window.location.assign("/");
+    } catch {
+      toast.error(t("settings.deleteError"));
+      setBusy(false);
+    }
+  };
+
   return (
-    <button type="button" className="glass flex w-full items-center gap-3 rounded-2xl p-3 text-left">
+    <AlertDialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setTyped(""); }}>
+      <AlertDialogTrigger asChild>
+        <button type="button" className="glass flex w-full items-center gap-3 rounded-2xl p-3 text-left">
+          <span className="text-destructive"><Trash2 className="h-4 w-4" /></span>
+          <span className="flex-1 text-sm font-semibold text-destructive">{t("settings.deleteAccount")}</span>
+        </button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t("settings.deleteTitle")}</AlertDialogTitle>
+          <AlertDialogDescription>{t("settings.deleteBody")}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <label className="block text-xs text-muted-foreground">
+          {t("settings.deleteTypeHint", { word })}
+          <input
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            autoCapitalize="characters"
+            className="mt-1.5 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-foreground"
+          />
+        </label>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!ok || busy}
+            onClick={(e) => { e.preventDefault(); void confirmDelete(); }}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t("settings.deleteConfirm")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function Row({ icon, label, hint, danger, onClick, disabled }: { icon: React.ReactNode; label: string; hint?: string; danger?: boolean; onClick?: () => void; disabled?: boolean }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} className="glass flex w-full items-center gap-3 rounded-2xl p-3 text-left disabled:opacity-60">
       <span className={danger ? "text-destructive" : "text-accent"}>{icon}</span>
       <span className={`flex-1 text-sm font-semibold ${danger ? "text-destructive" : ""}`}>{label}</span>
       {hint && hint !== "—" && <span className="text-xs text-muted-foreground">{hint}</span>}
