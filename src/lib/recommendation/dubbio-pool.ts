@@ -49,8 +49,10 @@ export function buildDubbioProfile(state: LibraryState): UserProfile {
     .map(([k]) => k);
 
   const highlyRatedIds = Object.entries(state.media)
-    .filter(([, m]) => (m.rating ?? 0) >= 8)
-    .map(([k]) => k);
+    .filter(([, m]) => (m.rating ?? 0) >= 7 || m.favorite)
+    .sort(([, a], [, b]) => (b.rating ?? 8) - (a.rating ?? 8))
+    .map(([k]) => k)
+    .slice(0, 200);
 
   return {
     seenIds,

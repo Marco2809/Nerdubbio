@@ -7,7 +7,7 @@ type Props = {
 /** Attribuzione TMDB richiesta dai termini d'uso API. */
 export function TmdbAttribution({ compact = false, className = "" }: Props) {
   const notice =
-    "This product uses the TMDB API but is not endorsed or certified by TMDB.";
+    "This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB. Streaming availability data provided by JustWatch.";
 
   if (compact) {
     return (

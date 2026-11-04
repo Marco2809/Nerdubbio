@@ -228,6 +228,11 @@ function DubbioPage() {
         <p className="mb-4 mt-3 text-sm text-muted-foreground">
           {t("dubbio.intro", { name: NERDACOLO.name })}
         </p>
+        {!state.platforms?.length && (
+          <Link to="/settings" className="glass mb-3 block rounded-2xl p-3 text-xs font-semibold text-accent">
+            {t("dubbio.noPlatformsHint")}
+          </Link>
+        )}
         <NerdacoloModePicker onSelect={m => void selectMode(m)} />
       </AppShell>
     );

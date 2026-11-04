@@ -22,6 +22,15 @@ export interface CatalogItem {
   backdropUrl?: string | null;
   where?: string[];
   similar?: string[];
+  /** Solo titoli TMDB: segnali indipendenti dalla lingua usati dal Nerdacolo. */
+  genreIds?: number[];
+  genreKeys?: string[];
+  keywords?: string[];
+  overviewEn?: string;
+  voteCount?: number;
+  episodes?: number;
+  /** Titolo amato dall'utente di cui questo è parente secondo TMDB. */
+  becauseOf?: string;
 }
 
 // helper poster (colored gradient placeholder)

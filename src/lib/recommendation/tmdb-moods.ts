@@ -20,12 +20,18 @@ export function inferMoods(
   if (g.some(x => x.includes("action") || x.includes("azione"))) moods.add("action");
   if (g.some(x => x.includes("mystery") || x.includes("mistero"))) moods.add("mind-bending");
   if (g.some(x => x.includes("drama") || x.includes("dramma"))) moods.add("slow-burn");
-  if (g.some(x => x.includes("animation") || x.includes("animazione"))) moods.add("cozy");
+  // Animazione non vuol dire "per famiglie": seinen e crime animati non sono cozy.
+  if (
+    g.some(x => x.includes("animation") || x.includes("animazione"))
+    && g.some(x => x.includes("family") || x.includes("comedy") || x.includes("commedia"))
+    && !g.some(x => x.includes("crime") || x.includes("horror"))
+  ) moods.add("cozy");
 
-  if (/dark|mister|conspir|distop|death|murder|kill|war|apocalyp/.test(text)) moods.add("dark");
-  if (/funny|laugh|comic|hilar/.test(text)) moods.add("funny");
-  if (/love|heart|romanc/.test(text)) moods.add("romantic");
-  if (/mind|twist|time|parallel|universe|simul/.test(text)) moods.add("mind-bending");
+  // Parole intere: "war" non deve scattare su "award", né "time" su ogni trama.
+  if (/\b(dark|conspiracy|dystopi\w*|murder\w*|serial killer|apocalyp\w*|war|horror)\b/.test(text)) moods.add("dark");
+  if (/\b(funny|hilarious|parody|sitcom|satire|slapstick)\b/.test(text)) moods.add("funny");
+  if (/\b(romance|romantic|love story|falling in love|romcom)\b/.test(text)) moods.add("romantic");
+  if (/\b(plot twist|twist ending|time travel|time loop|parallel universe|multiverse|simulation|psychological thriller|mind bending|nonlinear timeline)\b/.test(text)) moods.add("mind-bending");
 
   if (type === "movie" && runtimeMin && runtimeMin < 100) moods.add("short");
   if (type === "tv" && (seasons ?? 0) >= 3) moods.add("binge");

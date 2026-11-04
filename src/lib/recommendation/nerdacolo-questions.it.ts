@@ -21,6 +21,7 @@ export const NERDACOLO_QUESTIONS_IT: NerdacoloQuestion[] = [
       { id: "mystery", label: "Voglio mistero e sospetti su chiunque", funnyReaction: "Nessuno è innocente finché Nerdacolo non dice il contrario.", effects: fx({ boostTraits: { mysteryLevel: 2, complexity: 1 }, boostMoods: ["thriller", "mind-bending"], penalizeTraits: { comedyLevel: -1 } }) },
       { id: "cry", label: "Voglio farmi distruggere emotivamente", funnyReaction: "Fazzoletti pronti. La sfera non giudica.", effects: fx({ boostTraits: { emotionalImpact: 2, romanceLevel: 1 }, boostMoods: ["sad", "romantic"], penalizeTraits: { comedyLevel: -2 } }) },
       { id: "action", label: "Voglio azione, ritmo e casino", funnyReaction: "Modalità popcorn attivata.", effects: fx({ boostTraits: { pace: 2, visualSpectacle: 2 }, boostMoods: ["action", "fast-paced"], penalizeTraits: { pace: -1 } }) },
+      { id: "scare", label: "Voglio brividi e paura vera", funnyReaction: "Luci spente. La sfera non risponde dei rumori in corridoio.", effects: fx({ boostTraits: { horrorLevel: 3, violenceLevel: 1 }, boostMoods: ["dark"], penalizeTraits: { comfortLevel: 1 }, hardFilters: { minHorror: "high" } }) },
       { id: "weird", label: "Voglio qualcosa di strano, ma bello", funnyReaction: "La sfera ama le chicche bizzarre.", effects: fx({ boostTraits: { complexity: 1, mainstreamLevel: -1 }, boostMoods: ["mind-bending", "sci-fi"], softFilters: { preferDiscovery: 2 } }) },
     ],
   },
@@ -245,8 +246,8 @@ export const NERDACOLO_QUESTIONS_IT: NerdacoloQuestion[] = [
     options: [
       { id: "none", label: "Zero horror", funnyReaction: "Niente demoni, nemmeno quelli carini.", effects: fx({ hardFilters: { maxHorror: "none" }, penalizeTraits: { horrorLevel: -2 } }) },
       { id: "mild", label: "Brividi soft", funnyReaction: "Tensione senza incubi.", effects: fx({ boostTraits: { horrorLevel: 0, mysteryLevel: 1 } }) },
-      { id: "real", label: "Horror che conta", funnyReaction: "Luce accesa consigliata.", effects: fx({ boostTraits: { horrorLevel: 2 }, boostMoods: ["dark"] }) },
-      { id: "gore", label: "Sangue e urla", funnyReaction: "La sfera ha visto troppi jump scare scarsi.", effects: fx({ boostTraits: { horrorLevel: 2, violenceLevel: 2 } }) },
+      { id: "real", label: "Horror che conta", funnyReaction: "Luce accesa consigliata.", effects: fx({ boostTraits: { horrorLevel: 2 }, boostMoods: ["dark"], hardFilters: { minHorror: "high" } }) },
+      { id: "gore", label: "Sangue e urla", funnyReaction: "La sfera ha visto troppi jump scare scarsi.", effects: fx({ hardFilters: { minHorror: "high" }, boostTraits: { horrorLevel: 2, violenceLevel: 2 } }) },
     ],
   },
   {

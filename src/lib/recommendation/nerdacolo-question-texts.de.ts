@@ -5,7 +5,8 @@ export const NERDACOLO_QUESTION_TEXTS_DE: QuestionTextCatalog = {
     text: "Was für ein Abend ist es?",
     subtitle: "Nerdacolo schnuppert die Couch-Atmosphäre.",
     options: {
-      cozy: { label: "Couch, Decke und null Trauma", funnyReaction: "Deine Couch hat erleichtert aufgeatmet." },
+            scare: { label: "Ich will Gänsehaut und echte Angst", funnyReaction: "Licht aus. Die Kugel haftet nicht für Geräusche im Flur." },
+cozy: { label: "Couch, Decke und null Trauma", funnyReaction: "Deine Couch hat erleichtert aufgeatmet." },
       laugh: { label: "Ich will lachen, ohne zu viele Neuronen zu verbrauchen", funnyReaction: "Neuronen gespart. Nerdacolo approbiert." },
       mystery: { label: "Ich will Mystery und Verdacht gegen alle", funnyReaction: "Niemand ist unschuldig, bis Nerdacolo das Gegenteil sagt." },
       cry: { label: "Ich will mich emotional zerstören lassen", funnyReaction: "Taschentücher bereit. Die Kugel urteilt nicht." },

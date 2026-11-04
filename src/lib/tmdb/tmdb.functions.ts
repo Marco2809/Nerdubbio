@@ -30,6 +30,12 @@ export interface TmdbItem {
   seasonsInfo?: SeasonSummary[];
   /** TMDB status: Ended, Returning Series, In Production, … */
   seriesStatus?: string;
+  /** ID genere: a differenza dei nomi non dipendono dalla lingua. */
+  genreIds?: number[];
+  episodes?: number;
+  /** Solo se richiesti con append_to_response (Nerdacolo). */
+  keywords?: string[];
+  overviewEn?: string;
 }
 
 // Locale per-richiesta: le server function girano sul server, quindi la lingua
@@ -128,6 +134,8 @@ async function fetchWithRateLimitRetry(url: URL, headers: Record<string, string>
  * possono usare Promise.all liberamente senza far scattare il 429.
  */
 const TMDB_MAX_CONCURRENT = 10;
+/** Una chiamata appesa non deve bloccare l'intero Nerdacolo per decine di secondi. */
+const TMDB_TIMEOUT_MS = 8000;
 let tmdbInFlight = 0;
 const tmdbWaiters: (() => void)[] = [];
 function acquireTmdbSlot(): Promise<void> {
@@ -144,13 +152,13 @@ function releaseTmdbSlot() {
 
 async function fetchWithRetryInner(url: URL, headers: Record<string, string>): Promise<Response> {
   for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(TMDB_TIMEOUT_MS) });
     if (res.status !== 429) return res;
     const retryAfter = Number(res.headers.get("retry-after") ?? "1");
     const waitMs = Math.min(Number.isFinite(retryAfter) ? retryAfter : 1, 5) * 1000 + 150;
     await new Promise((r) => setTimeout(r, waitMs));
   }
-  return fetch(url, { headers });
+  return fetch(url, { headers, signal: AbortSignal.timeout(TMDB_TIMEOUT_MS) });
 }
 
 /** Fetch TMDB con lingua custom (es. fallback EN). */
@@ -190,6 +198,7 @@ function mapMulti(r: any): TmdbItem | null {
     backdropUrl: backdropUrl(r.backdrop_path),
     // I risultati "multi" hanno genre_ids numerici: mappali sul vocabolario app.
     genres: genreNamesFromIds(Array.isArray(r.genre_ids) ? r.genre_ids : [], type),
+    genreIds: Array.isArray(r.genre_ids) ? r.genre_ids : [],
   };
 }
 
@@ -221,6 +230,11 @@ function mapDetail(r: any, type: "movie" | "tv"): TmdbItem {
           }))
       : undefined,
     seriesStatus: type === "tv" ? (r.status ?? undefined) : undefined,
+    genreIds: (r.genres ?? []).map((g: any) => Number(g.id)).filter(Boolean),
+    episodes: type === "tv" ? r.number_of_episodes ?? undefined : undefined,
+    keywords: (r.keywords?.keywords ?? r.keywords?.results)?.map((k: any) => String(k.name).toLowerCase()),
+    overviewEn: r.translations?.translations
+      ?.find((t: any) => t.iso_639_1 === "en")?.data?.overview || undefined,
   };
 }
 
@@ -1337,6 +1351,9 @@ function parseMediaKey(key: string): { type: "movie" | "tv"; tmdbId: number } | 
   return { type: m[1] as "movie" | "tv", tmdbId: Number(m[2]) };
 }
 
+/** Tutto nella stessa chiamata del dettaglio: disponibilità, parole chiave e trama inglese. */
+const NERDACOLO_APPEND = "watch/providers,keywords,translations";
+
 /** Disponibilità IT (flatrate/free/ads) dei titoli arricchiti dal Nerdacolo. */
 const providersOf = new WeakMap<object, number[]>();
 
@@ -1413,10 +1430,19 @@ async function discoverPage(
   return res.results ?? [];
 }
 
+function discoverPageByGenre(type: "movie" | "tv", genreId: number, providerIds?: Set<number>): Promise<any[]> {
+  return tmdb<any>(`/discover/${type}`, {
+    sort_by: "vote_count.desc",
+    include_adult: "false",
+    "vote_average.gte": 6.5,
+    with_genres: genreId,
+    ...providerParams(providerIds),
+  }).then(r => r.results ?? []);
+}
+
 async function enrichDiscoverRow(r: any, type: "movie" | "tv"): Promise<TmdbItem | null> {
   try {
-    // La disponibilità IT arriva nella stessa chiamata (append_to_response).
-    const det = await tmdb<any>(`/${type}/${r.id}`, { append_to_response: "watch/providers" });
+    const det = await tmdb<any>(`/${type}/${r.id}`, { append_to_response: NERDACOLO_APPEND });
     const item = mapDetail(det, type);
     if (item) providersOf.set(item, itProviderIds(det));
     return item;
@@ -1496,29 +1522,31 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
     // "Solo cosa puoi vedere stasera": se l'utente ha indicato le piattaforme,
     // scartiamo i titoli non disponibili lì (gli scartati restano di riserva).
     const providerIds = data.platforms?.length ? await resolveProviderIds(data.platforms) : undefined;
-    const notAvailable: { t: TmdbItem; fromWatchlist: boolean }[] = [];
+    const notAvailable: { t: TmdbItem; becauseOf?: string }[] = [];
     const isAvailable = (t: TmdbItem) => {
       if (!providerIds?.size) return true;
       const p = providersOf.get(t);
       return !!p && p.some(id => providerIds.has(id));
     };
 
-    const add = (t: TmdbItem | null, fromWatchlist = false, force = false) => {
+    const add = (t: TmdbItem | null, becauseOf?: string, force = false) => {
       if (!t) return;
       const key = `${t.type}-${t.tmdb_id}`;
       if (exclude.has(key)) return;
       if (!force && !isAvailable(t)) {
-        notAvailable.push({ t, fromWatchlist });
+        notAvailable.push({ t, becauseOf });
         return;
       }
-      byKey.set(key, tmdbToCatalogItem(t, { fromWatchlist }));
+      // "Perché hai amato X" non si perde se il titolo ricompare da un'altra fonte.
+      const because = becauseOf ?? byKey.get(key)?.becauseOf;
+      byKey.set(key, tmdbToCatalogItem(t, { becauseOf: because }));
     };
     // Se il filtro piattaforme lascia troppo poco, meglio un consiglio da
     // noleggiare che nessun consiglio: si riempie con gli scartati.
     const refillIfThin = (min: number) => {
-      for (const { t, fromWatchlist } of notAvailable) {
+      for (const { t, becauseOf } of notAvailable) {
         if (byKey.size >= min) break;
-        add(t, fromWatchlist, true);
+        add(t, becauseOf, true);
       }
     };
 
@@ -1550,17 +1578,6 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
       // Troppo pochi parenti: prosegui col pool standard per riempire.
     }
 
-    // Trending TMDB
-    try {
-      const trend = await tmdb<any>("/trending/all/week");
-      const rows = (trend.results ?? []).slice(0, 25)
-        .map((r: any) => ({ r, type: r.media_type }))
-        .filter((x: any) => (x.type === "movie" || x.type === "tv") && types.includes(x.type));
-      (await enrichRows(rows)).forEach(t => add(t));
-    } catch {
-      /* skip */
-    }
-
     // Watchlist utente (priorità)
     const wl = (data.watchlistIds ?? []).slice(0, 12)
       .map(parseMediaKey)
@@ -1568,7 +1585,7 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
     const wlResults = await Promise.all(wl.map(async (parsed) => {
       try {
         const [det, sim, rec] = await Promise.all([
-          tmdb<any>(`/${parsed.type}/${parsed.tmdbId}`, { append_to_response: "watch/providers" }),
+          tmdb<any>(`/${parsed.type}/${parsed.tmdbId}`, { append_to_response: NERDACOLO_APPEND }),
           similarItems(parsed.type, parsed.tmdbId, 5),
           recommendationItems(parsed.type, parsed.tmdbId, 5),
         ]);
@@ -1581,22 +1598,41 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
     }));
     for (const res of wlResults) {
       if (!res) continue;
-      add(res.main, true);
+      add(res.main);
       res.sim.forEach(s => add(s));
       res.rec.forEach(s => add(s));
     }
 
     // Recommendations da titoli votati bene
-    const rated = (data.highlyRatedIds ?? []).slice(0, 8)
+    // Prima si filtra per tipo, poi si taglia: altrimenti con 8 serie in cima
+    // la modalità film restava senza alcun titolo amato.
+    const rated = (data.highlyRatedIds ?? [])
       .map(parseMediaKey)
-      .filter((p): p is NonNullable<typeof p> => !!p && inMode(p.type));
-    const ratedResults = await Promise.all(rated.map((parsed) => Promise.all([
-      recommendationItems(parsed.type, parsed.tmdbId, 6),
-      similarItems(parsed.type, parsed.tmdbId, 4),
-    ])));
-    for (const [rec, sim] of ratedResults) {
-      rec.forEach(s => add(s));
-      sim.forEach(s => add(s));
+      .filter((p): p is NonNullable<typeof p> => !!p && inMode(p.type))
+      .slice(0, 8);
+    const ratedResults = await Promise.all(rated.map(async (parsed) => {
+      const [det, rec, sim] = await Promise.all([
+        tmdb<any>(`/${parsed.type}/${parsed.tmdbId}`).catch(() => null),
+        recommendationItems(parsed.type, parsed.tmdbId, 6),
+        similarItems(parsed.type, parsed.tmdbId, 4),
+      ]);
+      return { seed: (det?.title ?? det?.name) as string | undefined, rec, sim };
+    }));
+    for (const { seed, rec, sim } of ratedResults) {
+      rec.forEach(s => add(s, seed));
+      sim.forEach(s => add(s, seed));
+    }
+
+    // Trending dopo i gusti: il pool si taglia a 150 e i popolari del momento
+    // non devono togliere posto a ciò che è vicino all'utente.
+    try {
+      const trend = await tmdb<any>("/trending/all/week");
+      const rows = (trend.results ?? []).slice(0, 25)
+        .map((r: any) => ({ r, type: r.media_type }))
+        .filter((x: any) => (x.type === "movie" || x.type === "tv") && types.includes(x.type));
+      (await enrichRows(rows)).forEach(t => add(t));
+    } catch {
+      /* skip */
     }
 
     // Discover TMDB per genere + hidden gems: tutte le pagine in parallelo.
@@ -1616,10 +1652,21 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
       }));
       return pages.flat();
     };
-    const [discoverRows, gemRows] = await Promise.all([pageRows(discoverJobs), pageRows(gemJobs)]);
-    const [discoverItems, gemItems] = await Promise.all([enrichRows(discoverRows), enrichRows(gemRows)]);
+    // Copertura per mood: il pool nasce prima delle risposte, quindi deve avere
+    // materiale per ogni richiesta, anche fuori dai generi preferiti.
+    const coverJobs = types.flatMap(type =>
+      (type === "movie" ? [27, 35, 53, 10749] : [35, 9648, 18, 10759]).map(id => ({
+        type, load: () => discoverPageByGenre(type, id, providerIds),
+      })));
+    const [discoverRows, gemRows, coverRows] = await Promise.all([
+      pageRows(discoverJobs), pageRows(gemJobs), pageRows(coverJobs),
+    ]);
+    const [discoverItems, gemItems, coverItems] = await Promise.all([
+      enrichRows(discoverRows), enrichRows(gemRows), enrichRows(coverRows),
+    ]);
     discoverItems.forEach(t => add(t));
     gemItems.forEach(t => add(t));
+    coverItems.forEach(t => add(t));
 
     // Fallback popolari se pool troppo piccolo
     if (byKey.size < 40) {
@@ -1629,7 +1676,7 @@ export const tmdbDubbioCandidates = createServerFn({ method: "POST" })
     }
     refillIfThin(20);
 
-    const items = [...byKey.values()].slice(0, 150);
+    const items = [...byKey.values()].slice(0, 220);
     return { items, count: items.length };
   }));
 

@@ -14,7 +14,6 @@ import {
   questionsForMode,
 } from "./nerdacolo-questions";
 import {
-  buildHighlyRatedGenreSet,
   catalogToCandidate,
   commitmentLabel,
   levelAtLeast,
@@ -74,8 +73,12 @@ export function buildNerdacoloUserContext(
     .filter(([, m]) => m.status !== "watching" && (m.favorite || m.status === "plan_to_watch"))
     .map(([k]) => k);
 
-  const highlyRated = Object.entries(state.media).filter(([, m]) => (m.rating ?? 0) >= 8);
-  const highlyRatedIds = highlyRated.map(([k]) => k);
+  // Titoli amati: voto alto o cuore, i migliori per primi. Da qui partono i
+  // "parenti" su TMDB, quindi soglia e ordine contano.
+  const highlyRated = Object.entries(state.media)
+    .filter(([, m]) => (m.rating ?? 0) >= 7 || m.favorite)
+    .sort(([, a], [, b]) => (b.rating ?? 8) - (a.rating ?? 8));
+  const highlyRatedIds = highlyRated.map(([k]) => k).slice(0, 200);
   const highlyRatedTitles = highlyRated
     .map(([, m]) => m.title)
     .filter((t): t is string => !!t)
@@ -199,31 +202,36 @@ function buildInitialCandidates(
   catalog: CatalogItem[],
   profile: NerdacoloUserContext,
 ): NerdacoloCandidate[] {
-  const hrGenres = buildHighlyRatedGenreSet(catalog, profile.highlyRatedIds);
+  // Un pizzico di caso per sessione: a parità di risposte non sempre lo stesso titolo.
   return catalog
-    .map(item => catalogToCandidate(item, profile, hrGenres))
+    .map(item => {
+      const c = catalogToCandidate(item, profile);
+      return { ...c, score: c.score + Math.floor(Math.random() * 7) };
+    })
     .sort((a, b) => b.score - a.score);
 }
 
 function passesHardFilters(
   c: NerdacoloCandidate,
   filters: ScoringEffects["hardFilters"],
-  mode: NerdacoloMode,
 ): boolean {
   if (!filters) return true;
   if (filters.mediaType && c.mediaType !== filters.mediaType) return false;
-  if (mode === "movie" && filters.maxRuntimeMinutes != null) {
+  // Ogni limite vale per il suo tipo: in "sorpresa" la durata non deve toccare
+  // le serie, né il numero di stagioni eliminare tutti i film.
+  if (c.mediaType === "movie" && filters.maxRuntimeMinutes != null) {
     const rt = c.runtimeMinutes ?? 999;
     if (rt > filters.maxRuntimeMinutes) return false;
   }
-  if (mode === "movie" && filters.minRuntimeMinutes != null) {
+  if (c.mediaType === "movie" && filters.minRuntimeMinutes != null) {
     const rt = c.runtimeMinutes ?? 0;
     if (rt < filters.minRuntimeMinutes) return false;
   }
-  if (filters.maxSeasons != null && (c.numberOfSeasons ?? 99) > filters.maxSeasons) return false;
+  if (c.mediaType === "tv" && filters.maxSeasons != null && (c.numberOfSeasons ?? 99) > filters.maxSeasons) return false;
   if (filters.maxCommitment && !levelAtMost(c.traits.commitment, filters.maxCommitment)) return false;
   if (filters.maxViolence && !levelAtMost(c.traits.violenceLevel, filters.maxViolence)) return false;
   if (filters.maxHorror && !levelAtMost(c.traits.horrorLevel, filters.maxHorror)) return false;
+  if (filters.minHorror && !levelAtLeast(c.traits.horrorLevel, filters.minHorror)) return false;
   if (filters.maxComplexity && !levelAtMost(c.traits.complexity, filters.maxComplexity)) return false;
   if (filters.minComplexity && !levelAtLeast(c.traits.complexity, filters.minComplexity)) return false;
   if (filters.maxEmotional && !levelAtMost(c.traits.emotionalImpact, filters.maxEmotional)) return false;
@@ -233,14 +241,16 @@ function passesHardFilters(
   if (filters.minMainstream === "balanced" && c.traits.mainstreamLevel === "hidden_gem") return false;
   if (filters.maxSubtitleEffort && !levelAtMost(c.traits.subtitleEffort, filters.maxSubtitleEffort)) return false;
   if (filters.requireGenres?.length) {
+    const all = [...c.genres, ...(c.genreKeys ?? [])];
     const hit = filters.requireGenres.some(g =>
-      c.genres.some(cg => cg.toLowerCase().includes(g.toLowerCase())),
+      all.some(cg => cg.toLowerCase().includes(g.toLowerCase())),
     );
     if (!hit) return false;
   }
   if (filters.excludeGenres?.length) {
+    const all = [...c.genres, ...(c.genreKeys ?? [])];
     const bad = filters.excludeGenres.some(g =>
-      c.genres.some(cg => cg.toLowerCase().includes(g.toLowerCase())),
+      all.some(cg => cg.toLowerCase().includes(g.toLowerCase())),
     );
     if (bad) return false;
   }
@@ -263,7 +273,7 @@ function applyEffectsToCandidate(
   effects: ScoringEffects,
   mode: NerdacoloMode,
 ): { score: number; reasons: string[]; penalties: string[]; eliminated: boolean } {
-  if (!passesHardFilters(c, effects.hardFilters, mode)) {
+  if (!passesHardFilters(c, effects.hardFilters)) {
     return { score: 0, reasons: [], penalties: ["incompatibile"], eliminated: true };
   }
 
@@ -347,6 +357,11 @@ function applyAnswerToCandidates(
     })
     .filter(c => c.score >= ELIMINATION_THRESHOLD)
     .sort((a, b) => b.score - a.score);
+
+  // Una richiesta troppo stretta per questo pool non deve svuotarlo.
+  if (prune && updated.length < 3) {
+    return { candidates, eliminatedCount: prevEliminated };
+  }
 
   // Taglio relativo: anche con risposte "morbide" ogni domanda elimina la coda
   // della classifica (~28%), così il restringimento si percepisce sempre.
@@ -446,6 +461,34 @@ export function calculateQuestionValue(
   );
 }
 
+/** Dopo "che serata è?" si approfondisce quella risposta, non una domanda a caso. */
+const FOLLOW_UP: Record<string, string> = {
+  cozy: "comedy-style",
+  laugh: "comedy-style",
+  mystery: "twist",
+  cry: "romance",
+  action: "pace",
+  scare: "horror",
+  weird: "scifi-depth",
+};
+
+/**
+ * Apertura fissa: cosa vuoi, quanto tempo hai, approfondimento. Solo dopo
+ * decide la formula statistica, che da sola non faceva quasi mai le domande
+ * legate a ciò che l'utente aveva appena chiesto.
+ */
+function scriptedQuestion(s: NerdacoloSessionState, pool: NerdacoloQuestion[]): NerdacoloQuestion | null {
+  const open = (id: string) => pool.find(q => q.id === id) ?? null;
+  const first = open("mood-night");
+  if (first) return first;
+  const time = s.mode === "tv" ? "time-tv" : s.mode === "movie" ? "time-movie" : null;
+  const second = time ? open(time) : null;
+  if (second) return second;
+  const mood = s.answers.find(a => a.questionId === "mood-night")?.answerId;
+  const follow = mood ? FOLLOW_UP[mood] : undefined;
+  return follow ? open(follow) : null;
+}
+
 export function chooseNextQuestion(
   sessionState: NerdacoloSessionState,
 ): NerdacoloQuestion | null {
@@ -455,6 +498,9 @@ export function chooseNextQuestion(
   const pool = questionsAvailable(sessionState);
 
   if (!pool.length) return null;
+
+  const scripted = scriptedQuestion(sessionState, pool);
+  if (scripted) return scripted;
 
   let best: NerdacoloQuestion | null = null;
   let bestVal = -Infinity;
@@ -650,16 +696,6 @@ export function answerQuestion(
   };
 }
 
-function traitLabelsFromAnswers(session: NerdacoloSessionState): string[] {
-  const labels: string[] = [];
-  for (const a of session.answers) {
-    const q = questionById(session.language, a.questionId);
-    const opt = q?.options.find(o => o.id === a.answerId);
-    if (opt) labels.push(opt.label.toLowerCase());
-  }
-  return labels.slice(-5);
-}
-
 /** Differenza chiave alt vs main — per un "perché no" concreto invece dei punti. */
 function keyDifference(main: NerdacoloCandidate, alt: NerdacoloCandidate, lang: Locale): string {
   const k = ncTexts(lang).keyDiff;
@@ -721,7 +757,7 @@ export function generateFinalRecommendation(
   const sorted = [...sessionState.candidates].sort((a, b) => b.score - a.score);
   const main = sorted[0]!;
   const confidence = computeConfidence(sorted);
-  const isBoldPick = confidence < 70;
+  const isBoldPick = confidence < 55;
   // Scelta audace → alternative volutamente diverse tra loro, non 3 cloni del main.
   const rawAlternatives = isBoldPick ? diverseAlternatives(sorted, main) : sorted.slice(1, 4);
 
@@ -736,7 +772,6 @@ export function generateFinalRecommendation(
 
   const lang = sessionState.language;
   const T = ncTexts(lang);
-  const answerLabels = traitLabelsFromAnswers(sessionState);
   const matchedTraits: string[] = [];
   if (main.traits.mysteryLevel === "high") matchedTraits.push(T.matched.mystery);
   if (main.traits.comedyLevel === "high") matchedTraits.push(T.matched.comedy);
@@ -751,10 +786,8 @@ export function generateFinalRecommendation(
     return `${alt.title}: ${penalty ?? keyDifference(main, alt, lang)}`;
   });
 
-  // Spiegazione con fatti veri del titolo (non la ripetizione delle risposte):
-  // genere/anno, durata o forma della serie, se era in lista, titoli amati
-  // affini, voto, e solo in coda il richiamo alle risposte.
-  const rated = sessionState.ratedTitles ?? [];
+  // Spiegazione con fatti veri del titolo: genere/anno, durata o forma della
+  // serie, se era in lista, di quale titolo amato è parente, voto.
   const parts: string[] = [isBoldPick ? T.explain.openBold(main.title) : T.explain.open(main.title)];
   const genreStr = main.genres.slice(0, 3).join(", ");
   if (genreStr) parts.push(T.explain.genreYear(genreStr, main.releaseYear));
@@ -763,11 +796,8 @@ export function generateFinalRecommendation(
     parts.push(T.explain.seriesShape(main.numberOfSeasons, main.numberOfEpisodes, main.episodeRuntime));
   }
   if (main.reasons.includes("in watchlist")) parts.push(T.explain.watchlist);
-  if (rated.length && main.reasons.includes("simile a titoli che hai amato")) {
-    parts.push(T.explain.lovedSimilar(rated.slice(0, 2).join(" / ")));
-  }
+  if (main.becauseOf) parts.push(T.explain.lovedSimilar(main.becauseOf));
   if (main.tmdbRating >= 7) parts.push(T.explain.rating(main.tmdbRating.toFixed(1)));
-  if (answerLabels.length) parts.push(T.explain.answers(answerLabels.join(", ")));
   parts.push(isBoldPick ? T.explain.bold : T.explain.discarded(sessionState.eliminatedCount));
   const explanation = parts.join(" ");
 

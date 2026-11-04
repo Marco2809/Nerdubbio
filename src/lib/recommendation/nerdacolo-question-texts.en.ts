@@ -5,7 +5,8 @@ export const NERDACOLO_QUESTION_TEXTS_EN: QuestionTextCatalog = {
     text: "What kind of night is it?",
     subtitle: "Nerdacolo is sniffing the couch vibes.",
     options: {
-      cozy: { label: "Couch, blanket, zero trauma", funnyReaction: "Your couch just sighed in relief." },
+            scare: { label: "I want chills and real fear", funnyReaction: "Lights off. The orb is not responsible for noises in the hallway." },
+cozy: { label: "Couch, blanket, zero trauma", funnyReaction: "Your couch just sighed in relief." },
       laugh: { label: "I want to laugh without using too many brain cells", funnyReaction: "Brain cells saved. Nerdacolo approves." },
       mystery: { label: "I want mystery and suspicion about everyone", funnyReaction: "Nobody's innocent until Nerdacolo says otherwise." },
       cry: { label: "I want to get emotionally wrecked", funnyReaction: "Tissues ready. The orb does not judge." },

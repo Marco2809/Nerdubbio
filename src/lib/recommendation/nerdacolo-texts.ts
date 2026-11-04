@@ -30,7 +30,6 @@ type NerdacoloTexts = {
     rating: (r: string) => string;
     lovedSimilar: (a: string) => string;
     watchlist: string;
-    answers: (labels: string) => string;
     bold: string;
     discarded: (n: number) => string;
   };
@@ -100,7 +99,6 @@ const IT: NerdacoloTexts = {
     rating: (r) => `Su TMDB ha ${r}/10.`,
     lovedSimilar: (a) => `Se hai amato ${a}, sei in zona.`,
     watchlist: "Ce l'avevi già in lista da vedere: è il momento.",
-    answers: (l) => `In linea con quello che hai chiesto: ${l}.`,
     bold: "Nessun titolo domina davvero: le alternative sotto sono volutamente diverse.",
     discarded: (n) => `Ho scartato ${n} titoli che non c'entravano.`,
   },
@@ -170,7 +168,6 @@ const EN: NerdacoloTexts = {
     rating: (r) => `It scores ${r}/10 on TMDB.`,
     lovedSimilar: (a) => `If you loved ${a}, you're in the right place.`,
     watchlist: "It was already on your watchlist: now's the time.",
-    answers: (l) => `Matches what you asked for: ${l}.`,
     bold: "No title really dominates: the alternatives below are deliberately different.",
     discarded: (n) => `I discarded ${n} titles that didn't fit.`,
   },
@@ -240,7 +237,6 @@ const ES: NerdacoloTexts = {
     rating: (r) => `En TMDB tiene ${r}/10.`,
     lovedSimilar: (a) => `Si te encantó ${a}, vas bien.`,
     watchlist: "Ya la tenías en tu lista: es el momento.",
-    answers: (l) => `En línea con lo que pediste: ${l}.`,
     bold: "Ningún título domina de verdad: las alternativas de abajo son distintas a propósito.",
     discarded: (n) => `He descartado ${n} títulos que no encajaban.`,
   },
@@ -310,7 +306,6 @@ const FR: NerdacoloTexts = {
     rating: (r) => `Sur TMDB, il a ${r}/10.`,
     lovedSimilar: (a) => `Si tu as adoré ${a}, tu es au bon endroit.`,
     watchlist: "Il était déjà dans ta liste : c'est le moment.",
-    answers: (l) => `En phase avec ce que tu as demandé : ${l}.`,
     bold: "Aucun titre ne domine vraiment : les alternatives ci-dessous sont volontairement différentes.",
     discarded: (n) => `J'ai écarté ${n} titres qui ne collaient pas.`,
   },
@@ -380,7 +375,6 @@ const DE: NerdacoloTexts = {
     rating: (r) => `Auf TMDB hat er ${r}/10.`,
     lovedSimilar: (a) => `Wenn du ${a} geliebt hast, bist du hier richtig.`,
     watchlist: "Stand schon auf deiner Watchlist: jetzt ist der Moment.",
-    answers: (l) => `Passt zu dem, was du wolltest: ${l}.`,
     bold: "Kein Titel dominiert wirklich: Die Alternativen unten sind bewusst unterschiedlich.",
     discarded: (n) => `Ich habe ${n} unpassende Titel aussortiert.`,
   },

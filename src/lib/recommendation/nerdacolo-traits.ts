@@ -1,5 +1,6 @@
 import type { Locale } from "@/lib/i18n";
 import { ncTexts } from "./nerdacolo-texts";
+import { tmdbGenreIds } from "./genre-map";
 import type { CatalogItem } from "@/lib/mock-catalog";
 import type {
   CommitmentLevel,
@@ -54,8 +55,10 @@ function levelFromScore(score: number, labels: [string, string, string, string])
 
 /** Euristiche trait — sostituibili in futuro con AI/keywords TMDB. */
 export function inferTraitsFromCatalog(item: CatalogItem): NerdacoloTraits {
-  const g = item.genres.map(x => x.toLowerCase());
-  const text = item.overview.toLowerCase();
+  // Sempre segnali indipendenti dalla lingua: generi canonici, trama inglese,
+  // keyword TMDB. Con i nomi tradotti "Azione" non era mai "action".
+  const g = (item.genreKeys ?? item.genres).map(x => x.toLowerCase());
+  const text = `${item.overviewEn || item.overview} ${(item.keywords ?? []).join(" ")}`.toLowerCase();
   const moods = item.moods;
 
   const has = (...keys: string[]) => g.some(x => keys.some(k => x.includes(k)));
@@ -65,21 +68,28 @@ export function inferTraitsFromCatalog(item: CatalogItem): NerdacoloTraits {
   if (has("horror", "crime", "war")) violence += 0.8;
   if (has("action")) violence += 0.4;
   if (moodHit("dark", "action", "thriller")) violence += 0.3;
-  if (/blood|kill|murder|war|brutal|violent/.test(text)) violence += 0.4;
+  if (/\b(blood\w*|killers?|murder\w*|war|brutal|violent|gore|massacre)\b/.test(text)) violence += 0.4;
 
+  // TMDB non ha il genere Horror per le serie: lì contano le keyword.
   let horror = has("horror") ? 1 : 0;
-  if (/ghost|demon|possess|nightmare/.test(text)) horror += 0.5;
+  // Le keyword sono forti; la trama pesa poco: "demoni" e "fantasmi" compaiono
+  // anche nel Signore degli Anelli, che non è un horror.
+  const kw = (item.keywords ?? []).join(" | ");
+  if (/\b(horror|slasher|zombie|haunted house|haunting|exorcism)\b/.test(kw)) horror += 0.8;
+  else if (/\b(haunted|ghosts?|demons?|slasher|zombies?)\b/.test(text)) horror += 0.3;
 
   let comedy = has("comedy", "commedia") ? 0.8 : 0;
   if (moodHit("funny", "cozy")) comedy += 0.5;
-  if (/funny|laugh|hilar/.test(text)) comedy += 0.3;
+  if (/\b(funny|hilarious|parody|sitcom|satire)\b/.test(text)) comedy += 0.3;
+  // Parasite è "Commedia" per TMDB, ma non è una serata leggera.
+  if (has("thriller", "horror", "war", "crime")) comedy -= 0.7;
 
   let romance = has("romance", "romantic") ? 0.8 : 0;
   if (moodHit("romantic")) romance += 0.5;
 
   let mystery = has("mystery", "mistero", "thriller") ? 0.6 : 0;
   if (moodHit("mind-bending", "thriller")) mystery += 0.5;
-  if (/mystery|twist|conspir|secret|detective/.test(text)) mystery += 0.3;
+  if (/\b(mystery|plot twist|conspiracy|detective|whodunit)\b/.test(text)) mystery += 0.3;
 
   let pace: PaceLevel = "medium";
   if (moodHit("fast-paced", "action")) pace = "fast";
@@ -113,8 +123,14 @@ export function inferTraitsFromCatalog(item: CatalogItem): NerdacoloTraits {
     else if (seasons >= 5) commitment = "long";
   }
 
+  // Quanto è conosciuto: i voti ricevuti misurano la fama meglio della
+  // popolarità TMDB, che su questa scala rendeva "chicca" anche Interstellar.
   let mainstream: MainstreamLevel = "balanced";
-  if (item.popularity >= 85 || moodHit("iconic")) mainstream = "mainstream";
+  if (item.voteCount != null) {
+    const [gem, famous] = item.type === "movie" ? [800, 6000] : [200, 1500];
+    if (item.voteCount >= famous || moodHit("iconic")) mainstream = "mainstream";
+    else if (item.voteCount < gem) mainstream = "hidden_gem";
+  } else if (item.popularity >= 85 || moodHit("iconic")) mainstream = "mainstream";
   else if (item.popularity <= 45 || moodHit("hidden-gem")) mainstream = "hidden_gem";
 
   let comfort: "low" | "medium" | "high" = "medium";
@@ -160,10 +176,16 @@ export function inferTraitsFromCatalog(item: CatalogItem): NerdacoloTraits {
   };
 }
 
+/** Voto TMDB pesato sui voti ricevuti: un 9.7 con 30 voti non vale un 8.5 con 20.000. */
+function weightedRating(item: CatalogItem): number {
+  if (item.voteCount == null) return item.rating;
+  const prior = 200;
+  return (item.voteCount * item.rating + prior * 6.8) / (item.voteCount + prior);
+}
+
 export function catalogToCandidate(
   item: CatalogItem,
   profile: NerdacoloUserContext,
-  highlyRatedGenres: Set<string>,
 ): NerdacoloCandidate {
   const traits = inferTraitsFromCatalog(item);
   const mediaKey = `${item.type}-${item.tmdb_id}`;
@@ -171,9 +193,15 @@ export function catalogToCandidate(
   const penalties: string[] = [];
   let score = 50;
 
-  const genreOverlap = item.genres.filter(g => profile.favoriteGenres.includes(g)).length;
+  // Confronto per ID: i preferiti sono salvati in inglese, i titoli arrivano
+  // tradotti, quindi per nome in italiano non combaciavano mai.
+  const favIds = new Set(tmdbGenreIds(profile.favoriteGenres, item.type));
+  const genreOverlap = item.genreIds
+    ? item.genreIds.filter(id => favIds.has(id)).length
+    : item.genres.filter(g => profile.favoriteGenres.includes(g)).length;
   if (genreOverlap > 0) {
-    score += genreOverlap * 6;
+    // Tetto: i gusti orientano, ma devono decidere le risposte di stasera.
+    score += Math.min(genreOverlap, 2) * 5;
     reasons.push("generi che ami");
   }
 
@@ -182,16 +210,16 @@ export function catalogToCandidate(
     reasons.push("in watchlist");
   }
 
-  const similarGenres = item.genres.filter(g => highlyRatedGenres.has(g)).length;
-  if (similarGenres > 0) {
-    score += similarGenres * 5;
-    reasons.push("simile a titoli che hai amato");
+  if (item.becauseOf) {
+    score += 14;
+    reasons.push("parente di un titolo amato");
   }
 
-  if (item.rating >= 8) {
-    score += (item.rating - 7) * 3;
+  const rating = weightedRating(item);
+  if (rating >= 7.5) {
+    score += (rating - 7) * 4;
     reasons.push(`TMDB ${item.rating.toFixed(1)}`);
-  } else if (item.rating < 6.5) {
+  } else if (rating < 6.5) {
     score -= 12;
     penalties.push("voto TMDB basso");
   }
@@ -212,7 +240,7 @@ export function catalogToCandidate(
     }
   }
 
-  if (!item.overview || item.overview.length < 20) {
+  if ((item.overviewEn || item.overview || "").length < 20) {
     score -= 8;
     penalties.push("poche info");
   }
@@ -223,7 +251,10 @@ export function catalogToCandidate(
     title: item.title,
     overview: item.overview,
     genres: item.genres,
-    keywords: [],
+    keywords: item.keywords ?? [],
+    genreKeys: item.genreKeys,
+    becauseOf: item.becauseOf,
+    numberOfEpisodes: item.episodes,
     runtimeMinutes: item.type === "movie" ? item.runtimeMin : undefined,
     episodeRuntime: item.type === "tv" ? item.runtimeMin : undefined,
     numberOfSeasons: item.seasons,
@@ -239,18 +270,6 @@ export function catalogToCandidate(
     penalties,
     mediaKey,
   };
-}
-
-export function buildHighlyRatedGenreSet(
-  catalog: CatalogItem[],
-  highlyRatedIds: string[],
-): Set<string> {
-  const genres = new Set<string>();
-  for (const id of highlyRatedIds) {
-    const item = catalog.find(c => c.id === id || `${c.type}-${c.tmdb_id}` === id);
-    item?.genres.forEach(g => genres.add(g));
-  }
-  return genres;
 }
 
 export function commitmentLabel(c: NerdacoloCandidate, lang?: Locale): string {

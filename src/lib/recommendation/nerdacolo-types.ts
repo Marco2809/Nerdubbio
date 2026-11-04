@@ -35,6 +35,10 @@ export type NerdacoloCandidate = {
   title: string;
   overview: string;
   genres: string[];
+  /** Generi canonici (inglese), per i filtri indipendenti dalla lingua. */
+  genreKeys?: string[];
+  /** Titolo amato dall'utente di cui questo è parente secondo TMDB. */
+  becauseOf?: string;
   keywords: string[];
   runtimeMinutes?: number;
   episodeRuntime?: number;
@@ -98,6 +102,7 @@ export type ScoringEffects = {
     maxMainstream?: MainstreamLevel;
     maxViolence?: TraitLevel;
     maxHorror?: TraitLevel;
+    minHorror?: TraitLevel;
     maxComplexity?: ComplexityLevel;
     minComplexity?: ComplexityLevel;
     maxEmotional?: EmotionalLevel;
@@ -215,7 +220,7 @@ export type NerdacoloFinalResult = {
   similarTo: string[];
 };
 
-export const MAX_QUESTIONS = 6;
+export const MAX_QUESTIONS = 5;
 /** Sotto questa soglia di domande non si chiude per confidence/gap: il gap
     iniziale viene dal pool, non dalle risposte dell'utente. */
 export const MIN_QUESTIONS = 3;

@@ -5,7 +5,8 @@ export const NERDACOLO_QUESTION_TEXTS_FR: QuestionTextCatalog = {
     text: "Quel genre de soirée c'est ?",
     subtitle: "Nerdacolo sniffe l'ambiance du canapé.",
     options: {
-      cozy: { label: "Canapé, couverture et zéro traumatisme", funnyReaction: "Ton canapé vient de pousser un soupir de soulagement." },
+            scare: { label: "Je veux des frissons et une vraie peur", funnyReaction: "Lumières éteintes. La sphère décline toute responsabilité pour les bruits du couloir." },
+cozy: { label: "Canapé, couverture et zéro traumatisme", funnyReaction: "Ton canapé vient de pousser un soupir de soulagement." },
       laugh: { label: "Je veux rire sans trop utiliser mes neurones", funnyReaction: "Neurones économisés. Nerdacolo approuve." },
       mystery: { label: "Je veux du mystère et des soupçons sur tout le monde", funnyReaction: "Personne n'est innocent tant que Nerdacolo n'a pas dit le contraire." },
       cry: { label: "Je veux me faire détruire émotionnellement", funnyReaction: "Mouchoirs prêts. La sphère ne juge pas." },
