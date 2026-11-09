@@ -176,6 +176,7 @@ if ($action === 'export') {
         'recommendations' => $rows('SELECT * FROM recommendations WHERE from_user = ? OR to_user = ?', [$uid, $uid]),
         'reminders'       => $rows('SELECT * FROM user_reminders WHERE user_id = ?', [$uid]),
         'groupVotes'      => $rows('SELECT * FROM nerdacolo_votes WHERE user_id = ?', [$uid]),
+        'cinemas'         => $rows('SELECT c.id, c.city, c.name, uc.created_at FROM user_cinemas uc JOIN cinemas c ON c.id = uc.cinema_id WHERE uc.user_id = ?', [$uid]),
     ]);
 }
 

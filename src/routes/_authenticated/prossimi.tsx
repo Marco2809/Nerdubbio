@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState, type ReactNode } from "react";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
@@ -16,6 +16,8 @@ import {
   type NextEpisodeInfo,
 } from "@/lib/tmdb/tmdb.functions";
 import { ReleaseCalendar, type CalendarMode } from "@/components/nerdubbio/ReleaseCalendar";
+import { ReleasePreviewDialog, type ReleasePreviewItem } from "@/components/nerdubbio/ReleasePreviewDialog";
+import { MyCinemasSection } from "@/components/nerdubbio/MyCinemasSection";
 import {
   eventsFromMovies,
   eventsFromNextEpisodes,
@@ -57,6 +59,7 @@ function ProssimiPage() {
   const { provider: providerId } = Route.useSearch();
   const navigate = useNavigate({ from: "/prossimi" });
   const [calendarMode, setCalendarMode] = useState<CalendarMode>("all");
+  const [preview, setPreview] = useState<ReleasePreviewItem | null>(null);
   const showSeries = calendarMode !== "cinema";
   const showCinema = calendarMode !== "series";
 
@@ -275,13 +278,16 @@ function ProssimiPage() {
             items={upcomingTvItems}
             initial={3}
             render={it => (
-              <NextEpisodeCard key={it.tmdb_id} it={it} followed={followedSet.has(it.tmdb_id)} />
+              <NextEpisodeCard key={it.tmdb_id} it={it} followed={followedSet.has(it.tmdb_id)}
+                onOpen={() => setPreview(previewFromEpisode(it, t))} />
             )}
           />
         )}
       </section>
       )}
 
+
+      {showCinema && <MyCinemasSection onOpen={setPreview} />}
 
       {showCinema && filters.includeMovies && (
         <section className="mb-8">
@@ -306,13 +312,37 @@ function ProssimiPage() {
               items={movies}
               initial={3}
               className="grid grid-cols-1 gap-3"
-              render={m => <UpcomingMovieCard key={m.tmdb_id} m={m} />}
+              render={m => <UpcomingMovieCard key={m.tmdb_id} m={m} onOpen={() => setPreview(previewFromMovie(m, t))} />}
             />
           )}
         </section>
       )}
+
+      <ReleasePreviewDialog item={preview} onClose={() => setPreview(null)} />
     </AppShell>
   );
+}
+
+type T = ReturnType<typeof useI18n>["t"];
+
+function previewFromEpisode(it: NextEpisodeInfo, t: T): ReleasePreviewItem {
+  const ev = it.nextEpisode;
+  const what = !ev ? ""
+    : ev.kind === "episode" ? `S${ev.season} · E${ev.episode}`
+    : t("prossimi.newSeason", { n: ev.season });
+  return {
+    type: "tv", tmdbId: it.tmdb_id, title: it.title, posterUrl: it.posterUrl,
+    when: [ev ? formatDate(ev.airDate) : "", what].filter(Boolean).join(" · "),
+    overview: ev?.overview || undefined,
+  };
+}
+
+function previewFromMovie(m: UpcomingMovie, t: T): ReleasePreviewItem {
+  return {
+    type: "movie", tmdbId: m.tmdb_id, title: m.title, posterUrl: m.posterUrl, year: m.year,
+    when: `${formatDate(m.releaseDate)} · ${t("prossimi.cinemaBadge")}`,
+    overview: m.overview || undefined,
+  };
 }
 
 function ShowMoreList<T>({
@@ -372,11 +402,10 @@ function ProviderStrip({ providers, label = "Su" }: { providers: ProviderInfo[];
   );
 }
 
-function NextEpisodeCard({ it, followed = false }: { it: NextEpisodeInfo; followed?: boolean }) {
+function NextEpisodeCard({ it, followed = false, onOpen }: { it: NextEpisodeInfo; followed?: boolean; onOpen: () => void }) {
   const ev = it.nextEpisode;
   return (
-    <Link to="/media/$type/$id" params={{ type: "tv", id: `tv-${it.tmdb_id}` }}
-      className="glass block rounded-2xl p-3">
+    <button type="button" onClick={onOpen} className="glass block w-full rounded-2xl p-3 text-left">
       <div className="flex gap-3">
         {it.posterUrl
           ? <img src={it.posterUrl} alt={it.title} className="h-24 w-16 rounded-xl object-cover" />
@@ -414,14 +443,13 @@ function NextEpisodeCard({ it, followed = false }: { it: NextEpisodeInfo; follow
           <div className="mt-2"><ProviderStrip providers={it.providers} /></div>
         </div>
       </div>
-    </Link>
+    </button>
   );
 }
 
-function UpcomingMovieCard({ m }: { m: UpcomingMovie }) {
+function UpcomingMovieCard({ m, onOpen }: { m: UpcomingMovie; onOpen: () => void }) {
   return (
-    <Link to="/media/$type/$id" params={{ type: "movie", id: `movie-${m.tmdb_id}` }}
-      className="glass block overflow-hidden rounded-2xl">
+    <button type="button" onClick={onOpen} className="glass block w-full overflow-hidden rounded-2xl text-left">
       <div className="flex gap-3 p-3">
         {m.posterUrl
           ? <img src={m.posterUrl} alt={m.title} className="h-28 w-20 shrink-0 rounded-xl object-cover" />
@@ -441,7 +469,7 @@ function UpcomingMovieCard({ m }: { m: UpcomingMovie }) {
           {m.overview && <p className="mt-1 line-clamp-2 text-xs text-foreground/80">{m.overview}</p>}
         </div>
       </div>
-    </Link>
+    </button>
   );
 }
 

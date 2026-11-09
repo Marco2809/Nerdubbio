@@ -834,31 +834,99 @@ export interface UpcomingMovie extends TmdbItem {
   releaseDate: string;
   providers: ProviderInfo[];
 }
+
+export interface CinemaTitleMatch {
+  title: string;
+  match: TmdbItem | null;
+}
+
+/**
+ * Abbina i titoli dei programmi dei cinema (I miei cinema) a TMDB. Diverso da
+ * tmdbMatchTitles: un film in sala è recente, quindi fra gli omonimi vince il
+ * più nuovo, non il più votato di sempre. Toglie «V.O.», «3D», «IMAX»…
+ */
+export const tmdbMatchCinemaTitles = createServerFn({ method: "POST" })
+  .inputValidator((data) => z.object({
+    titles: z.array(z.string().min(1).max(200)).max(80),
+    locale: z.string().optional(),
+  }).parse(data))
+  .handler(async ({ data }) => runWithLocale(data.locale, async () => {
+    const minYear = new Date().getFullYear() - 2;
+    const clean = (t: string) => t
+      .replace(/\s*[-–(\[]\s*(v\.?\s?o\.?|versione originale|lingua originale|sottotitolat\w*|3d|imax|4dx|dolby atmos|evento speciale)(?![a-z])[^)\]]*[)\]]?\s*$/i, "")
+      .trim();
+    const results: CinemaTitleMatch[] = await Promise.all(data.titles.map(async (title) => {
+      try {
+        const res = await tmdb<any>(`/search/movie`, { query: clean(title) || title, include_adult: "false", region: "IT", page: 1 });
+        const raws: any[] = (res.results ?? []).slice(0, 10);
+        const recent = raws
+          .filter(r => Number(String(r.release_date ?? "").slice(0, 4)) >= minYear)
+          .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
+        const best = recent[0];
+        return { title, match: best ? mapMulti({ ...best, media_type: "movie" }) : null };
+      } catch {
+        return { title, match: null };
+      }
+    }));
+    return { results };
+  }));
+
+/** Prima uscita al cinema (tipo 2 o 3) nel paese, da /release_dates. Null se non c'è. */
+async function regionalReleaseDate(movieId: number, region: string): Promise<string | null> {
+  try {
+    const res = await tmdb<any>(`/movie/${movieId}/release_dates`);
+    const country = (res.results ?? []).find((c: any) => c.iso_3166_1 === region);
+    const dates: string[] = (country?.release_dates ?? [])
+      .filter((d: any) => d.type === 2 || d.type === 3)
+      .map((d: any) => String(d.release_date ?? "").slice(0, 10))
+      .filter(Boolean)
+      .sort();
+    return dates[0] ?? null;
+  } catch {
+    return null;
+  }
+}
 export const tmdbUpcomingMovies = createServerFn({ method: "GET" })
   .inputValidator((data) => z.object({ region: z.string().length(2).default("IT"), locale: z.string().optional() }).parse(data ?? {}))
   .handler(async ({ data }) => runWithLocale(data.locale, async () => {
     const now = new Date();
     const in90 = new Date(now.getTime() + 90 * 86400000);
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
-    const res = await tmdb<any>(`/discover/movie`, {
+    const from = fmt(now);
+    const to = fmt(in90);
+    // release_date (non primary_release_date): con region conta l'uscita in
+    // quel paese, così entra anche il film uscito in USA il mese scorso che
+    // arriva da noi la settimana prossima.
+    const pages = await Promise.all([1, 2].map(page => tmdb<any>(`/discover/movie`, {
       region: data.region,
       sort_by: "popularity.desc",
-      "primary_release_date.gte": fmt(now),
-      "primary_release_date.lte": fmt(in90),
+      "release_date.gte": from,
+      "release_date.lte": to,
       with_release_type: "3|2",
       include_adult: "false",
-      page: 1,
-    });
-    const raws = (res.results ?? []).slice(0, 30);
-    const items: UpcomingMovie[] = await Promise.all(raws.map(async (r: any) => {
+      page,
+    }).catch(() => ({ results: [] }))));
+    const seen = new Set<number>();
+    const minYear = now.getFullYear() - 1;
+    const raws = pages.flatMap(res => res.results ?? []).filter((r: any) => {
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      // Le riedizioni di film vecchi non sono uscite: in discover release_date
+      // è la prima uscita mondiale.
+      return Number(String(r.release_date ?? "").slice(0, 4)) >= minYear;
+    }).slice(0, 30);
+    const found = await Promise.all(raws.map(async (r: any): Promise<UpcomingMovie | null> => {
+      const releaseDate = await regionalReleaseDate(r.id, data.region);
+      if (!releaseDate || releaseDate < from || releaseDate > to) return null;
       const base = mapMulti({ ...r, media_type: "movie" })!;
       let providers: ProviderInfo[] = [];
       try {
         const wp = await fetchProviders("movie", r.id, data.region);
         providers = wp.flatrate.length ? wp.flatrate : wp.rent.length ? wp.rent : wp.buy;
       } catch { /* ignore */ }
-      return { ...base, releaseDate: r.release_date ?? "", providers };
+      return { ...base, releaseDate, providers };
     }));
+    const items = found.filter((x): x is UpcomingMovie => x !== null);
     // Ordine cronologico ascendente (prima le uscite più vicine).
     items.sort((a, b) => {
       if (!a.releaseDate) return 1;
