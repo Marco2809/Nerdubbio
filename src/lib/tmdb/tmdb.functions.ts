@@ -33,6 +33,9 @@ export interface TmdbItem {
   /** ID genere: a differenza dei nomi non dipendono dalla lingua. */
   genreIds?: number[];
   episodes?: number;
+  /** La stagione in onda (o con la prossima puntata in calendario), per il calendario delle uscite. */
+  airingSeason?: number;
+  originCountry?: string[];
   /** Solo se richiesti con append_to_response (Nerdacolo). */
   keywords?: string[];
   overviewEn?: string;
@@ -202,6 +205,16 @@ function mapMulti(r: any): TmdbItem | null {
   };
 }
 
+/** La stagione della prossima puntata, o dell'ultima se è uscita da meno di 3 settimane (date mancanti). */
+function airingSeasonOf(r: any): number | undefined {
+  const next = r.next_episode_to_air;
+  if (next?.season_number > 0) return next.season_number;
+  const last = r.last_episode_to_air;
+  const limit = new Date(Date.now() - 21 * 86400000).toISOString().slice(0, 10);
+  if (last?.season_number > 0 && typeof last.air_date === "string" && last.air_date >= limit) return last.season_number;
+  return undefined;
+}
+
 function mapDetail(r: any, type: "movie" | "tv"): TmdbItem {
   const title = type === "movie" ? r.title : r.name;
   const dateStr = type === "movie" ? r.release_date : r.first_air_date;
@@ -232,6 +245,8 @@ function mapDetail(r: any, type: "movie" | "tv"): TmdbItem {
     seriesStatus: type === "tv" ? (r.status ?? undefined) : undefined,
     genreIds: (r.genres ?? []).map((g: any) => Number(g.id)).filter(Boolean),
     episodes: type === "tv" ? r.number_of_episodes ?? undefined : undefined,
+    airingSeason: type === "tv" ? airingSeasonOf(r) : undefined,
+    originCountry: type === "tv" && Array.isArray(r.origin_country) ? r.origin_country : undefined,
     keywords: (r.keywords?.keywords ?? r.keywords?.results)?.map((k: any) => String(k.name).toLowerCase()),
     overviewEn: r.translations?.translations
       ?.find((t: any) => t.iso_639_1 === "en")?.data?.overview || undefined,
@@ -499,6 +514,8 @@ export interface EpisodeInfo {
   voteAverage: number;
   voteCount: number;
   stillUrl: string | null;
+  /** "standard" | "finale" | "mid_season" */
+  episodeType?: string;
 }
 /** Nome episodio "segnaposto" TMDB (nessuna traduzione reale) in varie lingue. */
 function isGenericEpisodeName(name: string | undefined | null): boolean {
@@ -549,6 +566,7 @@ export const tmdbSeason = createServerFn({ method: "GET" })
         voteAverage: Number(e.vote_average ?? 0),
         voteCount: Number(e.vote_count ?? 0),
         stillUrl: e.still_path ? `${IMG_BASE}/w300${e.still_path}` : null,
+        episodeType: e.episode_type ?? undefined,
       };
     });
     return {

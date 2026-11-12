@@ -10,6 +10,7 @@ import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, tmdbWatchProviders, tm
 import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
 import { TrailerSection } from "@/components/nerdubbio/TrailerSection";
 import { ItaSection } from "@/components/nerdubbio/ItaSection";
+import { AiringScheduleSection } from "@/components/nerdubbio/AiringScheduleSection";
 import { useReturnPath, useSmartBack } from "@/lib/media-nav";
 import { applyShowProgressAfterWatch, formatSeriesStatusLabel } from "@/lib/check-show-after-watch";
 import { toast } from "@/lib/toast";
@@ -239,6 +240,15 @@ function MediaDetail() {
 
         {shouldFetchTmdb && (item.type === "movie" || item.type === "tv") && (
           <ItaSection type={item.type} tmdbId={numericId} />
+        )}
+
+        {item.type === "tv" && tmdbQuery.data?.item.airingSeason && (
+          <AiringScheduleSection
+            tmdbId={numericId}
+            season={tmdbQuery.data.item.airingSeason}
+            seriesStatus={seriesStatus}
+            originCountry={tmdbQuery.data.item.originCountry}
+          />
         )}
 
         <RecapSection
