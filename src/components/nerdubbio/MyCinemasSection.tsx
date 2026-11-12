@@ -21,20 +21,14 @@ function nowHHMM(): string {
 }
 
 /**
- * I miei cinema: fino a 6 sale scelte dall'utente, orari giorno per giorno e
- * film per film, un cinema per riga per confrontarli. Toccando il film si apre
- * la scheda dell'uscita (trailer, «Da vedere»).
+ * La programmazione dei cinema dell'utente con l'abbinamento a TMDB. Le query
+ * hanno le stesse chiavi ovunque, quindi la sezione e l'elenco delle uscite
+ * condividono la cache (una sola lettura).
  */
-export function MyCinemasSection({ onOpen }: { onOpen: (item: ReleasePreviewItem) => void }) {
-  const { t, locale } = useI18n();
-  const [picking, setPicking] = useState(false);
-  const [day, setDay] = useState<string | null>(null);
-
+export function useMyCinemaFilms() {
+  const { locale } = useI18n();
   const mine = useQuery({ queryKey: MINE_KEY, queryFn: () => cinemaApi.mine(), staleTime: 1000 * 60 * 30 });
-  const data = mine.data;
-  const days = useMemo(() => data?.days ?? [], [data]);
-  const current = days.find(d => d.day === day) ?? days[0];
-
+  const days = useMemo(() => mine.data?.days ?? [], [mine.data]);
   const titles = useMemo(
     () => Array.from(new Set(days.flatMap(d => d.films.map(f => f.title)))).slice(0, 80),
     [days],
@@ -51,6 +45,23 @@ export function MyCinemasSection({ onOpen }: { onOpen: (item: ReleasePreviewItem
     for (const r of matches.data?.results ?? []) if (r.match) m.set(r.title, r.match);
     return m;
   }, [matches.data]);
+  return { mine, days, matchOf };
+}
+
+/**
+ * I miei cinema: fino a 6 sale scelte dall'utente, orari giorno per giorno e
+ * film per film, un cinema per riga per confrontarli. Toccando il film si apre
+ * la scheda dell'uscita (trailer, «Da vedere»).
+ */
+export function MyCinemasSection({ onOpen }: { onOpen: (item: ReleasePreviewItem) => void }) {
+  const { t, locale } = useI18n();
+  const [picking, setPicking] = useState(false);
+  const [day, setDay] = useState<string | null>(null);
+
+  const { mine, days, matchOf } = useMyCinemaFilms();
+  const data = mine.data;
+  const current = days.find(d => d.day === day) ?? days[0];
+  const tmdbLocale = localeToBcp47(locale);
 
   const dayLabel = (iso: string) => {
     const today = isoToday();

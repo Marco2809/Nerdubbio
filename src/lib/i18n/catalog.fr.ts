@@ -203,6 +203,7 @@ export default {
     noProvider: "Aucun provider IT",
     addedToWatch: "« {{title}} » ajouté à À voir",
     inLibrary: "Dans ta bibliothèque",
+    atMyCinema: "Déjà à l'affiche dans tes cinémas",
     openPage: "Ouvrir la fiche",
     loadingTrailer: "Recherche de la bande-annonce…",
     noTrailer: "Pas encore de bande-annonce",

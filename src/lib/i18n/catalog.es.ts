@@ -203,6 +203,7 @@ export default {
     noProvider: "Sin proveedor IT",
     addedToWatch: "«{{title}}» añadido a Por ver",
     inLibrary: "En tu biblioteca",
+    atMyCinema: "Ya en cartelera en tus cines",
     openPage: "Abrir ficha",
     loadingTrailer: "Buscando el tráiler…",
     noTrailer: "Aún no hay tráiler",

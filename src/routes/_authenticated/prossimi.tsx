@@ -17,7 +17,7 @@ import {
 } from "@/lib/tmdb/tmdb.functions";
 import { ReleaseCalendar, type CalendarMode } from "@/components/nerdubbio/ReleaseCalendar";
 import { ReleasePreviewDialog, type ReleasePreviewItem } from "@/components/nerdubbio/ReleasePreviewDialog";
-import { MyCinemasSection } from "@/components/nerdubbio/MyCinemasSection";
+import { MyCinemasSection, useMyCinemaFilms } from "@/components/nerdubbio/MyCinemasSection";
 import {
   eventsFromMovies,
   eventsFromNextEpisodes,
@@ -26,7 +26,7 @@ import {
   type CalendarEvent,
 } from "@/lib/release-calendar";
 import { listTvShowsForNextEpisode, tmdbIdFromMediaKey } from "@/lib/next-episode";
-import { CalendarDays, CircleCheck, Film, Popcorn, MapPin, Sparkles, X } from "lucide-react";
+import { CalendarDays, CircleCheck, Film, Popcorn, MapPin, Sparkles, Ticket, X } from "lucide-react";
 
 const searchSchema = z.object({
   provider: fallback(z.number().int().positive().optional(), undefined),
@@ -159,7 +159,14 @@ function ProssimiPage() {
     !providerId || x.providers.some(p => p.id === providerId);
 
   const upcomingTvItems = rawUpcomingTv.filter(matchesProvider);
-  const movies = rawMovies; // il filtro provider non si applica ai film al cinema
+  // il filtro provider non si applica ai film al cinema. Prima quelli già in
+  // programmazione ai miei cinema (Marco, 12/11), poi in ordine di uscita.
+  const { matchOf: cinemaMatchOf } = useMyCinemaFilms();
+  const atMyCinema = useMemo(() => new Set(Array.from(cinemaMatchOf.values(), m => m.tmdb_id)), [cinemaMatchOf]);
+  const movies = useMemo(
+    () => [...rawMovies].sort((a, b) => Number(atMyCinema.has(b.tmdb_id)) - Number(atMyCinema.has(a.tmdb_id))),
+    [rawMovies, atMyCinema],
+  );
 
   const setProvider = (id: number | undefined) =>
     navigate({ search: { provider: id }, replace: true });
@@ -312,7 +319,7 @@ function ProssimiPage() {
               items={movies}
               initial={3}
               className="grid grid-cols-1 gap-3"
-              render={m => <UpcomingMovieCard key={m.tmdb_id} m={m} inLibrary={!!state.media[`movie-${m.tmdb_id}`]} onOpen={() => setPreview(previewFromMovie(m, t))} />}
+              render={m => <UpcomingMovieCard key={m.tmdb_id} m={m} inLibrary={!!state.media[`movie-${m.tmdb_id}`]} atMyCinema={atMyCinema.has(m.tmdb_id)} onOpen={() => setPreview(previewFromMovie(m, t))} />}
             />
           )}
         </section>
@@ -447,7 +454,7 @@ function NextEpisodeCard({ it, followed = false, onOpen }: { it: NextEpisodeInfo
   );
 }
 
-function UpcomingMovieCard({ m, onOpen, inLibrary = false }: { m: UpcomingMovie; onOpen: () => void; inLibrary?: boolean }) {
+function UpcomingMovieCard({ m, onOpen, inLibrary = false, atMyCinema = false }: { m: UpcomingMovie; onOpen: () => void; inLibrary?: boolean; atMyCinema?: boolean }) {
   const { t } = useI18n();
   return (
     <button type="button" onClick={onOpen}
@@ -462,6 +469,11 @@ function UpcomingMovieCard({ m, onOpen, inLibrary = false }: { m: UpcomingMovie;
             {inLibrary && (
               <span role="img" aria-label={t("prossimi.inLibrary")} title={t("prossimi.inLibrary")} className="shrink-0 text-emerald-500">
                 <CircleCheck className="h-4 w-4" />
+              </span>
+            )}
+            {atMyCinema && (
+              <span role="img" aria-label={t("prossimi.atMyCinema")} title={t("prossimi.atMyCinema")} className="shrink-0 text-accent">
+                <Ticket className="h-4 w-4" />
               </span>
             )}
             <span className="shrink-0 rounded-full bg-neon px-2 py-0.5 text-[10px] font-bold text-primary-foreground">

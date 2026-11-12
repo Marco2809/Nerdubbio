@@ -203,6 +203,7 @@ export default {
     noProvider: "Nessun provider IT",
     addedToWatch: "«{{title}}» aggiunto a Da vedere",
     inLibrary: "Nella tua libreria",
+    atMyCinema: "Già in programmazione ai tuoi cinema",
     openPage: "Apri la scheda",
     loadingTrailer: "Cerco il trailer…",
     noTrailer: "Nessun trailer per ora",
