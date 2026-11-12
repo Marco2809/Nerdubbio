@@ -218,6 +218,144 @@ function ita_kind_of(array $d, string $type): string {
  * Ritorna i dati per la pagina: kind, stato (completa|in_corso|inedita|ignoto),
  * short (bollino), text, seasons, next, dubbing, where, source, read_at, airing.
  */
+/**
+ * Il calendario di una stagione (Marco, 12/11) da [[numero, data|null], ...]: ritmo, date e
+ * date mancanti in fondo stimate dal ritmo. Stessa forma di src/lib/airing-schedule.ts, così la
+ * pagina formatta tutto nella lingua dell'utente. null se non ci sono date o è già uscito tutto.
+ */
+function ita_schedule(array $ep, string $today): ?array {
+    $ep = array_values(array_filter($ep, fn($e) => $e[0] > 0));
+    usort($ep, fn($x, $y) => $x[0] <=> $y[0]);
+    $byDate = [];
+    foreach ($ep as [$num, $a]) if ($a) $byDate[$a][] = $num;
+    if (!$byDate) return null;
+    ksort($byDate);
+    $dates = array_keys($byDate);
+    $rhythm = null;
+    $step = 0;
+    $perDrop = 1;
+    if (count($dates) === 1 && count($ep) > 1 && count($byDate[$dates[0]]) === count($ep)) {
+        $rhythm = ['kind' => 'allAtOnce'];
+    } elseif (count($dates) >= 3) {
+        $gaps = [];
+        for ($i = 1; $i < count($dates); $i++) $gaps[] = (int) round((strtotime($dates[$i]) - strtotime($dates[$i - 1])) / 86400);
+        sort($gaps);
+        $median = $gaps[intdiv(count($gaps), 2)];
+        $freq = array_count_values(array_map('count', array_slice(array_values($byDate), 1)));
+        arsort($freq);
+        $perDrop = (int) array_key_first($freq);
+        $premiere = count($byDate[$dates[0]]) > $perDrop ? count($byDate[$dates[0]]) : null;
+        $weekdays = array_values(array_unique(array_map(fn($a) => (int) date('w', strtotime($a)), array_slice($dates, 1))));
+        sort($weekdays);
+        if ($median === 7 && count($weekdays) === 1) { $step = 7; $rhythm = ['kind' => 'weekly', 'weekdays' => $weekdays, 'perDrop' => $perDrop, 'premiere' => $premiere]; }
+        elseif ($median === 1) { $step = 1; $rhythm = ['kind' => 'daily', 'perDrop' => $perDrop, 'premiere' => $premiere]; }
+        elseif ($gaps[count($gaps) - 1] <= 7 && count($weekdays) <= 3) $rhythm = ['kind' => 'weekly', 'weekdays' => $weekdays, 'perDrop' => $perDrop, 'premiere' => $premiere];
+    }
+    $calendar = [];
+    foreach ($byDate as $a => $nn) $calendar[] = ['date' => $a, 'episodes' => $nn, 'estimated' => false];
+    $lastKnown = max(array_merge(...array_values($byDate)));
+    $missing = array_values(array_filter(array_column($ep, 0), fn($x) => $x > $lastKnown));
+    if ($missing && $step) {
+        $a = end($dates);
+        foreach (array_chunk($missing, $perDrop) as $group) {
+            $a = date('Y-m-d', strtotime("$a +$step days"));
+            $calendar[] = ['date' => $a, 'episodes' => $group, 'estimated' => true];
+        }
+    }
+    if (end($calendar)['date'] < $today) return null;
+    return ['rhythm' => $rhythm, 'calendar' => $calendar, 'total' => count($ep), 'undated' => $missing && !$step ? count($missing) : 0];
+}
+
+const ITA_ORDINALS = ['prima', 'seconda', 'terza', 'quarta', 'quinta', 'sesta', 'settima', 'ottava', 'nona', 'decima', 'undicesima',
+    'dodicesima', 'tredicesima', 'quattordicesima', 'quindicesima', 'sedicesima', 'diciassettesima', 'diciottesima', 'diciannovesima', 'ventesima'];
+
+/** Il numero di stagione in «seconda stagione», «Stagione 2», «2ª stagione». */
+function ita_wiki_season_n(string $s): ?int {
+    if (preg_match('/\b(\w+)\s+stagione\b/iu', $s, $m) && ($i = array_search(mb_strtolower($m[1]), ITA_ORDINALS, true)) !== false) return $i + 1;
+    if (preg_match('/\bstagione\s+(\d{1,2})\b|\b(\d{1,2})\s*[ªa°]\s+stagione\b/iu', $s, $m)) return (int) (($m[1] ?? '') !== '' ? $m[1] : $m[2]);
+    return null;
+}
+
+/** Una cella di wikitesto senza attributi (style="…" | testo) né modelli. */
+function ita_wiki_cell(string $c): string {
+    $c = (string) preg_replace('/^\s*(?:[a-z-]+\s*=\s*(?:"[^"]*"|\S+)\s*)+\|(?!\|)/i', '', $c);
+    return trim(strip_tags((string) preg_replace('/\{\{[^{}]*\}\}/', '', $c)));
+}
+
+/**
+ * Le date italiane di una tabella episodi: [numero => data|null]. La colonna è quella con «Italia»
+ * nell'intestazione, oppure l'unica colonna di date senza paese se il testo dice che esce ovunque insieme.
+ */
+function ita_wiki_table_dates(string $tab, string $context): ?array {
+    $tab = ita_wiki_clean($tab);
+    $head = [];
+    $rows = [];
+    foreach (preg_split('/^\s*\|-.*$/m', $tab) as $block) {
+        $cells = [];
+        $isHead = null;
+        foreach (explode("\n", $block) as $l) {
+            $l = ltrim($l);
+            if ($l === '' || str_starts_with($l, '{|') || str_starts_with($l, '|}') || str_starts_with($l, '|+')) continue;
+            if ($l[0] === '!') { $isHead ??= true; foreach (preg_split('/!!|\|\|/', substr($l, 1)) as $c) $cells[] = ita_wiki_cell($c); }
+            elseif ($l[0] === '|') { $isHead ??= false; foreach (explode('||', substr($l, 1)) as $c) $cells[] = ita_wiki_cell($c); }
+            elseif ($cells) $cells[count($cells) - 1] .= ' ' . trim($l);
+        }
+        if (!$cells) continue;
+        if ($isHead && !$head && !$rows) $head = $cells; else $rows[] = $cells;
+    }
+    if (!$head || !$rows) return null;
+    $dateRe = '/prima|tv|visione|pubblicazion|trasmission|uscita|data|distribuzion|debutto/i';
+    $col = null;
+    foreach ($head as $i => $h) if (preg_match('/ital/i', $h) && preg_match($dateRe, $h) && !preg_match('/titolo/i', $h)) { $col = $i; break; }
+    if ($col === null) {
+        $dateCols = array_keys(array_filter($head, fn($h) => preg_match($dateRe, $h) && !preg_match('/titolo/i', $h)));
+        $country = '/usa|stati uniti|regno unito|\buk\b|giappon|origin|canad|australi|franc|spagn|germani|corea|svezi|danimar|norveg|brasil|messic|internaz|mondo/i';
+        if (count($dateCols) !== 1 || preg_match($country, $head[$dateCols[0]])) return null;
+        if (!preg_match('/tutti i paesi|in contemporanea mondiale|in tutto il mondo|a livello globale|in tutte le regioni/iu', $context)) return null;
+        $col = $dateCols[0];
+    }
+    $first = $second = [];
+    foreach ($rows as $r) {
+        $first[] = preg_match('/^\d{1,3}$/', $r[0] ?? '') ? (int) $r[0] : null;
+        $second[] = preg_match('/^\d{1,3}$/', $r[1] ?? '') ? (int) $r[1] : null;
+    }
+    $numbered = array_filter($first);
+    if (!$numbered) return null;
+    $useSecond = !in_array(null, $second, true) && min($second) === 1 && min($numbered) > 1;
+    $out = [];
+    foreach ($rows as $i => $r) {
+        $num = $useSecond ? $second[$i] : $first[$i];
+        if (!$num) continue;
+        $out[$num] = isset($r[$col]) ? ita_wiki_date($r[$col]) : null;
+    }
+    return array_filter($out) ? $out : null;
+}
+
+/** Il calendario italiano: la stagione che in Italia ha la prossima uscita più vicina. $episodes = [stagione => puntate su TMDB]. */
+function ita_wiki_schedule(array $texts, string $today, array $episodes): ?array {
+    $best = null;
+    foreach ($texts as $title => $t) {
+        $nTitle = ita_wiki_season_n((string) $title);
+        if (!preg_match_all('/\{\|.*?\n\|\}/s', $t, $tab, PREG_OFFSET_CAPTURE)) continue;
+        $intro = ita_wiki_clean((string) preg_split('/^==/m', $t)[0]);
+        foreach ($tab[0] as [$x, $pos]) {
+            $before = substr($t, 0, $pos);
+            $n = $nTitle;
+            if (!$n && preg_match_all('/^==+\s*(.*?)\s*==+\s*$/m', $before, $h)) $n = ita_wiki_season_n((string) end($h[1]));
+            if (!$n && count($episodes) === 1) $n = (int) array_key_first($episodes);
+            if (!$n) continue;
+            $dates = ita_wiki_table_dates($x, $intro . "\n" . mb_substr(ita_wiki_clean($before), -1500));
+            if (!$dates) continue;
+            $c = ita_schedule(array_map(fn($k, $v) => [(int) $k, $v], array_keys($dates), $dates), $today);
+            if (!$c) continue;
+            $next = '';
+            foreach ($c['calendar'] as $u) if ($u['date'] >= $today) { $next = $u['date']; break; }
+            if (!$best || $next < $best[0]) $best = [$next, ['season' => $n] + $c + ['closed' => isset($episodes[$n]) && count($dates) >= $episodes[$n]]];
+        }
+    }
+    return $best[1] ?? null;
+}
+
 function ita_compute(string $key): array {
     if (!preg_match('/^(movie|tv)-(\d+)$/', $key, $mm)) throw new InvalidArgumentException('invalid_media');
     [, $type, $id] = $mm;
@@ -274,6 +412,19 @@ function ita_compute(string $key): array {
     $sub = [];
     foreach ($texts as $t) if (preg_match_all('/\[\[(Episodi di [^\]|#]+\([^)\]]*stagione[^)\]]*\))/u', $t, $sp)) $sub = array_merge($sub, $sp[1]);
     foreach (array_slice(array_values(array_unique($sub)), -2) as $p) if (!isset($texts[$p]) && ($t = ita_wiki_text($p))) $texts[$p] = $t;
+    if (!$sub && $seasons) {
+        // la voce non porta alle pagine delle stagioni: si provano per nome, «Episodi di X (seconda stagione)» (Marco, 12/11)
+        $base = '';
+        foreach (array_keys($texts) as $p) if (str_starts_with((string) $p, 'Episodi di ')) $base = (string) $p;
+        $base = $base ?: 'Episodi di ' . preg_replace('/\s*\([^)]*\)$/', '', (string) array_key_first($texts));
+        $names = [];
+        foreach (array_slice($seasons, -2) as $s) if (isset(ITA_ORDINALS[$s['n'] - 1])) $names[] = "$base (" . ITA_ORDINALS[$s['n'] - 1] . ' stagione)';
+        $r = $names ? ita_wiki_json('https://it.wikipedia.org/w/api.php?' . http_build_query(['action' => 'query', 'format' => 'json', 'formatversion' => 2, 'titles' => implode('|', $names)])) : [];
+        foreach ($r['query']['pages'] ?? [] as $p) if (empty($p['missing']) && ($t = ita_wiki_text($p['title']))) $texts[$p['title']] = $t;
+    }
+    // le date italiane delle puntate dalle tabelle: la pagina le preferisce a quelle originali di TMDB
+    $out['schedule_it'] = ita_wiki_schedule($texts, $today, array_column($seasons, 'episodes', 'n'));
+    if ($out['schedule_it']) $out['airing'] = true;     // si rilegge ogni giorno finché esce
     $out['source'] = 'https://it.wikipedia.org/wiki/' . rawurlencode(str_replace(' ', '_', (string) array_key_first($texts)));
     $anime = null;
     foreach ($texts as $t) if ($anime = ita_wiki_anime($t, $today)) break;

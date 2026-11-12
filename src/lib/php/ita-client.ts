@@ -1,4 +1,5 @@
 import { api } from '@/lib/php/client';
+import type { AiringSchedule } from '@/lib/airing-schedule';
 
 export type ItaKind = 'film' | 'serie' | 'anime';
 export type ItaState = 'completa' | 'in_corso' | 'inedita' | 'ignoto';
@@ -45,6 +46,8 @@ export interface ItaInfo {
   where: string;
   source: string | null;
   read_at: string;
+  /** Il calendario con le date italiane delle puntate, dalle tabelle di Wikipedia (se le hanno). */
+  schedule_it?: (AiringSchedule & { season: number }) | null;
 }
 
 export const itaApi = {

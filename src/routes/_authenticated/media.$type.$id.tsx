@@ -242,12 +242,12 @@ function MediaDetail() {
           <ItaSection type={item.type} tmdbId={numericId} />
         )}
 
-        {item.type === "tv" && tmdbQuery.data?.item.airingSeason && (
+        {item.type === "tv" && shouldFetchTmdb && (
           <AiringScheduleSection
             tmdbId={numericId}
-            season={tmdbQuery.data.item.airingSeason}
+            season={tmdbQuery.data?.item.airingSeason}
             seriesStatus={seriesStatus}
-            originCountry={tmdbQuery.data.item.originCountry}
+            originCountry={tmdbQuery.data?.item.originCountry}
           />
         )}
 

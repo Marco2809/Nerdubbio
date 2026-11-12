@@ -244,6 +244,7 @@ export default {
     about: "etwa {{when}}",
     undated: "Noch {{n}} Folgen ohne Datum",
     source: "Daten von TMDB",
+    sourceItaly: "Italienische Daten aus Wikipedia",
     originalDates: "Daten des Herkunftslands",
   },
   ita: {

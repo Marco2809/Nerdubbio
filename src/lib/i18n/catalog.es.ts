@@ -244,6 +244,7 @@ export default {
     about: "hacia el {{when}}",
     undated: "{{n}} episodios más aún sin fecha",
     source: "Fechas de TMDB",
+    sourceItaly: "Fechas italianas de Wikipedia",
     originalDates: "fechas del país de origen",
   },
   ita: {

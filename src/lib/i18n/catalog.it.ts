@@ -244,6 +244,7 @@ export default {
     about: "circa {{when}}",
     undated: "Altre {{n}} puntate ancora senza data",
     source: "Date da TMDB",
+    sourceItaly: "Date italiane da Wikipedia",
     originalDates: "date del paese d'origine",
   },
   ita: {

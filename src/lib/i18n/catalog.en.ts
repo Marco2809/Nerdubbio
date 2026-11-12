@@ -244,6 +244,7 @@ export default {
     about: "around {{when}}",
     undated: "{{n}} more episodes without a date yet",
     source: "Dates from TMDB",
+    sourceItaly: "Italian dates from Wikipedia",
     originalDates: "country-of-origin dates",
   },
   ita: {
