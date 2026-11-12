@@ -4,12 +4,24 @@ export type ItaKind = 'film' | 'serie' | 'anime';
 export type ItaState = 'completa' | 'in_corso' | 'inedita' | 'ignoto';
 export type ItaLang = 'dub' | 'sub';
 
-/** Una riga della mappa della libreria: tipo, stato in italiano, bollino, scelta dell'utente. */
+/** Cosa deve ancora uscire (TMDB, ogni notte): la pagina formatta data e testo nella lingua dell'utente. */
+export interface ItaArriving {
+  date: string;
+  season: number | null;
+  where: string;
+  kind: 'cinema' | 'streaming' | 'tv' | 'homevideo' | 'season' | 'series' | 'release';
+  /** La data vale per l'Italia (data italiana di TMDB o uscita mondiale di una piattaforma). */
+  italy: boolean;
+  worldwide: boolean;
+}
+
+/** Una riga della mappa della libreria: tipo, stato in italiano, bollino, scelta dell'utente, in arrivo. */
 export interface ItaMapItem {
   kind?: ItaKind;
   stato?: ItaState;
   short?: string;
   lang?: ItaLang;
+  arriving?: ItaArriving;
 }
 
 export interface ItaSeason {
@@ -40,7 +52,7 @@ export const itaApi = {
     return api('/api/ita.php?action=map');
   },
   /** Se il titolo non è mai stato letto ci vuole qualche secondo. */
-  get(key: string): Promise<{ ita: ItaInfo | null; lang: ItaLang | null }> {
+  get(key: string): Promise<{ ita: ItaInfo | null; lang: ItaLang | null; arriving: ItaArriving | null }> {
     return api(`/api/ita.php?action=get&key=${encodeURIComponent(key)}`);
   },
   setLang(key: string, lang: ItaLang | null): Promise<{ ok: boolean; lang: ItaLang | null }> {

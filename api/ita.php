@@ -20,7 +20,7 @@ if ($action === 'get') {
     $key = (string) ($_GET['key'] ?? '');
     if (!preg_match('/^(movie|tv)-\d+$/', $key)) api_err('invalid_media', 400);
     set_time_limit(120);
-    json_out(['ita' => ita_get($pdo, $key), 'lang' => ita_lang($pdo, $userId, $key)]);
+    json_out(['ita' => ita_get($pdo, $key), 'lang' => ita_lang($pdo, $userId, $key), 'arriving' => ita_arriving_of($pdo, $key)]);
 }
 
 // Doppiato / Solo sub indicato dall'utente (lang: dub | sub | null per togliere).

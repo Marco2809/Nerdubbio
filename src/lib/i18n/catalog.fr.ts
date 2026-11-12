@@ -202,6 +202,7 @@ export default {
     onProvider: "Sur",
     noProvider: "Aucun provider IT",
     addedToWatch: "« {{title}} » ajouté à À voir",
+    inLibrary: "Dans ta bibliothèque",
     openPage: "Ouvrir la fiche",
     loadingTrailer: "Recherche de la bande-annonce…",
     noTrailer: "Pas encore de bande-annonce",
@@ -225,6 +226,19 @@ export default {
     done: "Terminé",
   },
   ita: {
+    arriving: {
+      title: "Bientôt :",
+      season: "Saison {{n}}",
+      series: "Nouvelle série",
+      cinema: "Au cinéma",
+      streaming: "Sur {{where}}",
+      tv: "À la TV",
+      homevideo: "En vidéo",
+      release: "Sortie",
+      original: "en VO sur {{where}}",
+      notItaly: "date mondiale, pas encore pour l'Italie",
+      originalOnly: "Date d'origine : pas encore annoncée en Italie",
+    },
     loading: "Vérification de l'édition italienne…",
     loadError: "Impossible de lire l'édition italienne.",
     state: {

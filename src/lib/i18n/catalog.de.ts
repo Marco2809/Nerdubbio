@@ -202,6 +202,7 @@ export default {
     onProvider: "Auf",
     noProvider: "Kein IT-Anbieter",
     addedToWatch: "„{{title}}“ zu Geplant hinzugefügt",
+    inLibrary: "In deiner Bibliothek",
     openPage: "Seite öffnen",
     loadingTrailer: "Suche Trailer…",
     noTrailer: "Noch kein Trailer",
@@ -225,6 +226,19 @@ export default {
     done: "Fertig",
   },
   ita: {
+    arriving: {
+      title: "Demnächst:",
+      season: "Staffel {{n}}",
+      series: "Neue Serie",
+      cinema: "Im Kino",
+      streaming: "Auf {{where}}",
+      tv: "Im TV",
+      homevideo: "Auf Disc/Download",
+      release: "Erscheint",
+      original: "im Original auf {{where}}",
+      notItaly: "weltweites Datum, noch nicht für Italien",
+      originalOnly: "Originaldatum: für Italien noch nicht angekündigt",
+    },
     loading: "Prüfe die italienische Fassung…",
     loadError: "Italienische Fassung konnte nicht gelesen werden.",
     state: {

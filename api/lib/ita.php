@@ -161,6 +161,51 @@ function ita_claude(string $system, string $user): array {
     return $j;
 }
 
+/**
+ * Cosa deve ancora uscire: la prossima stagione (o la serie nuova) o il film, con data
+ * e dove. Per i film le date italiane per tipo (3 cinema, 4 digitale con la piattaforma
+ * nella nota, 6 TV); per le serie il primo episodio della prossima stagione, con la rete.
+ * italy = la data vale per l'Italia; worldwide = esce ovunque lo stesso giorno (Netflix…).
+ * Ritorna {date, season, where, kind: cinema|streaming|tv|homevideo|season|series|release, italy, worldwide} o null.
+ */
+function ita_arriving(string $type, array $d, array $providers, string $today): ?array {
+    if ($type === 'movie') {
+        $future = [];
+        foreach ($d['release_dates']['results'] ?? [] as $p) {
+            if (($p['iso_3166_1'] ?? '') !== 'IT') continue;
+            foreach ($p['release_dates'] ?? [] as $x) {
+                $date = substr((string) ($x['release_date'] ?? ''), 0, 10);
+                if ($date > $today) $future[] = [$date, (int) ($x['type'] ?? 0), trim((string) ($x['note'] ?? ''))];
+            }
+        }
+        sort($future);
+        if ($f = $future[0] ?? null) {
+            [$date, $t, $note] = $f;
+            $kind = in_array($t, [1, 2, 3], true) ? 'cinema' : ($t === 4 ? 'streaming' : ($t === 6 ? 'tv' : 'homevideo'));
+            $where = $kind === 'streaming' ? ($note ?: ($providers[0] ?? '')) : ($kind === 'tv' ? $note : '');
+            return ['date' => $date, 'season' => null, 'where' => $where, 'kind' => $kind, 'italy' => true, 'worldwide' => false];
+        }
+        $rel = (string) ($d['release_date'] ?? '');
+        return $rel > $today ? ['date' => $rel, 'season' => null, 'where' => '', 'kind' => 'release', 'italy' => false, 'worldwide' => false] : null;
+    }
+    $network = (string) ($d['networks'][0]['name'] ?? ($providers[0] ?? ''));
+    $next = $d['next_episode_to_air'] ?? null;
+    $season = null;
+    $date = null;
+    if ($next && (int) ($next['episode_number'] ?? 0) === 1 && (string) ($next['air_date'] ?? '') > $today) {
+        $season = (int) $next['season_number'];
+        $date = (string) $next['air_date'];
+    } else {
+        foreach ($d['seasons'] ?? [] as $x) {
+            $a = (string) ($x['air_date'] ?? '');
+            if ((int) ($x['season_number'] ?? 0) > 0 && $a > $today && (!$date || $a < $date)) { $date = $a; $season = (int) $x['season_number']; }
+        }
+    }
+    if (!$date) return null;
+    $worldwide = $network !== '' && (in_array($network, $providers, true) || preg_match('/netflix|prime video|amazon|disney|apple tv|paramount|hbo max|crunchyroll/i', $network));
+    return ['date' => $date, 'season' => $season, 'where' => $network, 'kind' => $season === 1 ? 'series' : 'season', 'italy' => (bool) $worldwide, 'worldwide' => (bool) $worldwide];
+}
+
 /** Film, serie o anime, da un dettaglio TMDB. */
 function ita_kind_of(array $d, string $type): string {
     $anime = in_array(16, array_column($d['genres'] ?? [], 'id'), true)
@@ -317,23 +362,28 @@ function ita_get(PDO $pdo, string $key, bool $force = false): ?array {
     }
     $pdo->prepare('REPLACE INTO media_ita (media_key, data, stato, airing, fetched_at) VALUES (?, ?, ?, ?, NOW())')
         ->execute([$key, to_json($data), $data['stato'], $data['airing'] ? 1 : 0]);
-    $pdo->prepare('REPLACE INTO media_kind (media_key, kind, fetched_at) VALUES (?, ?, NOW())')->execute([$key, $data['kind']]);
+    $pdo->prepare('INSERT INTO media_kind (media_key, kind, fetched_at) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE kind = VALUES(kind)')
+        ->execute([$key, $data['kind']]);
     return $data;
 }
 
 /** Il tipo di un titolo (film/serie/anime), con una sola lettura TMDB. */
 function ita_kind(PDO $pdo, string $key): ?string {
     if (!preg_match('/^(movie|tv)-(\d+)$/', $key, $m)) return null;
-    $d = ita_tmdb("$m[1]/$m[2]");
+    $d = ita_tmdb("$m[1]/$m[2]", ['append_to_response' => $m[1] === 'movie' ? 'release_dates,watch/providers' : 'watch/providers']);
     if ($d === null) return null;
     $kind = ita_kind_of($d, $m[1]);
-    $pdo->prepare('REPLACE INTO media_kind (media_key, kind, fetched_at) VALUES (?, ?, NOW())')->execute([$key, $kind]);
+    $providers = array_column($d['watch/providers']['results']['IT']['flatrate'] ?? [], 'provider_name');
+    $arriving = ita_arriving($m[1], $d, $providers, ita_today());
+    $pdo->prepare('REPLACE INTO media_kind (media_key, kind, arriving, fetched_at) VALUES (?, ?, ?, NOW())')
+        ->execute([$key, $kind, $arriving ? to_json($arriving) : null]);
     return $kind;
 }
 
 /** Per la lista dell'utente: tipo, bollino e scelta Doppiato/Solo sub, solo da cache. */
 function ita_map(PDO $pdo, string $userId): array {
-    $st = $pdo->prepare("SELECT um.media_key, mk.kind, mi.stato, mi.data, ul.lang FROM user_media um
+    $today = ita_today();
+    $st = $pdo->prepare("SELECT um.media_key, mk.kind, mk.arriving, mi.stato, mi.data, ul.lang FROM user_media um
         LEFT JOIN media_kind mk ON mk.media_key = um.media_key
         LEFT JOIN media_ita mi ON mi.media_key = um.media_key
         LEFT JOIN user_ita_lang ul ON ul.user_id = um.user_id AND ul.media_key = um.media_key
@@ -343,9 +393,19 @@ function ita_map(PDO $pdo, string $userId): array {
     foreach ($st->fetchAll() as $r) {
         if (!$r['kind'] && !$r['stato'] && !$r['lang']) continue;
         $d = $r['data'] ? (json_decode((string) $r['data'], true) ?: []) : [];
-        $out[$r['media_key']] = array_filter(['kind' => $r['kind'], 'stato' => $r['stato'], 'short' => $d['short'] ?? null, 'lang' => $r['lang']], fn($v) => $v !== null && $v !== '');
+        $arr = $r['arriving'] ? json_decode((string) $r['arriving'], true) : null;
+        if (!is_array($arr) || ($arr['date'] ?? '') <= $today) $arr = null;    // uscito da ieri: niente bollino vecchio
+        $out[$r['media_key']] = array_filter(['kind' => $r['kind'], 'stato' => $r['stato'], 'short' => $d['short'] ?? null, 'lang' => $r['lang'], 'arriving' => $arr],
+            fn($v) => $v !== null && $v !== '');
     }
     return $out;
+}
+
+function ita_arriving_of(PDO $pdo, string $key): ?array {
+    $st = $pdo->prepare('SELECT arriving FROM media_kind WHERE media_key = ?');
+    $st->execute([$key]);
+    $a = json_decode((string) ($st->fetchColumn() ?: ''), true);
+    return is_array($a) && ($a['date'] ?? '') > ita_today() ? $a : null;
 }
 
 function ita_lang(PDO $pdo, string $userId, string $key): ?string {

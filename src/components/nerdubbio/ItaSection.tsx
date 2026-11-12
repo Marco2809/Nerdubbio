@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Languages, Loader2 } from "lucide-react";
+import { CalendarDays, Check, Languages, Loader2 } from "lucide-react";
 import { useI18n, localeToBcp47 } from "@/lib/i18n";
 import { toast } from "@/lib/toast";
 import { itaApi, type ItaLang, type ItaState } from "@/lib/php/ita-client";
+import { arrivingText } from "@/lib/ita-format";
 
 const BORDER: Record<ItaState, string> = {
   completa: "border-l-emerald-500",
@@ -44,8 +45,15 @@ export function ItaSection({ type, tmdbId }: { type: "movie" | "tv"; tmdbId: num
     );
   }
   if (q.error || !q.data) return null;
-  const { ita, lang } = q.data;
-  if (!ita) return null;
+  const { ita, lang, arriving } = q.data;
+  if (!ita && !arriving) return null;
+  if (!ita) {
+    return (
+      <section className="glass mt-4 flex items-center gap-2 rounded-2xl p-4 text-sm">
+        <CalendarDays className="h-4 w-4 shrink-0 text-accent" /> {arrivingText(arriving!, t, localeToBcp47(locale))}
+      </section>
+    );
+  }
 
   const state: ItaState = lang && ita.stato === "ignoto" ? "completa" : ita.stato;
   const seasons = ita.seasons.filter((s) => s.episodes > 0);
@@ -61,6 +69,15 @@ export function ItaSection({ type, tmdbId }: { type: "movie" | "tv"; tmdbId: num
         <Languages className="h-4 w-4 text-accent" />
         <h2 className="text-sm font-bold uppercase tracking-wider">{t(`ita.state.${state}`)}</h2>
       </div>
+      {arriving && (
+        <p className="mt-2 flex items-start gap-1.5 rounded-xl bg-surface-2/70 px-3 py-2 text-sm">
+          <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+          <span>
+            <strong>{t("ita.arriving.title")}</strong> {arrivingText(arriving, t, localeToBcp47(locale))}
+            {!arriving.italy && <span className="block text-[11px] text-muted-foreground">{t("ita.arriving.originalOnly")}</span>}
+          </span>
+        </p>
+      )}
       <p className="mt-2 text-sm">{ita.text}</p>
       {ita.next && (
         <p className="mt-1 text-xs text-muted-foreground">

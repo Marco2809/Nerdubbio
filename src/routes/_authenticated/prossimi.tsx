@@ -26,7 +26,7 @@ import {
   type CalendarEvent,
 } from "@/lib/release-calendar";
 import { listTvShowsForNextEpisode, tmdbIdFromMediaKey } from "@/lib/next-episode";
-import { CalendarDays, Film, Popcorn, MapPin, Sparkles, X } from "lucide-react";
+import { CalendarDays, CircleCheck, Film, Popcorn, MapPin, Sparkles, X } from "lucide-react";
 
 const searchSchema = z.object({
   provider: fallback(z.number().int().positive().optional(), undefined),
@@ -312,7 +312,7 @@ function ProssimiPage() {
               items={movies}
               initial={3}
               className="grid grid-cols-1 gap-3"
-              render={m => <UpcomingMovieCard key={m.tmdb_id} m={m} onOpen={() => setPreview(previewFromMovie(m, t))} />}
+              render={m => <UpcomingMovieCard key={m.tmdb_id} m={m} inLibrary={!!state.media[`movie-${m.tmdb_id}`]} onOpen={() => setPreview(previewFromMovie(m, t))} />}
             />
           )}
         </section>
@@ -447,9 +447,11 @@ function NextEpisodeCard({ it, followed = false, onOpen }: { it: NextEpisodeInfo
   );
 }
 
-function UpcomingMovieCard({ m, onOpen }: { m: UpcomingMovie; onOpen: () => void }) {
+function UpcomingMovieCard({ m, onOpen, inLibrary = false }: { m: UpcomingMovie; onOpen: () => void; inLibrary?: boolean }) {
+  const { t } = useI18n();
   return (
-    <button type="button" onClick={onOpen} className="glass block w-full overflow-hidden rounded-2xl text-left">
+    <button type="button" onClick={onOpen}
+      className={`glass block w-full overflow-hidden rounded-2xl text-left ${inLibrary ? "ring-2 ring-emerald-500/80" : ""}`}>
       <div className="flex gap-3 p-3">
         {m.posterUrl
           ? <img src={m.posterUrl} alt={m.title} className="h-28 w-20 shrink-0 rounded-xl object-cover" />
@@ -457,6 +459,11 @@ function UpcomingMovieCard({ m, onOpen }: { m: UpcomingMovie; onOpen: () => void
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <p className="min-w-0 truncate text-sm font-bold">{m.title}</p>
+            {inLibrary && (
+              <span role="img" aria-label={t("prossimi.inLibrary")} title={t("prossimi.inLibrary")} className="shrink-0 text-emerald-500">
+                <CircleCheck className="h-4 w-4" />
+              </span>
+            )}
             <span className="shrink-0 rounded-full bg-neon px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
               <Film className="mr-1 inline h-3 w-3" />Cinema
             </span>

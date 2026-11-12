@@ -3,10 +3,11 @@ import { AppShell } from "@/components/nerdubbio/AppShell";
 import { useUserStore, type UserStatus, type UserMediaEntry } from "@/lib/user-store";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDownUp } from "lucide-react";
-import { itaApi, itaBadge, type ItaKind } from "@/lib/php/ita-client";
+import { ArrowDownUp, CalendarDays, Captions, MessageSquareCheck, MessageSquareMore, MessageSquareOff } from "lucide-react";
+import { itaApi, itaBadge, type ItaKind, type ItaState } from "@/lib/php/ita-client";
+import { arrivingShort, arrivingText } from "@/lib/ita-format";
 import { useReturnPath } from "@/lib/media-nav";
-import { useI18n, pageTitle } from "@/lib/i18n";
+import { useI18n, pageTitle, localeToBcp47 } from "@/lib/i18n";
 
 const TAB_VALUES = ["plan_to_watch", "watching", "all", "completed", "favorite", "paused", "dropped"] as const;
 
@@ -23,11 +24,18 @@ export const Route = createFileRoute("/_authenticated/watchlist")({
 type SortKey = "recent" | "added" | "title" | "mine";
 type KindFilter = "all" | ItaKind;
 
+// le icone sulla locandina (Marco, 12/11: le scritte si accavallavano); il nome nel tooltip
 const ITA_BADGE_CLASS: Record<string, string> = {
-  completa: "bg-emerald-500/90 text-white",
-  in_corso: "bg-amber-400/95 text-black",
-  inedita: "bg-rose-500/90 text-white",
+  completa: "bg-emerald-500 text-white",
+  in_corso: "bg-amber-400 text-black",
+  inedita: "bg-rose-500 text-white",
   ignoto: "bg-black/70 text-white",
+};
+const ITA_ICON: Record<ItaState, typeof MessageSquareCheck> = {
+  completa: MessageSquareCheck,
+  in_corso: MessageSquareMore,
+  inedita: MessageSquareOff,
+  ignoto: MessageSquareCheck,
 };
 
 type Card = {
@@ -49,7 +57,8 @@ function toCard(e: UserMediaEntry): Card | null {
 }
 
 function WatchlistPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const bcp47 = localeToBcp47(locale);
   const statusLabel = (s: string) => {
     const key = `status.${s}`;
     const label = t(key);
@@ -199,12 +208,32 @@ function WatchlistPage() {
                   </span>
                 )}
                 {(() => {
-                  const b = itaBadge(ita[entry.id]);
-                  return b ? (
-                    <span className={`absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-[10px] font-bold tracking-wide shadow ${ITA_BADGE_CLASS[b.state]}`}>
-                      {b.text}
+                  const item = ita[entry.id];
+                  const b = itaBadge(item);
+                  const arr = item?.arriving;
+                  if (!b && !arr) return null;
+                  const sub = !!b && /SUB/.test(b.text) && b.state !== "inedita";
+                  const Icon = sub ? Captions : b ? ITA_ICON[b.state] : null;
+                  const label = b ? t(`ita.state.${b.state}`) + (sub ? ` · ${t("ita.langSub")}` : "") : "";
+                  const arrText = arr ? arrivingText(arr, t, bcp47) + (arr.italy ? "" : ` · ${t("ita.arriving.originalOnly")}`) : "";
+                  return (
+                    <span className="absolute right-2 top-2 flex flex-col items-end gap-1">
+                      {b && Icon && (
+                        <span role="img" aria-label={label} title={label}
+                          className={`grid h-6 w-6 place-items-center rounded-full shadow ${ITA_BADGE_CLASS[b.state]}`}>
+                          <Icon className="h-3.5 w-3.5" />
+                        </span>
+                      )}
+                      {arr && (
+                        <span role="img" aria-label={arrText} title={arrText}
+                          className={`flex h-6 items-center gap-1 rounded-full px-2 text-[10px] font-bold shadow ${
+                            arr.italy ? "bg-foreground text-background" : "bg-black/60 text-white/70"
+                          }`}>
+                          <CalendarDays className="h-3 w-3" /> {arrivingShort(arr, bcp47)}
+                        </span>
+                      )}
                     </span>
-                  ) : null;
+                  );
                 })()}
                 {entry.source === "tvtime" && (
                   <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest text-white/80">

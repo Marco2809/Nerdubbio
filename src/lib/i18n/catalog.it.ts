@@ -202,6 +202,7 @@ export default {
     onProvider: "Su",
     noProvider: "Nessun provider IT",
     addedToWatch: "«{{title}}» aggiunto a Da vedere",
+    inLibrary: "Nella tua libreria",
     openPage: "Apri la scheda",
     loadingTrailer: "Cerco il trailer…",
     noTrailer: "Nessun trailer per ora",
@@ -225,6 +226,19 @@ export default {
     done: "Fatto",
   },
   ita: {
+    arriving: {
+      title: "In arrivo:",
+      season: "Stagione {{n}}",
+      series: "Nuova serie",
+      cinema: "Al cinema",
+      streaming: "Su {{where}}",
+      tv: "In TV",
+      homevideo: "In home video",
+      release: "Esce",
+      original: "in originale su {{where}}",
+      notItaly: "data nel mondo, non ancora per l'Italia",
+      originalOnly: "Data originale: in Italia non ancora annunciata",
+    },
     loading: "Controllo l'edizione italiana…",
     loadError: "Impossibile leggere l'edizione italiana.",
     state: {

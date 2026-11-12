@@ -202,6 +202,7 @@ export default {
     onProvider: "On",
     noProvider: "No IT provider",
     addedToWatch: "“{{title}}” added to your Watchlist",
+    inLibrary: "In your library",
     openPage: "Open page",
     loadingTrailer: "Looking for the trailer…",
     noTrailer: "No trailer yet",
@@ -225,6 +226,19 @@ export default {
     done: "Done",
   },
   ita: {
+    arriving: {
+      title: "Coming:",
+      season: "Season {{n}}",
+      series: "New series",
+      cinema: "In cinemas",
+      streaming: "On {{where}}",
+      tv: "On TV",
+      homevideo: "On home video",
+      release: "Out",
+      original: "originally on {{where}}",
+      notItaly: "worldwide date, not yet for Italy",
+      originalOnly: "Original date: not yet announced for Italy",
+    },
     loading: "Checking the Italian edition…",
     loadError: "Couldn't read the Italian edition.",
     state: {
