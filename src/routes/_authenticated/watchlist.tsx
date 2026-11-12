@@ -2,7 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/nerdubbio/AppShell";
 import { useUserStore, type UserStatus, type UserMediaEntry } from "@/lib/user-store";
 import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowDownUp } from "lucide-react";
+import { itaApi, itaBadge, type ItaKind } from "@/lib/php/ita-client";
 import { useReturnPath } from "@/lib/media-nav";
 import { useI18n, pageTitle } from "@/lib/i18n";
 
@@ -19,6 +21,14 @@ export const Route = createFileRoute("/_authenticated/watchlist")({
 });
 
 type SortKey = "recent" | "added" | "title" | "mine";
+type KindFilter = "all" | ItaKind;
+
+const ITA_BADGE_CLASS: Record<string, string> = {
+  completa: "bg-emerald-500/90 text-white",
+  in_corso: "bg-amber-400/95 text-black",
+  inedita: "bg-rose-500/90 text-white",
+  ignoto: "bg-black/70 text-white",
+};
 
 type Card = {
   entry: UserMediaEntry;
@@ -50,6 +60,11 @@ function WatchlistPage() {
   const initialTab = Route.useSearch().tab;
   const [tab, setTab] = useState<UserStatus | "all" | "favorite">(initialTab ?? "plan_to_watch");
   const [sort, setSort] = useState<SortKey>("recent");
+  const [kind, setKind] = useState<KindFilter>("all");
+  // tipo (film/serie/anime) ed edizione italiana dei titoli: dalla cache del server, una volta
+  const itaQuery = useQuery({ queryKey: ["ita", "map"], queryFn: () => itaApi.map(), staleTime: 1000 * 60 * 30 });
+  const ita = itaQuery.data?.items ?? {};
+  const kindOf = (c: Card): ItaKind => ita[c.entry.id]?.kind ?? (c.type === "movie" ? "film" : "serie");
 
   const tabs: { s: UserStatus | "all" | "favorite"; label: string }[] = useMemo(
     () => [
@@ -75,11 +90,17 @@ function WatchlistPage() {
     [t],
   );
 
-  const list = useMemo(() => {
-    const arr = Object.values(state.media)
+  const inTab = useMemo(
+    () => Object.values(state.media)
       .filter((m) => tab === "all" || (tab === "favorite" ? !!m.favorite : m.status === tab))
       .map(toCard)
-      .filter((c): c is Card => !!c);
+      .filter((c): c is Card => !!c),
+    [state.media, tab],
+  );
+  const kindCount = (k: KindFilter) => (k === "all" ? inTab.length : inTab.filter((c) => kindOf(c) === k).length);
+
+  const list = useMemo(() => {
+    const arr = inTab.filter((c) => kind === "all" || kindOf(c) === kind);
     const cmp = (a: Card, b: Card) => {
       switch (sort) {
         case "title":
@@ -96,7 +117,8 @@ function WatchlistPage() {
       }
     };
     return arr.sort(cmp);
-  }, [state.media, tab, sort]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inTab, sort, kind, itaQuery.data]);
 
   return (
     <AppShell subtitle={t("watchlist.subtitle")} title={t("watchlist.title")}>
@@ -114,6 +136,22 @@ function WatchlistPage() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label={t("watchlist.kindLabel")}>
+        {(["all", "film", "serie", "anime"] as KindFilter[]).filter((k) => k === "all" || kindCount(k) > 0).map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setKind(k)}
+            aria-pressed={kind === k}
+            className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition ${
+              kind === k ? "border-accent bg-accent/15 text-accent" : "border-border text-muted-foreground"
+            }`}
+          >
+            {t(`watchlist.kind.${k}`)} · {kindCount(k)}
+          </button>
+        ))}
       </div>
 
       <div className="mt-2 flex items-center gap-2">
@@ -160,6 +198,14 @@ function WatchlistPage() {
                     {entry.rating}/10
                   </span>
                 )}
+                {(() => {
+                  const b = itaBadge(ita[entry.id]);
+                  return b ? (
+                    <span className={`absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-[10px] font-bold tracking-wide shadow ${ITA_BADGE_CLASS[b.state]}`}>
+                      {b.text}
+                    </span>
+                  ) : null;
+                })()}
                 {entry.source === "tvtime" && (
                   <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest text-white/80">
                     {t("watchlist.fromTvTime")}

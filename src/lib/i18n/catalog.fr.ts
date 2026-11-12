@@ -224,6 +224,26 @@ export default {
     reading: "Lecture des horaires…",
     done: "Terminé",
   },
+  ita: {
+    loading: "Vérification de l'édition italienne…",
+    loadError: "Impossible de lire l'édition italienne.",
+    state: {
+      completa: "En italien",
+      in_corso: "En italien : en cours de sortie",
+      inedita: "Pas encore en italien",
+      ignoto: "Édition italienne",
+    },
+    next: "Prochaine sortie en Italie",
+    langDub: "Doublé",
+    langSub: "Sous-titres seuls",
+    langYours: "indiqué par toi",
+    season: "Saison {{n}}",
+    episodesAired: "{{aired}} sur {{total}} épisodes sortis",
+    episodes: "{{total}} épisodes",
+    yourChoice: "Selon toi",
+    source: "Source",
+    updated: "mis à jour le {{date}}",
+  },
   home: {
     greeting: "Salut {{name}}",
     title: "Que regardez-vous ?",
@@ -760,6 +780,13 @@ export default {
     friendsLink: "Amis",
   },
   watchlist: {
+    kindLabel: "Type",
+    kind: {
+      all: "Tout",
+      film: "Films",
+      serie: "Séries",
+      anime: "Anime",
+    },
     subtitle: "Ta pile",
     title: "Watchlist",
     tabAll: "Tout",
@@ -1019,5 +1046,6 @@ export default {
     cinema_max: "{{max}} cinémas maximum : retires-en un d'abord.",
     cinema_not_found: "Cinéma introuvable",
     cinema_city_unknown: "Ville introuvable",
+    invalid_media: "Titre non valide",
   },
 } as const;

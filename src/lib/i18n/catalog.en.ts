@@ -224,6 +224,26 @@ export default {
     reading: "Reading showtimes…",
     done: "Done",
   },
+  ita: {
+    loading: "Checking the Italian edition…",
+    loadError: "Couldn't read the Italian edition.",
+    state: {
+      completa: "In Italian",
+      in_corso: "In Italian: coming out now",
+      inedita: "Not in Italian yet",
+      ignoto: "Italian edition",
+    },
+    next: "Next release in Italy",
+    langDub: "Dubbed",
+    langSub: "Subs only",
+    langYours: "set by you",
+    season: "Season {{n}}",
+    episodesAired: "{{aired}} of {{total}} episodes out",
+    episodes: "{{total}} episodes",
+    yourChoice: "Your call",
+    source: "Source",
+    updated: "updated {{date}}",
+  },
   home: {
     greeting: "Hey {{name}}",
     title: "What are you watching?",
@@ -760,6 +780,13 @@ export default {
     friendsLink: "Friends",
   },
   watchlist: {
+    kindLabel: "Type",
+    kind: {
+      all: "All",
+      film: "Movies",
+      serie: "TV shows",
+      anime: "Anime",
+    },
     subtitle: "Your stack",
     title: "Watchlist",
     tabAll: "All",
@@ -1019,5 +1046,6 @@ export default {
     cinema_max: "Up to {{max}} cinemas: remove one first.",
     cinema_not_found: "Cinema not found",
     cinema_city_unknown: "City not found",
+    invalid_media: "Invalid title",
   },
 } as const;

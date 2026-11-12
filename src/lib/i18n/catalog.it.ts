@@ -224,6 +224,26 @@ export default {
     reading: "Leggo gli orari…",
     done: "Fatto",
   },
+  ita: {
+    loading: "Controllo l'edizione italiana…",
+    loadError: "Impossibile leggere l'edizione italiana.",
+    state: {
+      completa: "In italiano",
+      in_corso: "In italiano: sta uscendo",
+      inedita: "Non ancora in italiano",
+      ignoto: "Edizione italiana",
+    },
+    next: "Prossima uscita in Italia",
+    langDub: "Doppiato",
+    langSub: "Solo sub",
+    langYours: "l'hai indicato tu",
+    season: "Stagione {{n}}",
+    episodesAired: "{{aired}} di {{total}} episodi usciti",
+    episodes: "{{total}} episodi",
+    yourChoice: "Secondo te",
+    source: "Fonte",
+    updated: "aggiornato il {{date}}",
+  },
   home: {
     greeting: "Ciao {{name}}",
     title: "Cosa stai guardando?",
@@ -760,6 +780,13 @@ export default {
     friendsLink: "Amici",
   },
   watchlist: {
+    kindLabel: "Tipo",
+    kind: {
+      all: "Tutto",
+      film: "Film",
+      serie: "Serie TV",
+      anime: "Anime",
+    },
     subtitle: "La tua pila",
     title: "Watchlist",
     tabAll: "Tutto",
@@ -1019,5 +1046,6 @@ export default {
     cinema_max: "Al massimo {{max}} cinema: togline uno.",
     cinema_not_found: "Cinema non trovato",
     cinema_city_unknown: "Città non trovata",
+    invalid_media: "Titolo non valido",
   },
 } as const;

@@ -224,6 +224,26 @@ export default {
     reading: "Lese Spielzeiten…",
     done: "Fertig",
   },
+  ita: {
+    loading: "Prüfe die italienische Fassung…",
+    loadError: "Italienische Fassung konnte nicht gelesen werden.",
+    state: {
+      completa: "Auf Italienisch",
+      in_corso: "Auf Italienisch: erscheint gerade",
+      inedita: "Noch nicht auf Italienisch",
+      ignoto: "Italienische Fassung",
+    },
+    next: "Nächster Start in Italien",
+    langDub: "Synchronisiert",
+    langSub: "Nur Untertitel",
+    langYours: "von dir angegeben",
+    season: "Staffel {{n}}",
+    episodesAired: "{{aired}} von {{total}} Folgen erschienen",
+    episodes: "{{total}} Folgen",
+    yourChoice: "Deine Angabe",
+    source: "Quelle",
+    updated: "aktualisiert am {{date}}",
+  },
   home: {
     greeting: "Hi {{name}}",
     title: "Was schaust du?",
@@ -760,6 +780,13 @@ export default {
     friendsLink: "Freunde",
   },
   watchlist: {
+    kindLabel: "Art",
+    kind: {
+      all: "Alle",
+      film: "Filme",
+      serie: "Serien",
+      anime: "Anime",
+    },
     subtitle: "Dein Stapel",
     title: "Watchlist",
     tabAll: "Alle",
@@ -1019,5 +1046,6 @@ export default {
     cinema_max: "Höchstens {{max}} Kinos: entferne zuerst eins.",
     cinema_not_found: "Kino nicht gefunden",
     cinema_city_unknown: "Stadt nicht gefunden",
+    invalid_media: "Ungültiger Titel",
   },
 } as const;

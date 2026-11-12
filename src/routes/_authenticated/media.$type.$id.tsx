@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { tmdbDetail, tmdbCredits, tmdbSeason, tmdbPerson, tmdbWatchProviders, tmdbVideos, type TmdbItem, type CastMember } from "@/lib/tmdb/tmdb.functions";
 import { useTmdbLocale } from "@/lib/tmdb/use-tmdb-locale";
 import { TrailerSection } from "@/components/nerdubbio/TrailerSection";
+import { ItaSection } from "@/components/nerdubbio/ItaSection";
 import { useReturnPath, useSmartBack } from "@/lib/media-nav";
 import { applyShowProgressAfterWatch, formatSeriesStatusLabel } from "@/lib/check-show-after-watch";
 import { toast } from "@/lib/toast";
@@ -234,6 +235,10 @@ function MediaDetail() {
 
         {(videosQuery.data?.trailers.length ?? 0) > 0 && (
           <TrailerSection trailers={videosQuery.data!.trailers} />
+        )}
+
+        {shouldFetchTmdb && (item.type === "movie" || item.type === "tv") && (
+          <ItaSection type={item.type} tmdbId={numericId} />
         )}
 
         <RecapSection
